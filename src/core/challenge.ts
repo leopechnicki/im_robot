@@ -1,4 +1,5 @@
 import type { Challenge, Operation, Difficulty, ImRobotToken, ImRobotConfig } from './types'
+import { SUSPICIOUS_THRESHOLD_MS } from './types'
 import { executePipeline } from './operations'
 import { fnv1a } from './hash'
 
@@ -20,6 +21,30 @@ function randomInt(min: number, max: number): number {
 
 function pickRandom<T>(arr: T[]): T {
   return arr[randomInt(0, arr.length - 1)]
+}
+
+/** Default TTL per difficulty — shorter windows prevent human relay */
+function getDefaultTtl(difficulty: Difficulty): number {
+  switch (difficulty) {
+    case 'easy':
+      return 30_000
+    case 'medium':
+      return 20_000
+    case 'hard':
+      return 15_000
+  }
+}
+
+/** Nonce length increases with difficulty */
+function getNonceLength(difficulty: Difficulty): number {
+  switch (difficulty) {
+    case 'easy':
+      return 4
+    case 'medium':
+      return 6
+    case 'hard':
+      return 8
+  }
 }
 
 type OpFactory = (currentValue: string) => Operation
@@ -91,8 +116,13 @@ export function generateChallenge(config?: Partial<ImRobotConfig>, _depth = 0): 
   if (_depth > 10) throw new Error('Failed to generate valid challenge')
 
   const difficulty = config?.difficulty ?? 'medium'
-  const ttl = config?.ttl ?? 300_000
-  const seed = randomHex(16)
+  const ttl = config?.ttl ?? getDefaultTtl(difficulty)
+
+  // Split seed into visible part (displayed) + hidden nonce (only in JSON)
+  const visibleSeed = randomHex(16)
+  const nonce = randomHex(getNonceLength(difficulty))
+  const seed = visibleSeed + nonce
+
   const pipeline = buildPipeline(seed, difficulty)
 
   let answer: string
@@ -116,6 +146,8 @@ export function generateChallenge(config?: Partial<ImRobotConfig>, _depth = 0): 
     ttl,
     difficulty,
     seed,
+    visibleSeed,
+    nonce,
     pipeline,
     verification,
   }
@@ -138,6 +170,7 @@ export function createToken(
     answer,
     timestamp: Date.now(),
     elapsed,
+    suspicious: elapsed > SUSPICIOUS_THRESHOLD_MS,
     signature,
   }
 }

@@ -13,6 +13,8 @@ export class ImRobotElement extends HTMLElement {
   private answer = ''
   private status: 'idle' | 'verified' | 'failed' = 'idle'
   private startTime = Date.now()
+  private countdownTimer: ReturnType<typeof setInterval> | null = null
+  private remainingSeconds = 0
 
   constructor() {
     super()
@@ -28,20 +30,76 @@ export class ImRobotElement extends HTMLElement {
   }
 
   get ttl(): number {
-    return Number(this.getAttribute('ttl')) || 300_000
+    return Number(this.getAttribute('ttl')) || 0 // 0 = use default per-difficulty
   }
 
   connectedCallback() {
     this.challenge = generateChallenge({
       difficulty: this.difficulty,
-      ttl: this.ttl,
+      ...(this.ttl > 0 ? { ttl: this.ttl } : {}),
     })
     this.startTime = Date.now()
+    this.startCountdown()
     this.render()
+  }
+
+  disconnectedCallback() {
+    this.stopCountdown()
   }
 
   attributeChangedCallback() {
     if (this.isConnected) this.render()
+  }
+
+  private startCountdown() {
+    this.stopCountdown()
+    this.remainingSeconds = Math.ceil(this.challenge.ttl / 1000)
+    this.countdownTimer = setInterval(() => {
+      const elapsed = Date.now() - this.challenge.timestamp
+      this.remainingSeconds = Math.max(0, Math.ceil((this.challenge.ttl - elapsed) / 1000))
+      if (this.remainingSeconds <= 0) {
+        this.handleExpired()
+      } else {
+        this.updateTimerDisplay()
+      }
+    }, 1000)
+  }
+
+  private stopCountdown() {
+    if (this.countdownTimer !== null) {
+      clearInterval(this.countdownTimer)
+      this.countdownTimer = null
+    }
+  }
+
+  private handleExpired() {
+    this.stopCountdown()
+    // Auto-refresh with a new challenge
+    this.challenge = generateChallenge({
+      difficulty: this.difficulty,
+      ...(this.ttl > 0 ? { ttl: this.ttl } : {}),
+    })
+    this.answer = ''
+    this.status = 'idle'
+    this.startTime = Date.now()
+    this.startCountdown()
+    this.render()
+  }
+
+  private updateTimerDisplay() {
+    const fill = this.shadow.querySelector('.imrobot-timer-fill') as HTMLElement
+    const text = this.shadow.querySelector('.imrobot-timer-text') as HTMLElement
+    if (fill && text) {
+      const totalSec = this.challenge.ttl / 1000
+      const pct = (this.remainingSeconds / totalSec) * 100
+      fill.style.width = `${pct}%`
+      text.textContent = `${this.remainingSeconds}s`
+      if (pct <= 25) {
+        fill.classList.add('imrobot-timer-fill--warn')
+      } else {
+        fill.classList.remove('imrobot-timer-fill--warn')
+      }
+    }
   }
 
   private handleVerify() {
@@ -50,6 +108,7 @@ export class ImRobotElement extends HTMLElement {
 
     if (verifyAnswer(this.challenge, trimmed)) {
       this.status = 'verified'
+      this.stopCountdown()
       const token = createToken(this.challenge, trimmed, this.startTime)
       this.dispatchEvent(
         new CustomEvent<ImRobotToken>('imrobot-verified', {
@@ -88,17 +147,21 @@ export class ImRobotElement extends HTMLElement {
   private handleRetry() {
     this.challenge = generateChallenge({
       difficulty: this.difficulty,
-      ttl: this.ttl,
+      ...(this.ttl > 0 ? { ttl: this.ttl } : {}),
     })
     this.answer = ''
     this.status = 'idle'
     this.startTime = Date.now()
+    this.startCountdown()
     this.render()
   }
 
   private render() {
-    const display = formatPipeline(this.challenge.seed, this.challenge.pipeline)
+    // Display uses visibleSeed (partial) — the full seed includes the hidden nonce
+    const display = formatPipeline(this.challenge.visibleSeed, this.challenge.pipeline)
     const challengeJson = JSON.stringify(this.challenge)
+    const totalSec = this.challenge.ttl / 1000
+    const pct = (this.remainingSeconds / totalSec) * 100
 
     this.shadow.innerHTML = `
       <style>${getStyles(this.theme)}</style>
@@ -110,7 +173,22 @@ export class ImRobotElement extends HTMLElement {
           <span class="imrobot-icon">${ROBOT_SVG}</span>
           <span>Prove you're a robot</span>
         </div>
-        <div class="imrobot-challenge" aria-label="Challenge pipeline">${this.escapeHtml(display)}</div>
+        ${
+          this.status !== 'verified'
+            ? `<div class="imrobot-timer">
+                <span class="imrobot-timer-label">Time</span>
+                <div class="imrobot-timer-bar">
+                  <div class="imrobot-timer-fill${pct <= 25 ? ' imrobot-timer-fill--warn' : ''}"
+                       style="width:${pct}%"></div>
+                </div>
+                <span class="imrobot-timer-text">${this.remainingSeconds}s</span>
+              </div>`
+            : ''
+        }
+        <div class="imrobot-challenge"
+             aria-label="Challenge pipeline"
+             oncontextmenu="return false"
+             ondragstart="return false">${this.escapeHtml(display)}</div>
         ${
           this.status !== 'verified'
             ? `<div class="imrobot-row">
@@ -161,6 +239,14 @@ export class ImRobotElement extends HTMLElement {
     const retryBtn = this.shadow.querySelector('.retry-btn')
     if (retryBtn) {
       retryBtn.addEventListener('click', () => this.handleRetry())
+    }
+
+    // Anti-copy: prevent context menu and drag on challenge area
+    const challengeEl = this.shadow.querySelector('.imrobot-challenge')
+    if (challengeEl) {
+      challengeEl.addEventListener('contextmenu', (e) => e.preventDefault())
+      challengeEl.addEventListener('copy', (e) => e.preventDefault())
+      challengeEl.addEventListener('dragstart', (e) => e.preventDefault())
     }
   }
 

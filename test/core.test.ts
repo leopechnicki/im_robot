@@ -12,6 +12,7 @@ import {
 } from '../src/core/challenge'
 import { solveChallenge } from '../src/core/solver'
 import { fnv1a } from '../src/core/hash'
+import { SUSPICIOUS_THRESHOLD_MS } from '../src/core/types'
 import type { Operation } from '../src/core/types'
 
 describe('fnv1a', () => {
@@ -127,13 +128,34 @@ describe('formatPipeline', () => {
 })
 
 describe('generateChallenge', () => {
-  it('generates a valid challenge', () => {
+  it('generates a valid challenge with nonce', () => {
     const challenge = generateChallenge()
     expect(challenge.version).toBe(1)
     expect(challenge.id).toMatch(/^[0-9a-f]{16}$/)
-    expect(challenge.seed).toMatch(/^[0-9a-f]{16}$/)
+    expect(challenge.visibleSeed).toMatch(/^[0-9a-f]{16}$/)
+    expect(challenge.nonce).toMatch(/^[0-9a-f]+$/)
+    // seed = visibleSeed + nonce
+    expect(challenge.seed).toBe(challenge.visibleSeed + challenge.nonce)
     expect(challenge.pipeline.length).toBeGreaterThanOrEqual(2)
     expect(challenge.verification).toMatch(/^[0-9a-f]{8}$/)
+  })
+
+  it('nonce length scales with difficulty', () => {
+    const easy = generateChallenge({ difficulty: 'easy' })
+    const medium = generateChallenge({ difficulty: 'medium' })
+    const hard = generateChallenge({ difficulty: 'hard' })
+    expect(easy.nonce.length).toBe(4)
+    expect(medium.nonce.length).toBe(6)
+    expect(hard.nonce.length).toBe(8)
+  })
+
+  it('uses short default TTLs per difficulty', () => {
+    const easy = generateChallenge({ difficulty: 'easy' })
+    const medium = generateChallenge({ difficulty: 'medium' })
+    const hard = generateChallenge({ difficulty: 'hard' })
+    expect(easy.ttl).toBe(30_000)
+    expect(medium.ttl).toBe(20_000)
+    expect(hard.ttl).toBe(15_000)
   })
 
   it('respects difficulty setting', () => {
@@ -148,9 +170,20 @@ describe('generateChallenge', () => {
     expect(hard.pipeline.length).toBeLessThanOrEqual(7)
   })
 
-  it('respects ttl setting', () => {
+  it('respects custom ttl setting', () => {
     const challenge = generateChallenge({ ttl: 60_000 })
     expect(challenge.ttl).toBe(60_000)
+  })
+
+  it('solving with only visibleSeed gives wrong answer', () => {
+    const challenge = generateChallenge()
+    // Compute answer using only the visible portion (what a human screenshot would show)
+    const wrongAnswer = executePipeline(challenge.visibleSeed, challenge.pipeline)
+    // The real answer uses the full seed (visibleSeed + nonce)
+    const correctAnswer = solveChallenge(challenge)
+    expect(wrongAnswer).not.toBe(correctAnswer)
+    expect(verifyAnswer(challenge, wrongAnswer)).toBe(false)
+    expect(verifyAnswer(challenge, correctAnswer)).toBe(true)
   })
 })
 
@@ -198,5 +231,21 @@ describe('createToken', () => {
     expect(token.answer).toBe(answer)
     expect(token.elapsed).toBeGreaterThanOrEqual(400)
     expect(token.signature).toMatch(/^[0-9a-f]{8}$/)
+  })
+
+  it('flags fast submissions as not suspicious', () => {
+    const challenge = generateChallenge()
+    const answer = solveChallenge(challenge)
+    const startTime = Date.now() - 100
+    const token = createToken(challenge, answer, startTime)
+    expect(token.suspicious).toBe(false)
+  })
+
+  it('flags slow submissions as suspicious', () => {
+    const challenge = generateChallenge()
+    const answer = solveChallenge(challenge)
+    const startTime = Date.now() - (SUSPICIOUS_THRESHOLD_MS + 1000)
+    const token = createToken(challenge, answer, startTime)
+    expect(token.suspicious).toBe(true)
   })
 })
