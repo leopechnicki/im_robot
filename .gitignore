@@ -6,3 +6,5 @@ dist/
 .env.local
 coverage/
 *.log
+
+.vercel

@@ -71,6 +71,20 @@ export class ImRobotElement extends HTMLElement {
     this.render()
   }
 
+  /**
+   * Public API: programmatically submit an answer.
+   * AI agents and the auto-solve demo use this method.
+   */
+  public submitAnswer(answer: string) {
+    this.answer = answer
+    this.handleVerify()
+  }
+
+  /** Expose the current challenge for programmatic access */
+  public getChallenge(): Challenge {
+    return this.challenge
+  }
+
   private handleRetry() {
     this.challenge = generateChallenge({
       difficulty: this.difficulty,
