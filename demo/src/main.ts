@@ -58,22 +58,25 @@ document.getElementById('auto-solve')!.addEventListener('click', () => {
   const challenge = widget.getChallenge()
   const answer = solveChallenge(challenge)
 
-  // Animate typing into the shadow DOM input, then use the public API to verify
+  // Show typing animation in the shadow DOM input, then submit immediately
+  // Must submit quickly — short TTLs mean the challenge can expire during long animations
   const input = widget.shadowRoot?.querySelector('.imrobot-input') as HTMLInputElement | null
 
   if (input) {
+    const charsPerFrame = Math.max(1, Math.ceil(answer.length / 15))
     let i = 0
     input.value = ''
     const typeInterval = setInterval(() => {
       if (i < answer.length) {
-        input.value += answer[i]
-        i++
+        const end = Math.min(i + charsPerFrame, answer.length)
+        input.value = answer.substring(0, end)
+        i = end
       } else {
         clearInterval(typeInterval)
-        // Use the public API to submit — avoids shadow DOM event issues
-        setTimeout(() => widget.submitAnswer(answer), 150)
+        // Submit immediately — challenge may expire soon
+        widget.submitAnswer(answer)
       }
-    }, 25)
+    }, 20)
   } else {
     // No input visible (already verified?), submit directly
     widget.submitAnswer(answer)
