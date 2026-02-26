@@ -90,6 +90,45 @@ export function getStyles(theme: 'light' | 'dark'): string {
       white-space: pre-wrap;
       word-break: break-all;
       color: ${t.text};
+      user-select: none;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      position: relative;
+    }
+    .imrobot-timer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .imrobot-timer-label {
+      color: ${t.textMuted};
+    }
+    .imrobot-timer-bar {
+      flex: 1;
+      height: 4px;
+      background: ${t.codeBg};
+      border-radius: 2px;
+      margin: 0 10px;
+      overflow: hidden;
+    }
+    .imrobot-timer-fill {
+      height: 100%;
+      background: ${t.btnBg};
+      border-radius: 2px;
+      transition: width 1s linear;
+    }
+    .imrobot-timer-fill--warn {
+      background: ${t.errorColor};
+    }
+    .imrobot-timer-text {
+      color: ${t.textMuted};
+      font-variant-numeric: tabular-nums;
+      min-width: 28px;
+      text-align: right;
     }
     .imrobot-row {
       display: flex;

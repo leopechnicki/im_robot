@@ -15,23 +15,55 @@ export interface ImRobotProps {
 export function ImRobot({
   difficulty = 'medium',
   theme = 'light',
-  ttl = 300_000,
+  ttl,
   onVerified,
   onError,
 }: ImRobotProps) {
   const [challenge, setChallenge] = useState<Challenge>(() =>
-    generateChallenge({ difficulty, ttl }),
+    generateChallenge({ difficulty, ...(ttl ? { ttl } : {}) }),
   )
   const [answer, setAnswer] = useState('')
   const [status, setStatus] = useState<'idle' | 'verified' | 'failed'>('idle')
+  const [remainingSeconds, setRemainingSeconds] = useState(() =>
+    Math.ceil(challenge.ttl / 1000),
+  )
   const startTime = useRef(Date.now())
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const css = useMemo(() => getStyles(theme), [theme])
+  // Display uses visibleSeed — the full seed includes the hidden nonce
   const display = useMemo(
-    () => formatPipeline(challenge.seed, challenge.pipeline),
+    () => formatPipeline(challenge.visibleSeed, challenge.pipeline),
     [challenge],
   )
   const challengeJson = useMemo(() => JSON.stringify(challenge), [challenge])
+
+  const refreshChallenge = useCallback(() => {
+    const newChallenge = generateChallenge({ difficulty, ...(ttl ? { ttl } : {}) })
+    setChallenge(newChallenge)
+    setAnswer('')
+    setStatus('idle')
+    startTime.current = Date.now()
+    setRemainingSeconds(Math.ceil(newChallenge.ttl / 1000))
+  }, [difficulty, ttl])
+
+  // Countdown timer
+  useEffect(() => {
+    if (status === 'verified') return
+
+    timerRef.current = setInterval(() => {
+      const elapsed = Date.now() - challenge.timestamp
+      const remaining = Math.max(0, Math.ceil((challenge.ttl - elapsed) / 1000))
+      setRemainingSeconds(remaining)
+      if (remaining <= 0) {
+        refreshChallenge()
+      }
+    }, 1000)
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current)
+    }
+  }, [challenge, status, refreshChallenge])
 
   const handleVerify = useCallback(() => {
     const trimmed = answer.trim()
@@ -48,16 +80,11 @@ export function ImRobot({
   }, [answer, challenge, onVerified, onError])
 
   const handleRetry = useCallback(() => {
-    setChallenge(generateChallenge({ difficulty, ttl }))
-    setAnswer('')
-    setStatus('idle')
-    startTime.current = Date.now()
-  }, [difficulty, ttl])
+    refreshChallenge()
+  }, [refreshChallenge])
 
-  useEffect(() => {
-    const el = document.querySelector('[data-imrobot-challenge]')
-    if (el) el.setAttribute('data-imrobot-challenge', challengeJson)
-  }, [challengeJson])
+  const totalSec = challenge.ttl / 1000
+  const pct = (remainingSeconds / totalSec) * 100
 
   return (
     <>
@@ -76,7 +103,26 @@ export function ImRobot({
           <span>Prove you&apos;re a robot</span>
         </div>
 
-        <div className="imrobot-challenge" aria-label="Challenge pipeline">
+        {status !== 'verified' && (
+          <div className="imrobot-timer">
+            <span className="imrobot-timer-label">Time</span>
+            <div className="imrobot-timer-bar">
+              <div
+                className={`imrobot-timer-fill${pct <= 25 ? ' imrobot-timer-fill--warn' : ''}`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <span className="imrobot-timer-text">{remainingSeconds}s</span>
+          </div>
+        )}
+
+        <div
+          className="imrobot-challenge"
+          aria-label="Challenge pipeline"
+          onContextMenu={(e) => e.preventDefault()}
+          onCopy={(e) => e.preventDefault()}
+          onDragStart={(e) => e.preventDefault()}
+        >
           {display}
         </div>
 

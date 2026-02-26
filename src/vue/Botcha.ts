@@ -1,4 +1,4 @@
-import { defineComponent, ref, computed, h, type PropType } from 'vue'
+import { defineComponent, ref, computed, h, onMounted, onUnmounted, type PropType } from 'vue'
 import type { Challenge, ImRobotToken, Difficulty } from '../core/types'
 import { generateChallenge, verifyAnswer, createToken } from '../core/challenge'
 import { formatPipeline } from '../core/operations'
@@ -17,23 +17,63 @@ export const ImRobot = defineComponent({
     },
     ttl: {
       type: Number,
-      default: 300_000,
+      default: 0, // 0 = use default per-difficulty
     },
   },
   emits: ['verified', 'error'],
   setup(props, { emit }) {
     const challenge = ref<Challenge>(
-      generateChallenge({ difficulty: props.difficulty, ttl: props.ttl }),
+      generateChallenge({
+        difficulty: props.difficulty,
+        ...(props.ttl > 0 ? { ttl: props.ttl } : {}),
+      }),
     )
     const answer = ref('')
     const status = ref<'idle' | 'verified' | 'failed'>('idle')
     const startTime = ref(Date.now())
+    const remainingSeconds = ref(Math.ceil(challenge.value.ttl / 1000))
+    let countdownTimer: ReturnType<typeof setInterval> | null = null
 
     const css = computed(() => getStyles(props.theme))
+    // Display uses visibleSeed — the full seed includes the hidden nonce
     const display = computed(() =>
-      formatPipeline(challenge.value.seed, challenge.value.pipeline),
+      formatPipeline(challenge.value.visibleSeed, challenge.value.pipeline),
     )
     const challengeJson = computed(() => JSON.stringify(challenge.value))
+
+    function refreshChallenge() {
+      challenge.value = generateChallenge({
+        difficulty: props.difficulty,
+        ...(props.ttl > 0 ? { ttl: props.ttl } : {}),
+      })
+      answer.value = ''
+      status.value = 'idle'
+      startTime.value = Date.now()
+      remainingSeconds.value = Math.ceil(challenge.value.ttl / 1000)
+    }
+
+    function startCountdown() {
+      stopCountdown()
+      countdownTimer = setInterval(() => {
+        const elapsed = Date.now() - challenge.value.timestamp
+        const remaining = Math.max(0, Math.ceil((challenge.value.ttl - elapsed) / 1000))
+        remainingSeconds.value = remaining
+        if (remaining <= 0) {
+          refreshChallenge()
+          startCountdown()
+        }
+      }, 1000)
+    }
+
+    function stopCountdown() {
+      if (countdownTimer !== null) {
+        clearInterval(countdownTimer)
+        countdownTimer = null
+      }
+    }
+
+    onMounted(() => startCountdown())
+    onUnmounted(() => stopCountdown())
 
     function handleVerify() {
       const trimmed = answer.value.trim()
@@ -41,6 +81,7 @@ export const ImRobot = defineComponent({
 
       if (verifyAnswer(challenge.value, trimmed)) {
         status.value = 'verified'
+        stopCountdown()
         const token = createToken(challenge.value, trimmed, startTime.value)
         emit('verified', token)
       } else {
@@ -50,16 +91,14 @@ export const ImRobot = defineComponent({
     }
 
     function handleRetry() {
-      challenge.value = generateChallenge({
-        difficulty: props.difficulty,
-        ttl: props.ttl,
-      })
-      answer.value = ''
-      status.value = 'idle'
-      startTime.value = Date.now()
+      refreshChallenge()
+      startCountdown()
     }
 
     return () => {
+      const totalSec = challenge.value.ttl / 1000
+      const pct = (remainingSeconds.value / totalSec) * 100
+
       const children = [
         h('style', css.value),
         h(
@@ -80,12 +119,28 @@ export const ImRobot = defineComponent({
               h('span', "Prove you're a robot"),
             ]),
 
-            // Challenge display
+            // Countdown timer
+            status.value !== 'verified' &&
+              h('div', { class: 'imrobot-timer' }, [
+                h('span', { class: 'imrobot-timer-label' }, 'Time'),
+                h('div', { class: 'imrobot-timer-bar' }, [
+                  h('div', {
+                    class: `imrobot-timer-fill${pct <= 25 ? ' imrobot-timer-fill--warn' : ''}`,
+                    style: { width: `${pct}%` },
+                  }),
+                ]),
+                h('span', { class: 'imrobot-timer-text' }, `${remainingSeconds.value}s`),
+              ]),
+
+            // Challenge display — anti-copy handlers
             h(
               'div',
               {
                 class: 'imrobot-challenge',
                 'aria-label': 'Challenge pipeline',
+                onContextmenu: (e: Event) => e.preventDefault(),
+                onCopy: (e: Event) => e.preventDefault(),
+                onDragstart: (e: Event) => e.preventDefault(),
               },
               display.value,
             ),

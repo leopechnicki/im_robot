@@ -7,6 +7,8 @@ export type {
   ImRobotConfig,
 } from './core/types'
 
+export { SUSPICIOUS_THRESHOLD_MS } from './core/types'
+
 export {
   executeOperation,
   executePipeline,

@@ -1,22 +1,58 @@
 <script>
   import { generateChallenge, verifyAnswer, createToken } from 'imrobot/core'
   import { formatPipeline } from 'imrobot/core'
-  import { getStyles, ROBOT_SVG } from 'imrobot/core'
+  import { getStyles, ROBOT_SVG } from 'imrobot'
+  import { onMount, onDestroy } from 'svelte'
 
   export let difficulty = 'medium'
   export let theme = 'light'
-  export let ttl = 300000
+  export let ttl = 0
   export let onVerified = (_token) => {}
   export let onError = (_error) => {}
 
-  let challenge = generateChallenge({ difficulty, ttl })
+  let challenge = generateChallenge({ difficulty, ...(ttl > 0 ? { ttl } : {}) })
   let answer = ''
   let status = 'idle'
   let startTime = Date.now()
+  let remainingSeconds = Math.ceil(challenge.ttl / 1000)
+  let countdownTimer = null
 
   $: css = getStyles(theme)
-  $: display = formatPipeline(challenge.seed, challenge.pipeline)
+  // Display uses visibleSeed — the full seed includes the hidden nonce
+  $: display = formatPipeline(challenge.visibleSeed, challenge.pipeline)
   $: challengeJson = JSON.stringify(challenge)
+  $: totalSec = challenge.ttl / 1000
+  $: pct = (remainingSeconds / totalSec) * 100
+
+  function refreshChallenge() {
+    challenge = generateChallenge({ difficulty, ...(ttl > 0 ? { ttl } : {}) })
+    answer = ''
+    status = 'idle'
+    startTime = Date.now()
+    remainingSeconds = Math.ceil(challenge.ttl / 1000)
+  }
+
+  function startCountdown() {
+    stopCountdown()
+    countdownTimer = setInterval(() => {
+      const elapsed = Date.now() - challenge.timestamp
+      remainingSeconds = Math.max(0, Math.ceil((challenge.ttl - elapsed) / 1000))
+      if (remainingSeconds <= 0) {
+        refreshChallenge()
+        startCountdown()
+      }
+    }, 1000)
+  }
+
+  function stopCountdown() {
+    if (countdownTimer !== null) {
+      clearInterval(countdownTimer)
+      countdownTimer = null
+    }
+  }
+
+  onMount(() => startCountdown())
+  onDestroy(() => stopCountdown())
 
   function handleVerify() {
     const trimmed = answer.trim()
@@ -24,6 +60,7 @@
 
     if (verifyAnswer(challenge, trimmed)) {
       status = 'verified'
+      stopCountdown()
       const token = createToken(challenge, trimmed, startTime)
       onVerified(token)
     } else {
@@ -33,14 +70,16 @@
   }
 
   function handleRetry() {
-    challenge = generateChallenge({ difficulty, ttl })
-    answer = ''
-    status = 'idle'
-    startTime = Date.now()
+    refreshChallenge()
+    startCountdown()
   }
 
   function handleKeydown(e) {
     if (e.key === 'Enter') handleVerify()
+  }
+
+  function preventEvent(e) {
+    e.preventDefault()
   }
 </script>
 
@@ -57,7 +96,27 @@
     <span>Prove you're a robot</span>
   </div>
 
-  <div class="imrobot-challenge" aria-label="Challenge pipeline">
+  {#if status !== 'verified'}
+    <div class="imrobot-timer">
+      <span class="imrobot-timer-label">Time</span>
+      <div class="imrobot-timer-bar">
+        <div
+          class="imrobot-timer-fill"
+          class:imrobot-timer-fill--warn={pct <= 25}
+          style="width:{pct}%"
+        ></div>
+      </div>
+      <span class="imrobot-timer-text">{remainingSeconds}s</span>
+    </div>
+  {/if}
+
+  <div
+    class="imrobot-challenge"
+    aria-label="Challenge pipeline"
+    on:contextmenu={preventEvent}
+    on:copy={preventEvent}
+    on:dragstart={preventEvent}
+  >
     {display}
   </div>
 

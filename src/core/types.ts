@@ -18,18 +18,28 @@ export interface Challenge {
   timestamp: number
   ttl: number
   difficulty: Difficulty
+  /** Full seed used for computation (visibleSeed + nonce) */
   seed: string
+  /** The portion of the seed shown on screen */
+  visibleSeed: string
+  /** Hidden nonce — only present in the JSON data attribute, never displayed */
+  nonce: string
   pipeline: Operation[]
   verification: string
 }
 
 export type Difficulty = 'easy' | 'medium' | 'hard'
 
+/** Submissions slower than this are flagged as suspicious (possible human relay) */
+export const SUSPICIOUS_THRESHOLD_MS = 5_000
+
 export interface ImRobotToken {
   challengeId: string
   answer: string
   timestamp: number
   elapsed: number
+  /** true when elapsed > SUSPICIOUS_THRESHOLD_MS — hints at human relay attack */
+  suspicious: boolean
   signature: string
 }
 
