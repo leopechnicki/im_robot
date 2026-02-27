@@ -3,6 +3,7 @@ import type { ImRobotConfig, ImRobotToken, Challenge } from '../core/types'
 import { generateChallenge, verifyAnswer, createToken } from '../core/challenge'
 import { formatPipeline } from '../core/operations'
 import { getStyles, ROBOT_SVG } from '../styles'
+import { setupScreenshotShield } from '../screenshot-shield'
 
 export interface ImRobotProps {
   difficulty?: 'easy' | 'medium' | 'hard'
@@ -27,11 +28,11 @@ export function ImRobot({
   const [remainingSeconds, setRemainingSeconds] = useState(() =>
     Math.ceil(challenge.ttl / 1000),
   )
+  const [shielded, setShielded] = useState(false)
   const startTime = useRef(Date.now())
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const css = useMemo(() => getStyles(theme), [theme])
-  // Display uses visibleSeed — the full seed includes the hidden nonce
   const display = useMemo(
     () => formatPipeline(challenge.visibleSeed, challenge.pipeline),
     [challenge],
@@ -64,6 +65,11 @@ export function ImRobot({
       if (timerRef.current) clearInterval(timerRef.current)
     }
   }, [challenge, status, refreshChallenge])
+
+  // Screenshot shield
+  useEffect(() => {
+    return setupScreenshotShield(setShielded)
+  }, [])
 
   const handleVerify = useCallback(() => {
     const trimmed = answer.trim()
@@ -117,12 +123,13 @@ export function ImRobot({
         )}
 
         <div
-          className="imrobot-challenge"
+          className={`imrobot-challenge${shielded ? ' imrobot-challenge--shielded' : ''}`}
           aria-label="Challenge pipeline"
           onContextMenu={(e) => e.preventDefault()}
           onCopy={(e) => e.preventDefault()}
           onDragStart={(e) => e.preventDefault()}
         >
+          <span className="imrobot-shield-notice">Screenshot protected</span>
           {display}
         </div>
 

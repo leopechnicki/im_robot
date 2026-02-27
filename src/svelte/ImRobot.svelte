@@ -2,6 +2,7 @@
   import { generateChallenge, verifyAnswer, createToken } from 'imrobot/core'
   import { formatPipeline } from 'imrobot/core'
   import { getStyles, ROBOT_SVG } from 'imrobot'
+  import { setupScreenshotShield } from 'imrobot'
   import { onMount, onDestroy } from 'svelte'
 
   export let difficulty = 'medium'
@@ -16,9 +17,10 @@
   let startTime = Date.now()
   let remainingSeconds = Math.ceil(challenge.ttl / 1000)
   let countdownTimer = null
+  let shielded = false
+  let cleanupShield = null
 
   $: css = getStyles(theme)
-  // Display uses visibleSeed — the full seed includes the hidden nonce
   $: display = formatPipeline(challenge.visibleSeed, challenge.pipeline)
   $: challengeJson = JSON.stringify(challenge)
   $: totalSec = challenge.ttl / 1000
@@ -51,8 +53,14 @@
     }
   }
 
-  onMount(() => startCountdown())
-  onDestroy(() => stopCountdown())
+  onMount(() => {
+    startCountdown()
+    cleanupShield = setupScreenshotShield((v) => { shielded = v })
+  })
+  onDestroy(() => {
+    stopCountdown()
+    if (cleanupShield) cleanupShield()
+  })
 
   function handleVerify() {
     const trimmed = answer.trim()
@@ -112,11 +120,13 @@
 
   <div
     class="imrobot-challenge"
+    class:imrobot-challenge--shielded={shielded}
     aria-label="Challenge pipeline"
     on:contextmenu={preventEvent}
     on:copy={preventEvent}
     on:dragstart={preventEvent}
   >
+    <span class="imrobot-shield-notice">Screenshot protected</span>
     {display}
   </div>
 

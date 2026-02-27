@@ -107,16 +107,41 @@ const answer = solveChallenge(challenge)
 const isValid = verifyAnswer(challenge, answer) // true
 ```
 
+## Screenshot protection
+
+The challenge text is **blurred by default** and only revealed when the user hovers over it. This defeats screenshot-based attacks (screen capture tools, CDP screenshots, PrintScreen) since the captured image shows only blurred content.
+
+An additional JavaScript shield detects screenshot shortcuts (PrintScreen, Cmd+Shift+3/4/5, Ctrl+Shift+S) and window blur/visibility changes, applying an extra blur layer that overrides even the hover state.
+
+Combined with the hidden nonce (not displayed visually) and TTL expiry, this makes screenshot+OCR workflows ineffective — even if the blur were bypassed, the nonce is missing from the visual output.
+
+> **Note:** AI agents are unaffected — they read challenge data from the DOM, not from the screen.
+
+### Using the shield in vanilla JS
+
+The screenshot shield is exported for use outside the bundled components:
+
+```js
+import { setupScreenshotShield } from 'imrobot'
+
+const cleanup = setupScreenshotShield((shielded) => {
+  // shielded: true when a screenshot attempt is detected
+  // automatically resets to false after 1.2s
+})
+
+// Call cleanup() to remove event listeners
+```
+
 ## How agents interact with it
 
-AI agents browsing a page with imrobot can:
+AI agents read the challenge data directly from the DOM via the `data-imrobot-challenge` attribute — they never need to "see" the visual text, so blur has no effect on them.
 
 1. **Read the challenge** from `data-imrobot-challenge` attribute (JSON)
 2. **Execute the pipeline** — each operation is a simple string transform
 3. **Submit the answer** via the input field or programmatically
 
 ```js
-// Agent reads challenge from DOM
+// Agent reads challenge from DOM (unaffected by blur)
 const el = document.querySelector('[data-imrobot-challenge]')
 const challenge = JSON.parse(el.dataset.imrobotChallenge)
 

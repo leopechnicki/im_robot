@@ -25,3 +25,4 @@ export {
 export { solveChallenge } from './core/solver'
 export { fnv1a } from './core/hash'
 export { getStyles, getTheme, ROBOT_SVG } from './styles'
+export { setupScreenshotShield } from './screenshot-shield'

@@ -95,6 +95,36 @@ export function getStyles(theme: 'light' | 'dark'): string {
       -moz-user-select: none;
       -ms-user-select: none;
       position: relative;
+      filter: blur(8px);
+      transition: filter 0.15s ease-out;
+    }
+    .imrobot-challenge:hover {
+      filter: none;
+    }
+    .imrobot-challenge--shielded,
+    .imrobot-challenge--shielded:hover {
+      filter: blur(10px) !important;
+    }
+    .imrobot-shield-notice {
+      display: flex;
+      position: absolute;
+      inset: 0;
+      border-radius: 6px;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 600;
+      color: ${t.textMuted};
+      z-index: 1;
+      pointer-events: none;
+      letter-spacing: 0.03em;
+    }
+    .imrobot-challenge:hover .imrobot-shield-notice {
+      display: none;
+    }
+    .imrobot-challenge--shielded .imrobot-shield-notice,
+    .imrobot-challenge--shielded:hover .imrobot-shield-notice {
+      display: flex !important;
     }
     .imrobot-timer {
       display: flex;

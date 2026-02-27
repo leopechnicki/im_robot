@@ -2,6 +2,7 @@ import type { Challenge, ImRobotToken, Difficulty } from '../core/types'
 import { generateChallenge, verifyAnswer, createToken } from '../core/challenge'
 import { formatPipeline } from '../core/operations'
 import { getStyles, ROBOT_SVG } from '../styles'
+import { setupScreenshotShield } from '../screenshot-shield'
 
 export class ImRobotElement extends HTMLElement {
   static get observedAttributes() {
@@ -15,6 +16,8 @@ export class ImRobotElement extends HTMLElement {
   private startTime = Date.now()
   private countdownTimer: ReturnType<typeof setInterval> | null = null
   private remainingSeconds = 0
+  private cleanupShield: (() => void) | null = null
+  private shielded = false
 
   constructor() {
     super()
@@ -41,10 +44,23 @@ export class ImRobotElement extends HTMLElement {
     this.startTime = Date.now()
     this.startCountdown()
     this.render()
+
+    // Screenshot shield: blur the challenge area on screenshot attempts
+    this.cleanupShield = setupScreenshotShield((shielded) => {
+      this.shielded = shielded
+      const el = this.shadow.querySelector('.imrobot-challenge')
+      if (el) {
+        el.classList.toggle('imrobot-challenge--shielded', shielded)
+      }
+    })
   }
 
   disconnectedCallback() {
     this.stopCountdown()
+    if (this.cleanupShield) {
+      this.cleanupShield()
+      this.cleanupShield = null
+    }
   }
 
   attributeChangedCallback() {
@@ -185,10 +201,10 @@ export class ImRobotElement extends HTMLElement {
               </div>`
             : ''
         }
-        <div class="imrobot-challenge"
+        <div class="imrobot-challenge${this.shielded ? ' imrobot-challenge--shielded' : ''}"
              aria-label="Challenge pipeline"
              oncontextmenu="return false"
-             ondragstart="return false">${this.escapeHtml(display)}</div>
+             ondragstart="return false"><span class="imrobot-shield-notice">Screenshot protected</span>${this.escapeHtml(display)}</div>
         ${
           this.status !== 'verified'
             ? `<div class="imrobot-row">

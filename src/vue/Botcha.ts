@@ -3,6 +3,7 @@ import type { Challenge, ImRobotToken, Difficulty } from '../core/types'
 import { generateChallenge, verifyAnswer, createToken } from '../core/challenge'
 import { formatPipeline } from '../core/operations'
 import { getStyles, ROBOT_SVG } from '../styles'
+import { setupScreenshotShield } from '../screenshot-shield'
 
 export const ImRobot = defineComponent({
   name: 'ImRobot',
@@ -33,9 +34,10 @@ export const ImRobot = defineComponent({
     const startTime = ref(Date.now())
     const remainingSeconds = ref(Math.ceil(challenge.value.ttl / 1000))
     let countdownTimer: ReturnType<typeof setInterval> | null = null
+    let cleanupShield: (() => void) | null = null
+    const shielded = ref(false)
 
     const css = computed(() => getStyles(props.theme))
-    // Display uses visibleSeed — the full seed includes the hidden nonce
     const display = computed(() =>
       formatPipeline(challenge.value.visibleSeed, challenge.value.pipeline),
     )
@@ -72,8 +74,14 @@ export const ImRobot = defineComponent({
       }
     }
 
-    onMounted(() => startCountdown())
-    onUnmounted(() => stopCountdown())
+    onMounted(() => {
+      startCountdown()
+      cleanupShield = setupScreenshotShield((v) => { shielded.value = v })
+    })
+    onUnmounted(() => {
+      stopCountdown()
+      if (cleanupShield) cleanupShield()
+    })
 
     function handleVerify() {
       const trimmed = answer.value.trim()
@@ -132,17 +140,20 @@ export const ImRobot = defineComponent({
                 h('span', { class: 'imrobot-timer-text' }, `${remainingSeconds.value}s`),
               ]),
 
-            // Challenge display — anti-copy handlers
+            // Challenge display
             h(
               'div',
               {
-                class: 'imrobot-challenge',
+                class: `imrobot-challenge${shielded.value ? ' imrobot-challenge--shielded' : ''}`,
                 'aria-label': 'Challenge pipeline',
                 onContextmenu: (e: Event) => e.preventDefault(),
                 onCopy: (e: Event) => e.preventDefault(),
                 onDragstart: (e: Event) => e.preventDefault(),
               },
-              display.value,
+              [
+                h('span', { class: 'imrobot-shield-notice' }, 'Screenshot protected'),
+                display.value,
+              ],
             ),
 
             // Input row
