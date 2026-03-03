@@ -35,6 +35,11 @@
       "types": "./dist/web-component/index.d.ts",
       "import": "./dist/web-component/index.js",
       "require": "./dist/web-component/index.cjs"
+    },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js",
+      "require": "./dist/server/index.cjs"
     }
   },
   "files": [
@@ -46,7 +51,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "server": "tsx src/server/index.ts",
+    "server:dev": "tsx watch src/server/index.ts"
   },
   "keywords": [
     "captcha",
@@ -65,8 +72,8 @@
   "peerDependencies": {
     "react": ">=17.0.0",
     "react-dom": ">=17.0.0",
-    "vue": ">=3.0.0",
-    "svelte": ">=3.0.0"
+    "svelte": ">=3.0.0",
+    "vue": ">=3.0.0"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -83,6 +90,7 @@
     }
   },
   "devDependencies": {
+    "@types/node": "^20.19.35",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "react": "^18.2.0",
