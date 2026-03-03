@@ -107,9 +107,11 @@ const answer = solveChallenge(challenge)
 const isValid = verifyAnswer(challenge, answer) // true
 ```
 
-## REST API Server
+## Server Mode (optional)
 
-imrobot includes a standalone HTTP server for backend-only verification — no UI needed. Perfect for API gateways, server-to-server flows, or anywhere you need to verify AI agents programmatically.
+> **Most users don't need this.** The component library (`<ImRobot />`, core API) handles everything client-side with zero server dependencies. Server mode is only for API-to-API verification where there's no browser involved — e.g. gating REST endpoints so only AI agents can call them.
+
+imrobot ships an optional standalone HTTP server for headless, backend-only verification.
 
 ### Quick start
 
