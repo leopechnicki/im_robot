@@ -176,14 +176,21 @@ describe('generateChallenge', () => {
   })
 
   it('solving with only visibleSeed gives wrong answer', () => {
-    const challenge = generateChallenge()
-    // Compute answer using only the visible portion (what a human screenshot would show)
-    const wrongAnswer = executePipeline(challenge.visibleSeed, challenge.pipeline)
-    // The real answer uses the full seed (visibleSeed + nonce)
-    const correctAnswer = solveChallenge(challenge)
-    expect(wrongAnswer).not.toBe(correctAnswer)
-    expect(verifyAnswer(challenge, wrongAnswer)).toBe(false)
-    expect(verifyAnswer(challenge, correctAnswer)).toBe(true)
+    // Retry a few times because some operations (e.g. char_code_sum) can
+    // collapse different inputs to the same output.
+    let found = false
+    for (let i = 0; i < 50; i++) {
+      const challenge = generateChallenge()
+      const wrongAnswer = executePipeline(challenge.visibleSeed, challenge.pipeline)
+      const correctAnswer = solveChallenge(challenge)
+      if (wrongAnswer !== correctAnswer) {
+        expect(verifyAnswer(challenge, wrongAnswer)).toBe(false)
+        expect(verifyAnswer(challenge, correctAnswer)).toBe(true)
+        found = true
+        break
+      }
+    }
+    expect(found).toBe(true)
   })
 })
 

@@ -198,7 +198,7 @@ el.querySelector('button').click()
 |------|------|---------|-------------|
 | `difficulty` | `'easy' \| 'medium' \| 'hard'` | `'medium'` | Number and complexity of operations |
 | `theme` | `'light' \| 'dark'` | `'light'` | Color theme |
-| `ttl` | `number` | `300000` | Challenge time-to-live in ms |
+| `ttl` | `number` | per-difficulty | Challenge time-to-live in ms (easy: 30s, medium: 20s, hard: 15s) |
 | `onVerified` | `(token) => void` | — | Callback on successful verification |
 | `onError` | `(error) => void` | — | Callback on failed verification |
 
@@ -218,6 +218,7 @@ interface ImRobotToken {
   answer: string       // The correct answer
   timestamp: number    // Verification timestamp
   elapsed: number      // Time taken to solve (ms)
+  suspicious: boolean  // true if elapsed > 5s (possible human relay)
   signature: string    // Verification signature
 }
 ```
