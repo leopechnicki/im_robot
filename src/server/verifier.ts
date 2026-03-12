@@ -3,6 +3,7 @@ import { SUSPICIOUS_THRESHOLD_MS } from '../core/types'
 import { generateChallenge } from '../core/challenge'
 import { executePipeline } from '../core/operations'
 import { hmacSign, hmacVerify } from '../core/hmac'
+import { fnv1a } from '../core/hash'
 
 /**
  * Server-side challenge verifier with HMAC-SHA256 signing.
@@ -32,8 +33,8 @@ export class ImRobotVerifier {
   private readonly ttl?: number
 
   constructor(config: ServerConfig) {
-    if (!config.secret || config.secret.length < 16) {
-      throw new Error('ImRobotVerifier: secret must be at least 16 characters')
+    if (!config.secret || config.secret.trim().length < 16) {
+      throw new Error('ImRobotVerifier: secret must be at least 16 non-whitespace characters')
     }
     this.secret = config.secret
     this.difficulty = config.difficulty ?? 'medium'
@@ -115,7 +116,16 @@ export class ImRobotVerifier {
       return { valid: false, reason: 'expired' }
     }
 
-    // 3. Verify the answer by re-executing the pipeline
+    // 3. Verify the answer against the HMAC-protected verification hash.
+    // This catches pipeline tampering: the verification field is fnv1a(answer + ':' + id),
+    // signed by the HMAC. Even if an attacker swaps the pipeline, the verification
+    // won't match their new answer.
+    const expectedVerification = fnv1a(answer + ':' + challenge.id)
+    if (expectedVerification !== challenge.verification) {
+      return { valid: false, reason: 'wrong_answer' }
+    }
+
+    // 4. Re-execute the pipeline as a secondary check
     let expectedAnswer: string
     try {
       expectedAnswer = executePipeline(challenge.seed, challenge.pipeline)
@@ -124,7 +134,7 @@ export class ImRobotVerifier {
     }
 
     if (answer !== expectedAnswer) {
-      return { valid: false, reason: 'wrong_answer' }
+      return { valid: false, reason: 'tampered' }
     }
 
     const elapsed = now - challenge.timestamp

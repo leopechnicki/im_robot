@@ -2,18 +2,18 @@ import type { Operation } from './types'
 import { fnv1a } from './hash'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const g = globalThis as Record<string, any>
+const globalRef = globalThis as Record<string, any>
 
 export function executeOperation(input: string, op: Operation): string {
   switch (op.op) {
     case 'reverse':
-      return input.split('').reverse().join('')
+      return Array.from(input).reverse().join('')
 
     case 'base64_encode':
       if (typeof btoa !== 'undefined') return btoa(input)
       // Node.js fallback
       try {
-        return g.Buffer.from(input, 'binary').toString('base64')
+        return globalRef.Buffer.from(input, 'binary').toString('base64')
       } catch {
         return input
       }
@@ -36,7 +36,7 @@ export function executeOperation(input: string, op: Operation): string {
         .join('')
 
     case 'sort_chars':
-      return input.split('').sort().join('')
+      return Array.from(input).sort().join('')
 
     case 'char_code_sum':
       return String(
@@ -70,7 +70,7 @@ export function executeOperation(input: string, op: Operation): string {
     case 'caesar':
       return input.replace(/[a-zA-Z]/g, (c) => {
         const base = c <= 'Z' ? 65 : 97
-        return String.fromCharCode(((c.charCodeAt(0) - base + op.shift) % 26) + base)
+        return String.fromCharCode((((c.charCodeAt(0) - base + op.shift) % 26) + 26) % 26 + base)
       })
 
     case 'slice_alternate':

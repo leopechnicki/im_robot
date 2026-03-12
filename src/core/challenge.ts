@@ -85,12 +85,13 @@ const HARD_OPS: OpFactory[] = [
   ...MEDIUM_OPS,
   () => ({ op: 'repeat', times: randomInt(2, 3) }),
   (val) => {
+    if (val.length === 0) return { op: 'reverse' }
     const idx = randomInt(0, val.length - 1)
     return { op: 'replace', search: val[idx], replacement: randomHex(1) }
   },
   (val) => ({
     op: 'pad_start',
-    length: val.length + randomInt(2, 6),
+    length: Math.max(val.length, 1) + randomInt(2, 6),
     fill: randomHex(1),
   }),
   // New: harder operations
