@@ -1,4 +1,8 @@
 import type { Operation } from './types'
+import { fnv1a } from './hash'
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const g = globalThis as Record<string, any>
 
 export function executeOperation(input: string, op: Operation): string {
   switch (op.op) {
@@ -9,8 +13,7 @@ export function executeOperation(input: string, op: Operation): string {
       if (typeof btoa !== 'undefined') return btoa(input)
       // Node.js fallback
       try {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return (globalThis as Record<string, any>).Buffer.from(input, 'binary').toString('base64')
+        return g.Buffer.from(input, 'binary').toString('base64')
       } catch {
         return input
       }
@@ -52,6 +55,35 @@ export function executeOperation(input: string, op: Operation): string {
     case 'pad_start':
       return input.padStart(op.length, op.fill)
 
+    // ---- New operations for challenge variety ----
+
+    case 'xor_encode':
+      return Array.from(input)
+        .map((c) => String.fromCharCode(c.charCodeAt(0) ^ op.key))
+        .join('')
+
+    case 'count_chars':
+      return String(
+        Array.from(input).filter((c) => c === op.char).length,
+      )
+
+    case 'caesar':
+      return input.replace(/[a-zA-Z]/g, (c) => {
+        const base = c <= 'Z' ? 65 : 97
+        return String.fromCharCode(((c.charCodeAt(0) - base + op.shift) % 26) + base)
+      })
+
+    case 'slice_alternate':
+      return Array.from(input)
+        .filter((_, i) => i % 2 === 0)
+        .join('')
+
+    case 'fnv1a_hash':
+      return fnv1a(input)
+
+    case 'length':
+      return String(input.length)
+
     default:
       throw new Error(`Unknown operation: ${(op as { op: string }).op}`)
   }
@@ -90,6 +122,18 @@ export function formatOperation(op: Operation): string {
       return `replace("${op.search}", "${op.replacement}")`
     case 'pad_start':
       return `pad_start(${op.length}, "${op.fill}")`
+    case 'xor_encode':
+      return `xor_encode(${op.key})`
+    case 'count_chars':
+      return `count_chars("${op.char}")`
+    case 'caesar':
+      return `caesar(${op.shift})`
+    case 'slice_alternate':
+      return 'slice_alternate()'
+    case 'fnv1a_hash':
+      return 'fnv1a_hash()'
+    case 'length':
+      return 'length()'
   }
 }
 
