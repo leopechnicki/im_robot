@@ -7,8 +7,28 @@
 
 const encoder = new TextEncoder()
 
+/**
+ * Resolve `SubtleCrypto` across every runtime:
+ *  - Browsers & modern Node (20+): globalThis.crypto.subtle exists
+ *  - Node 18 / jsdom:              globalThis.crypto.subtle may be undefined,
+ *                                   fall back to require('node:crypto').webcrypto.subtle
+ */
+function getSubtle(): SubtleCrypto {
+  if (typeof globalThis !== 'undefined' && globalThis.crypto?.subtle) {
+    return globalThis.crypto.subtle
+  }
+  // Node.js fallback — webcrypto is available since Node 15
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const nodeCrypto = require('node:crypto') as typeof import('node:crypto')
+  const subtle = (nodeCrypto as unknown as { webcrypto: { subtle: SubtleCrypto } }).webcrypto?.subtle
+  if (!subtle) {
+    throw new Error('SubtleCrypto is not available in this environment')
+  }
+  return subtle
+}
+
 async function getCryptoKey(secret: string): Promise<CryptoKey> {
-  return crypto.subtle.importKey(
+  return getSubtle().importKey(
     'raw',
     encoder.encode(secret),
     { name: 'HMAC', hash: 'SHA-256' },
@@ -29,7 +49,7 @@ function bufferToHex(buffer: ArrayBuffer): string {
  */
 export async function hmacSign(secret: string, message: string): Promise<string> {
   const key = await getCryptoKey(secret)
-  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(message))
+  const signature = await getSubtle().sign('HMAC', key, encoder.encode(message))
   return bufferToHex(signature)
 }
 
@@ -57,6 +77,6 @@ export async function hmacVerify(
  */
 export async function sha256(message: string): Promise<string> {
   const data = encoder.encode(message)
-  const hash = await crypto.subtle.digest('SHA-256', data)
+  const hash = await getSubtle().digest('SHA-256', data)
   return bufferToHex(hash)
 }
