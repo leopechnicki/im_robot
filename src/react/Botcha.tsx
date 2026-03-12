@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
-import type { ImRobotConfig, ImRobotToken, Challenge } from '../core/types'
+import type { ImRobotToken, Challenge } from '../core/types'
 import { generateChallenge, verifyAnswer, createToken } from '../core/challenge'
 import { formatPipeline } from '../core/operations'
 import { getStyles, ROBOT_SVG } from '../styles'

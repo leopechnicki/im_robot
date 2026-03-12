@@ -9,7 +9,7 @@ export function executeOperation(input: string, op: Operation): string {
       if (typeof btoa !== 'undefined') return btoa(input)
       // Node.js fallback
       try {
-        return (globalThis as Record<string, any>).Buffer.from(input, 'binary').toString('base64')
+        return (globalThis as Record<string, unknown>).Buffer.from(input, 'binary').toString('base64')
       } catch {
         return input
       }

@@ -1,5 +1,5 @@
 import { defineComponent, ref, computed, h, onMounted, onUnmounted, type PropType } from 'vue'
-import type { Challenge, ImRobotToken, Difficulty } from '../core/types'
+import type { Challenge, Difficulty } from '../core/types'
 import { generateChallenge, verifyAnswer, createToken } from '../core/challenge'
 import { formatPipeline } from '../core/operations'
 import { getStyles, ROBOT_SVG } from '../styles'
