@@ -413,6 +413,7 @@
         <a href="#how-it-works">How it works</a>
         <a href="#code">Code</a>
         <a href="#features">Features</a>
+        <a href="/docs.html">Docs</a>
         <a href="https://github.com/leopechnicki/im_robot" class="gh-link">GitHub</a>
         <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">🌙</button>
       </div>
@@ -474,7 +475,7 @@
       <div class="step">
         <div class="step-num">1</div>
         <h3>Generate a pipeline</h3>
-        <p>A random seed and a chain of string operations (reverse, base64, rot13, hex...) are generated. The structured challenge is embedded in the DOM as JSON.</p>
+        <p>A random seed and a chain of operations (reverse, base64, caesar, XOR, hashing...) are generated. The structured challenge is embedded in the DOM as JSON.</p>
       </div>
       <div class="step">
         <div class="step-num">2</div>
@@ -484,7 +485,7 @@
       <div class="step">
         <div class="step-num">3</div>
         <h3>Verify identity</h3>
-        <p>The agent submits the computed result. The component verifies it against the challenge hash and emits a signed token. No server needed.</p>
+        <p>The agent submits the computed result. Verify client-side or use the Server SDK with HMAC-SHA256 for tamper-proof, stateless verification.</p>
       </div>
     </div>
   </section>
@@ -501,6 +502,7 @@
       <button class="tab" data-tab="svelte" role="tab">Svelte</button>
       <button class="tab" data-tab="web" role="tab">Web Component</button>
       <button class="tab" data-tab="core" role="tab">Headless</button>
+      <button class="tab" data-tab="server" role="tab">Server SDK</button>
     </div>
     <div class="code-panels">
       <div class="code-panel active" id="panel-react"><pre><code>import { ImRobot } from 'imrobot/react'
@@ -577,6 +579,28 @@ const answer = solveChallenge(challenge)
 // Verify
 const isValid = verifyAnswer(challenge, answer)
 console.log(isValid) // true</code></pre></div>
+
+      <div class="code-panel" id="panel-server"><pre><code>import { createVerifier } from 'imrobot/server'
+
+// Create verifier with HMAC secret (server-side only)
+const verifier = createVerifier({
+  secret: process.env.IMROBOT_SECRET!,
+  difficulty: 'medium',
+})
+
+// Generate a signed challenge (send to client)
+app.get('/api/challenge', async (req, res) =&gt; {
+  const challenge = await verifier.generate()
+  res.json(challenge) // includes HMAC-SHA256 signature
+})
+
+// Verify agent's answer (stateless, no DB needed)
+app.post('/api/verify', async (req, res) =&gt; {
+  const { challenge, answer } = req.body
+  const result = await verifier.verify(challenge, answer)
+  // { valid: true, elapsed: 42, suspicious: false }
+  res.json(result)
+})</code></pre></div>
     </div>
   </section>
 
@@ -593,8 +617,8 @@ console.log(isValid) // true</code></pre></div>
       </div>
       <div class="feature">
         <div class="feature-icon">🔒</div>
-        <h3>No server required</h3>
-        <p>Challenge generation and verification are fully client-side. No sessions, no cookies, no API calls.</p>
+        <h3>HMAC-SHA256 server SDK</h3>
+        <p>Optional server-side verification with tamper-proof HMAC signing. Stateless &mdash; no database needed. Or use client-only mode.</p>
       </div>
       <div class="feature">
         <div class="feature-icon">⚡</div>
@@ -603,8 +627,8 @@ console.log(isValid) // true</code></pre></div>
       </div>
       <div class="feature">
         <div class="feature-icon">🧠</div>
-        <h3>Hard for humans</h3>
-        <p>Multi-step transforms (base64, rot13, hex, reverse...) are practically impossible to compute manually.</p>
+        <h3>18 operation types</h3>
+        <p>String transforms, Caesar ciphers, XOR encoding, FNV-1a hashing, and more &mdash; impossible for humans to compute manually.</p>
       </div>
       <div class="feature">
         <div class="feature-icon">🎨</div>

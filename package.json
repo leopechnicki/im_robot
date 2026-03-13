@@ -1,6 +1,6 @@
 {
   "name": "imrobot",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "I'm a robot. Reverse-CAPTCHA that verifies AI agents and robots, not humans.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -35,6 +35,11 @@
       "types": "./dist/web-component/index.d.ts",
       "import": "./dist/web-component/index.js",
       "require": "./dist/web-component/index.cjs"
+    },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js",
+      "require": "./dist/server/index.cjs"
     }
   },
   "files": [
@@ -62,7 +67,9 @@
     "web-component",
     "react",
     "vue",
-    "svelte"
+    "svelte",
+    "server",
+    "hmac"
   ],
   "license": "MIT",
   "peerDependencies": {
@@ -103,6 +110,6 @@
     "@testing-library/jest-dom": "^6.0.0",
     "@vue/test-utils": "^2.4.0",
     "jsdom": "^24.0.0",
-    "happy-dom": "^14.0.0"
+    "happy-dom": "^20.8.3"
   }
 }

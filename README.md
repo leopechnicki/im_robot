@@ -1,4 +1,5 @@
 <div align="center">
+
 # 🤖 imrobot
 
 **Reverse-CAPTCHA for AI agents — verify bots, not humans.**
@@ -25,15 +26,15 @@ As AI agents become first-class web citizens — browsing, booking, purchasing, 
 
 ## How it works
 
-imrobot generates a pipeline of deterministic string operations (reverse, base64, rot13, hex encode, etc.) applied to a random seed. AI agents parse the structured challenge data, execute the pipeline, and submit the result. Humans would need to manually compute multi-step string transformations — practically impossible without tools.
+imrobot generates a pipeline of deterministic operations (string transforms, byte operations, hashing, and more) applied to a random seed. AI agents parse the structured challenge data, execute the pipeline, and submit the result. Humans would need to manually compute multi-step transformations — practically impossible without tools.
 
 ```
 seed: "a7f3b2c1d4e5f609"
   1. reverse()
-  2. to_upper()
-  3. base64_encode()
-  4. substring(0, 12)
-  5. rot13()
+  2. caesar(7)
+  3. xor_encode(42)
+  4. fnv1a_hash()
+  5. to_upper()
 ```
 
 The challenge data is embedded in the DOM via `data-imrobot-challenge` attribute as structured JSON, making it trivially parseable by any agent.
@@ -126,6 +127,36 @@ const answer = solveChallenge(challenge)
 const isValid = verifyAnswer(challenge, answer) // true
 ```
 
+### Server SDK (HMAC-signed verification)
+
+For production use, the server SDK provides tamper-proof, stateless challenge verification using HMAC-SHA256. No database required — the cryptographic signature ensures integrity.
+
+```ts
+import { createVerifier } from 'imrobot/server'
+
+const verifier = createVerifier({
+  secret: process.env.IMROBOT_SECRET!, // min 16 chars
+  difficulty: 'medium',
+})
+
+// API route: generate a signed challenge
+app.get('/api/challenge', async (req, res) => {
+  const challenge = await verifier.generate()
+  res.json(challenge) // includes HMAC signature
+})
+
+// API route: verify agent's answer (stateless)
+app.post('/api/verify', async (req, res) => {
+  const { challenge, answer } = req.body
+  const result = await verifier.verify(challenge, answer)
+  // result: { valid: true, elapsed: 42, suspicious: false }
+  // or:     { valid: false, reason: 'wrong_answer' | 'expired' | 'invalid_hmac' | 'tampered' }
+  res.json(result)
+})
+```
+
+The server verifier checks three things in order: HMAC signature validity (challenge not tampered), expiration (challenge not expired), and answer correctness (pipeline re-executed). A different secret on a different server will reject the challenge — preventing cross-site replay attacks.
+
 ## Screenshot protection
 
 The challenge text is **blurred by default** and only revealed when the user hovers over it. This defeats screenshot-based attacks (screen capture tools, CDP screenshots, PrintScreen) since the captured image shows only blurred content.
@@ -156,7 +187,7 @@ const cleanup = setupScreenshotShield((shielded) => {
 AI agents read the challenge data directly from the DOM via the `data-imrobot-challenge` attribute — they never need to "see" the visual text, so blur has no effect on them.
 
 1. **Read the challenge** from `data-imrobot-challenge` attribute (JSON)
-2. **Execute the pipeline** — each operation is a simple string transform
+2. **Execute the pipeline** — each operation is a deterministic transform
 3. **Submit the answer** via the input field or programmatically
 
 ```js
@@ -177,6 +208,8 @@ el.querySelector('button').click()
 
 ## Operations reference
 
+### String operations
+
 | Operation | Description | Example |
 |-----------|-------------|---------|
 | `reverse()` | Reverse the string | `"abc"` → `"cba"` |
@@ -192,6 +225,17 @@ el.querySelector('button').click()
 | `replace(s, r)` | Replace all occurrences | `"aab"` → `"xxb"` |
 | `pad_start(len, ch)` | Pad start to length | `"abc"` → `"000abc"` |
 
+### Byte & cipher operations
+
+| Operation | Description | Example |
+|-----------|-------------|---------|
+| `caesar(shift)` | Caesar cipher with configurable shift | `"abc"` + shift 1 → `"bcd"` |
+| `xor_encode(key)` | XOR each byte with key | `"AB"` + key 1 → `"@C"` |
+| `count_chars(char)` | Count occurrences of a char | `"aababc"` + char `"a"` → `"3"` |
+| `slice_alternate()` | Keep every other character | `"abcdef"` → `"ace"` |
+| `fnv1a_hash()` | FNV-1a hash of the string | `"test"` → `"bc2c0be9"` |
+| `length()` | String length as string | `"hello"` → `"5"` |
+
 ## Configuration
 
 | Prop | Type | Default | Description |
@@ -204,9 +248,40 @@ el.querySelector('button').click()
 
 ### Difficulty levels
 
-- **easy**: 2-3 simple operations (reverse, case, sort)
-- **medium**: 3-5 operations including encoding and extraction
-- **hard**: 5-7 operations including replacement and padding
+- **easy**: 2-3 simple operations (reverse, case, sort, length, slice_alternate)
+- **medium**: 3-5 operations including encoding, extraction, caesar, and char counting
+- **hard**: 5-7 operations including XOR encoding, hashing, replacement, and padding
+
+## Server verification
+
+For production deployments, use the server SDK (`imrobot/server`) instead of client-side-only verification. The server SDK uses HMAC-SHA256 to sign challenges, providing tamper-proof, stateless, replay-resistant verification with zero database overhead.
+
+```ts
+import { createVerifier } from 'imrobot/server'
+
+const verifier = createVerifier({
+  secret: process.env.IMROBOT_SECRET!, // HMAC secret (min 16 chars)
+  difficulty: 'hard',
+  ttl: 10_000, // optional: override default TTL
+})
+
+// Generate → send to client → client solves → verify answer
+const challenge = await verifier.generate()
+const result = await verifier.verify(challenge, agentAnswer)
+```
+
+### VerifyResult
+
+The `verify()` method returns a `VerifyResult`:
+
+```ts
+interface VerifyResult {
+  valid: boolean
+  reason?: 'expired' | 'invalid_hmac' | 'wrong_answer' | 'tampered'
+  elapsed?: number    // ms since challenge was created
+  suspicious?: boolean // true if response was unusually slow
+}
+```
 
 ## Token
 

@@ -11,6 +11,13 @@ export type Operation =
   | { op: 'repeat'; times: number }
   | { op: 'replace'; search: string; replacement: string }
   | { op: 'pad_start'; length: number; fill: string }
+  // New operations for challenge variety
+  | { op: 'xor_encode'; key: number }
+  | { op: 'count_chars'; char: string }
+  | { op: 'caesar'; shift: number }
+  | { op: 'slice_alternate' }
+  | { op: 'fnv1a_hash' }
+  | { op: 'length' }
 
 export interface Challenge {
   version: 1
@@ -26,6 +33,17 @@ export interface Challenge {
   nonce: string
   pipeline: Operation[]
   verification: string
+}
+
+/**
+ * A server-signed challenge with HMAC-SHA256.
+ * Prevents tampering, replay attacks, and enables stateless verification.
+ */
+export interface SignedChallenge extends Challenge {
+  /** HMAC-SHA256(secret, id + ":" + verification + ":" + expiresAt) */
+  hmac: string
+  /** Absolute expiration timestamp (ms since epoch) */
+  expiresAt: number
 }
 
 export type Difficulty = 'easy' | 'medium' | 'hard'
@@ -49,4 +67,27 @@ export interface ImRobotConfig {
   theme?: 'light' | 'dark'
   onVerified?: (token: ImRobotToken) => void
   onError?: (error: Error) => void
+}
+
+/**
+ * Configuration for the server-side verifier.
+ * The secret is used for HMAC signing — keep it safe and never expose to clients.
+ */
+export interface ServerConfig {
+  /** HMAC secret — must be kept server-side only */
+  secret: string
+  difficulty?: Difficulty
+  /** Challenge TTL in milliseconds (default: per difficulty) */
+  ttl?: number
+}
+
+/** Result of server-side verification */
+export interface VerifyResult {
+  valid: boolean
+  /** Reason for failure, if any */
+  reason?: 'expired' | 'invalid_hmac' | 'wrong_answer' | 'tampered'
+  /** Elapsed time in ms (from challenge creation to verification) */
+  elapsed?: number
+  /** Whether the response was suspiciously slow */
+  suspicious?: boolean
 }

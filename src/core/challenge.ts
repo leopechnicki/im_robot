@@ -54,6 +54,9 @@ const EASY_OPS: OpFactory[] = [
   () => ({ op: 'to_upper' }),
   () => ({ op: 'to_lower' }),
   () => ({ op: 'sort_chars' }),
+  // New: simple operations for variety
+  () => ({ op: 'length' }),
+  () => ({ op: 'slice_alternate' }),
 ]
 
 const MEDIUM_OPS: OpFactory[] = [
@@ -69,20 +72,31 @@ const MEDIUM_OPS: OpFactory[] = [
     const end = randomInt(start + 4, maxEnd)
     return { op: 'substring', start, end }
   },
+  // New: parameterized operations
+  () => ({ op: 'caesar', shift: randomInt(1, 25) }),
+  (val) => {
+    const chars = Array.from(new Set(Array.from(val)))
+    if (chars.length === 0) return { op: 'length' }
+    return { op: 'count_chars', char: pickRandom(chars) }
+  },
 ]
 
 const HARD_OPS: OpFactory[] = [
   ...MEDIUM_OPS,
   () => ({ op: 'repeat', times: randomInt(2, 3) }),
   (val) => {
+    if (val.length === 0) return { op: 'reverse' }
     const idx = randomInt(0, val.length - 1)
     return { op: 'replace', search: val[idx], replacement: randomHex(1) }
   },
   (val) => ({
     op: 'pad_start',
-    length: val.length + randomInt(2, 6),
+    length: Math.max(val.length, 1) + randomInt(2, 6),
     fill: randomHex(1),
   }),
+  // New: harder operations
+  () => ({ op: 'xor_encode', key: randomInt(1, 127) }),
+  () => ({ op: 'fnv1a_hash' }),
 ]
 
 function getOpsForDifficulty(difficulty: Difficulty) {
