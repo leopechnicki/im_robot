@@ -6,11 +6,16 @@ register()
 
 // ── Theme toggle ────────────────────────────────────────────────────
 const themeBtn = document.getElementById('theme-toggle')!
-const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-let dark = prefersDark
+// Default dark — cyberpunk aesthetic. Light theme is opt-in via toggle.
+const prefersLight = window.matchMedia('(prefers-color-scheme: light)').matches
+let dark = !prefersLight
 
 function applyTheme() {
-  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light')
+  if (dark) {
+    document.documentElement.removeAttribute('data-theme')  // dark is default in CSS
+  } else {
+    document.documentElement.setAttribute('data-theme', 'light')
+  }
   themeBtn.textContent = dark ? '☀️' : '🌙'
   // Update widget theme
   const widget = document.querySelector('imrobot-widget')
