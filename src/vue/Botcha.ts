@@ -76,7 +76,9 @@ export const ImRobot = defineComponent({
 
     onMounted(() => {
       startCountdown()
-      cleanupShield = setupScreenshotShield((v) => { shielded.value = v })
+      cleanupShield = setupScreenshotShield((v) => {
+        shielded.value = v
+      })
     })
     onUnmounted(() => {
       stopCountdown()
@@ -194,29 +196,25 @@ export const ImRobot = defineComponent({
                     '\u2713 Verified: You are a robot',
                   ),
                 status.value === 'failed' &&
-                  h(
-                    'span',
-                    { class: 'imrobot-status imrobot-status--failed' },
-                    [
-                      '\u2717 Failed \u2014 ',
-                      h(
-                        'button',
-                        {
-                          onClick: handleRetry,
-                          style: {
-                            background: 'none',
-                            border: 'none',
-                            color: 'inherit',
-                            textDecoration: 'underline',
-                            cursor: 'pointer',
-                            padding: '0',
-                            font: 'inherit',
-                          },
+                  h('span', { class: 'imrobot-status imrobot-status--failed' }, [
+                    '\u2717 Failed \u2014 ',
+                    h(
+                      'button',
+                      {
+                        onClick: handleRetry,
+                        style: {
+                          background: 'none',
+                          border: 'none',
+                          color: 'inherit',
+                          textDecoration: 'underline',
+                          cursor: 'pointer',
+                          padding: '0',
+                          font: 'inherit',
                         },
-                        'try again',
-                      ),
-                    ],
-                  ),
+                      },
+                      'try again',
+                    ),
+                  ]),
               ]),
               h('span', { class: 'imrobot-brand' }, 'imrobot'),
             ]),

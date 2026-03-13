@@ -59,10 +59,7 @@ export class ImRobotVerifier {
    * The challenge includes an HMAC signature that prevents tampering.
    * Send the entire SignedChallenge to the client agent.
    */
-  async generate(overrides?: {
-    difficulty?: Difficulty
-    ttl?: number
-  }): Promise<SignedChallenge> {
+  async generate(overrides?: { difficulty?: Difficulty; ttl?: number }): Promise<SignedChallenge> {
     const difficulty = overrides?.difficulty ?? this.difficulty
     const ttl = overrides?.ttl ?? this.ttl
 
@@ -94,10 +91,7 @@ export class ImRobotVerifier {
    *
    * Returns a VerifyResult with `valid` boolean and failure `reason`.
    */
-  async verify(
-    challenge: SignedChallenge,
-    answer: string,
-  ): Promise<VerifyResult> {
+  async verify(challenge: SignedChallenge, answer: string): Promise<VerifyResult> {
     // 1. Verify HMAC — ensures the challenge hasn't been tampered with
     const message = this.buildSignatureMessage(
       challenge.id,

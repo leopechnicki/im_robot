@@ -19,11 +19,7 @@ export {
   formatPipeline,
 } from './core/operations'
 
-export {
-  generateChallenge,
-  verifyAnswer,
-  createToken,
-} from './core/challenge'
+export { generateChallenge, verifyAnswer, createToken } from './core/challenge'
 
 export { solveChallenge } from './core/solver'
 export { fnv1a } from './core/hash'

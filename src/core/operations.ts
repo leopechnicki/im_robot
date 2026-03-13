@@ -39,9 +39,7 @@ export function executeOperation(input: string, op: Operation): string {
       return Array.from(input).sort().join('')
 
     case 'char_code_sum':
-      return String(
-        Array.from(input).reduce((sum, c) => sum + c.charCodeAt(0), 0),
-      )
+      return String(Array.from(input).reduce((sum, c) => sum + c.charCodeAt(0), 0))
 
     case 'substring':
       return input.substring(op.start, op.end)
@@ -63,14 +61,12 @@ export function executeOperation(input: string, op: Operation): string {
         .join('')
 
     case 'count_chars':
-      return String(
-        Array.from(input).filter((c) => c === op.char).length,
-      )
+      return String(Array.from(input).filter((c) => c === op.char).length)
 
     case 'caesar':
       return input.replace(/[a-zA-Z]/g, (c) => {
         const base = c <= 'Z' ? 65 : 97
-        return String.fromCharCode((((c.charCodeAt(0) - base + op.shift) % 26) + 26) % 26 + base)
+        return String.fromCharCode(((((c.charCodeAt(0) - base + op.shift) % 26) + 26) % 26) + base)
       })
 
     case 'slice_alternate':
@@ -90,10 +86,7 @@ export function executeOperation(input: string, op: Operation): string {
 }
 
 export function executePipeline(seed: string, pipeline: Operation[]): string {
-  return pipeline.reduce(
-    (value, op) => executeOperation(value, op),
-    seed,
-  )
+  return pipeline.reduce((value, op) => executeOperation(value, op), seed)
 }
 
 export function formatOperation(op: Operation): string {

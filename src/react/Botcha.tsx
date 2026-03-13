@@ -25,9 +25,7 @@ export function ImRobot({
   )
   const [answer, setAnswer] = useState('')
   const [status, setStatus] = useState<'idle' | 'verified' | 'failed'>('idle')
-  const [remainingSeconds, setRemainingSeconds] = useState(() =>
-    Math.ceil(challenge.ttl / 1000),
-  )
+  const [remainingSeconds, setRemainingSeconds] = useState(() => Math.ceil(challenge.ttl / 1000))
   const [shielded, setShielded] = useState(false)
   const startTime = useRef(Date.now())
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -102,10 +100,7 @@ export function ImRobot({
         aria-label="ImRobot verification challenge"
       >
         <div className="imrobot-header">
-          <span
-            className="imrobot-icon"
-            dangerouslySetInnerHTML={{ __html: ROBOT_SVG }}
-          />
+          <span className="imrobot-icon" dangerouslySetInnerHTML={{ __html: ROBOT_SVG }} />
           <span>Prove you&apos;re a robot</span>
         </div>
 
@@ -145,11 +140,7 @@ export function ImRobot({
               aria-label="Challenge answer"
               autoComplete="off"
             />
-            <button
-              className="imrobot-btn"
-              onClick={handleVerify}
-              disabled={!answer.trim()}
-            >
+            <button className="imrobot-btn" onClick={handleVerify} disabled={!answer.trim()}>
               Verify
             </button>
           </div>
