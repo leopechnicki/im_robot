@@ -4,6 +4,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: false,
+    setupFiles: ['./test/setup.ts'],
     environmentMatchGlobs: [
       // Server SDK and integration tests use crypto.subtle which jsdom doesn't expose.
       // Run them in Node's native environment where Web Crypto is available.
