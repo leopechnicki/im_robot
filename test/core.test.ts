@@ -85,6 +85,62 @@ describe('operations', () => {
       executeOperation('abc', { op: 'pad_start', length: 6, fill: '0' }),
     ).toBe('000abc')
   })
+
+  // --- New operations ---
+
+  it('xor_encode', () => {
+    const result = executeOperation('AB', { op: 'xor_encode', key: 1 })
+    // 'A' = 65, 65 ^ 1 = 64 = '@'; 'B' = 66, 66 ^ 1 = 67 = 'C'
+    expect(result).toBe('@C')
+  })
+
+  it('xor_encode is reversible', () => {
+    const input = 'hello world'
+    const key = 42
+    const encoded = executeOperation(input, { op: 'xor_encode', key })
+    const decoded = executeOperation(encoded, { op: 'xor_encode', key })
+    expect(decoded).toBe(input)
+  })
+
+  it('count_chars', () => {
+    expect(executeOperation('aabcaa', { op: 'count_chars', char: 'a' })).toBe('4')
+    expect(executeOperation('hello', { op: 'count_chars', char: 'z' })).toBe('0')
+    expect(executeOperation('', { op: 'count_chars', char: 'a' })).toBe('0')
+  })
+
+  it('caesar with positive shift', () => {
+    expect(executeOperation('abc', { op: 'caesar', shift: 3 })).toBe('def')
+    expect(executeOperation('xyz', { op: 'caesar', shift: 3 })).toBe('abc')
+    expect(executeOperation('ABC', { op: 'caesar', shift: 1 })).toBe('BCD')
+  })
+
+  it('caesar with negative shift', () => {
+    expect(executeOperation('def', { op: 'caesar', shift: -3 })).toBe('abc')
+    expect(executeOperation('abc', { op: 'caesar', shift: -3 })).toBe('xyz')
+  })
+
+  it('caesar preserves non-alpha chars', () => {
+    expect(executeOperation('a1b!c', { op: 'caesar', shift: 1 })).toBe('b1c!d')
+  })
+
+  it('slice_alternate', () => {
+    expect(executeOperation('abcdef', { op: 'slice_alternate' })).toBe('ace')
+    expect(executeOperation('a', { op: 'slice_alternate' })).toBe('a')
+    expect(executeOperation('', { op: 'slice_alternate' })).toBe('')
+  })
+
+  it('fnv1a_hash', () => {
+    const result = executeOperation('hello', { op: 'fnv1a_hash' })
+    expect(result).toMatch(/^[0-9a-f]{8}$/)
+    // Deterministic
+    expect(executeOperation('hello', { op: 'fnv1a_hash' })).toBe(result)
+  })
+
+  it('length', () => {
+    expect(executeOperation('hello', { op: 'length' })).toBe('5')
+    expect(executeOperation('', { op: 'length' })).toBe('0')
+    expect(executeOperation('abc', { op: 'length' })).toBe('3')
+  })
 })
 
 describe('executePipeline', () => {
@@ -112,6 +168,15 @@ describe('formatOperation', () => {
       'substring(2, 5)',
     )
     expect(formatOperation({ op: 'repeat', times: 3 })).toBe('repeat(3)')
+  })
+
+  it('formats new operations', () => {
+    expect(formatOperation({ op: 'xor_encode', key: 42 })).toBe('xor_encode(42)')
+    expect(formatOperation({ op: 'count_chars', char: 'a' })).toBe('count_chars("a")')
+    expect(formatOperation({ op: 'caesar', shift: 13 })).toBe('caesar(13)')
+    expect(formatOperation({ op: 'slice_alternate' })).toBe('slice_alternate()')
+    expect(formatOperation({ op: 'fnv1a_hash' })).toBe('fnv1a_hash()')
+    expect(formatOperation({ op: 'length' })).toBe('length()')
   })
 })
 

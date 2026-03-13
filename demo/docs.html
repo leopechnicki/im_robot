@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Documentation — imrobot</title>
+  <meta name="description" content="Step-by-step documentation for imrobot: reverse-CAPTCHA for AI agents. Server SDK, client integrations, operations reference." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #ffffff; --bg-alt: #f9fafb; --bg-code: #f1f5f9;
+      --text: #0f172a; --text-secondary: #475569; --text-muted: #94a3b8;
+      --border: #e2e8f0; --border-light: #f1f5f9;
+      --accent: #2563eb; --accent-hover: #1d4ed8; --accent-bg: #eff6ff; --accent-border: #bfdbfe;
+      --success: #059669; --success-bg: #ecfdf5; --success-border: #a7f3d0;
+      --warning: #d97706; --warning-bg: #fffbeb; --warning-border: #fde68a;
+      --error: #dc2626; --error-bg: #fef2f2;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+      --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -2px rgba(0,0,0,0.05);
+      --radius: 8px; --radius-lg: 12px;
+    }
+
+    [data-theme="dark"] {
+      --bg: #0b1120; --bg-alt: #0f1729; --bg-code: #1a2332;
+      --text: #e2e8f0; --text-secondary: #94a3b8; --text-muted: #64748b;
+      --border: #1e293b; --border-light: #1e293b;
+      --accent: #3b82f6; --accent-hover: #60a5fa; --accent-bg: rgba(59,130,246,0.1); --accent-border: rgba(59,130,246,0.3);
+      --success: #34d399; --success-bg: rgba(52,211,153,0.1); --success-border: rgba(52,211,153,0.3);
+      --warning: #fbbf24; --warning-bg: rgba(251,191,36,0.1); --warning-border: rgba(251,191,36,0.3);
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+      --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.4);
+    }
+
+    body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; }
+
+    /* ── TOP NAV ── */
+    .topnav {
+      position: sticky; top: 0; z-index: 50;
+      background: var(--bg); border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(12px); background: color-mix(in srgb, var(--bg) 90%, transparent);
+    }
+    .topnav-inner {
+      max-width: 1400px; margin: 0 auto; padding: 0 24px; height: 56px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .topnav-left { display: flex; align-items: center; gap: 24px; }
+    .topnav-logo {
+      font-weight: 800; font-size: 18px; text-decoration: none; color: var(--text);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .topnav-logo svg { width: 22px; height: 22px; }
+    .topnav-sep { color: var(--border); font-weight: 300; font-size: 20px; }
+    .topnav-title { font-size: 14px; font-weight: 600; color: var(--text-secondary); }
+    .topnav-badge {
+      font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 100px;
+      background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent-border);
+    }
+    .topnav-right { display: flex; align-items: center; gap: 16px; }
+    .topnav-right a {
+      font-size: 13px; font-weight: 500; color: var(--text-secondary);
+      text-decoration: none; transition: color 0.15s;
+    }
+    .topnav-right a:hover { color: var(--text); }
+    .theme-btn {
+      background: none; border: 1px solid var(--border); border-radius: 6px;
+      padding: 4px 8px; cursor: pointer; font-size: 14px; line-height: 1;
+    }
+
+    /* ── LAYOUT ── */
+    .layout {
+      max-width: 1400px; margin: 0 auto;
+      display: grid; grid-template-columns: 240px minmax(0, 1fr) 200px;
+      min-height: calc(100vh - 56px);
+    }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      padding: 32px 20px 32px 24px;
+      border-right: 1px solid var(--border);
+      position: sticky; top: 56px; height: calc(100vh - 56px);
+      overflow-y: auto; scrollbar-width: thin;
+    }
+    .sidebar-group { margin-bottom: 28px; }
+    .sidebar-label {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 8px; padding-left: 12px;
+    }
+    .sidebar-link {
+      display: block; padding: 5px 12px; font-size: 13px; font-weight: 500;
+      color: var(--text-secondary); text-decoration: none; border-radius: 6px;
+      transition: all 0.1s; line-height: 1.5;
+    }
+    .sidebar-link:hover { color: var(--text); background: var(--bg-alt); }
+    .sidebar-link.active {
+      color: var(--accent); background: var(--accent-bg);
+      font-weight: 600;
+    }
+
+    /* ── MAIN CONTENT ── */
+    .content { padding: 40px 56px 100px; max-width: 800px; }
+
+    /* ── ON THIS PAGE ── */
+    .toc {
+      padding: 32px 16px; position: sticky; top: 56px;
+      height: calc(100vh - 56px); overflow-y: auto; scrollbar-width: thin;
+    }
+    .toc-label {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 12px;
+    }
+    .toc a {
+      display: block; padding: 3px 0; font-size: 12px; color: var(--text-muted);
+      text-decoration: none; transition: color 0.15s; line-height: 1.6;
+    }
+    .toc a:hover { color: var(--text); }
+    .toc a.active { color: var(--accent); font-weight: 600; }
+
+    /* ── TYPOGRAPHY ── */
+    h1 {
+      font-size: 32px; font-weight: 800; letter-spacing: -0.03em;
+      margin-bottom: 8px; line-height: 1.2;
+    }
+    .page-desc { font-size: 16px; color: var(--text-secondary); margin-bottom: 40px; line-height: 1.6; }
+    h2 {
+      font-size: 22px; font-weight: 700; letter-spacing: -0.02em;
+      margin: 48px 0 16px; padding-top: 32px; border-top: 1px solid var(--border);
+      scroll-margin-top: 72px;
+    }
+    h2:first-of-type { margin-top: 0; border-top: none; padding-top: 0; }
+    h3 { font-size: 16px; font-weight: 700; margin: 28px 0 12px; scroll-margin-top: 72px; }
+    p { margin-bottom: 16px; color: var(--text-secondary); font-size: 15px; }
+    a { color: var(--accent); }
+
+    /* ── INLINE CODE ── */
+    :not(pre) > code {
+      background: var(--bg-code); padding: 2px 6px; border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace; font-size: 0.85em;
+      color: var(--text); border: 1px solid var(--border-light);
+    }
+
+    /* ── CODE BLOCKS ── */
+    .code-block {
+      position: relative; margin: 16px 0 24px;
+      border: 1px solid var(--border); border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+    .code-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 16px; background: var(--bg-alt); border-bottom: 1px solid var(--border);
+      font-size: 12px; font-weight: 600; color: var(--text-muted);
+    }
+    .code-header .lang { text-transform: uppercase; letter-spacing: 0.04em; }
+    .copy-btn {
+      display: flex; align-items: center; gap: 4px;
+      background: none; border: 1px solid var(--border); border-radius: 5px;
+      padding: 3px 8px; font-size: 11px; font-weight: 600; color: var(--text-muted);
+      cursor: pointer; transition: all 0.15s; font-family: inherit;
+    }
+    .copy-btn:hover { color: var(--text); border-color: var(--text-muted); }
+    .copy-btn.copied { color: var(--success); border-color: var(--success); }
+    .code-block pre {
+      margin: 0; padding: 16px 20px; overflow-x: auto;
+      font-family: 'JetBrains Mono', monospace; font-size: 13px;
+      line-height: 1.6; color: var(--text); background: var(--bg);
+    }
+    .code-block .comment { color: var(--text-muted); }
+
+    /* ── STEPS ── */
+    .steps-container { margin: 16px 0 32px; }
+    .step {
+      display: flex; gap: 16px; padding: 24px 0;
+      border-bottom: 1px solid var(--border-light);
+    }
+    .step:last-child { border-bottom: none; }
+    .step-indicator {
+      width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+      background: var(--accent); color: #fff; font-size: 13px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; margin-top: 2px;
+    }
+    .step-body { flex: 1; min-width: 0; }
+    .step-title { font-size: 15px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
+    .step-desc { font-size: 14px; color: var(--text-secondary); margin-bottom: 12px; }
+
+    /* ── FRAMEWORK TABS ── */
+    .fw-tabs {
+      display: flex; gap: 2px; border-bottom: 2px solid var(--border);
+      margin-bottom: 0;
+    }
+    .fw-tab {
+      padding: 10px 16px; font-size: 13px; font-weight: 600;
+      background: none; border: none; cursor: pointer; font-family: inherit;
+      color: var(--text-muted); position: relative; transition: color 0.15s;
+    }
+    .fw-tab:hover { color: var(--text); }
+    .fw-tab.active { color: var(--accent); }
+    .fw-tab.active::after {
+      content: ''; position: absolute; bottom: -2px; left: 0; right: 0;
+      height: 2px; background: var(--accent); border-radius: 1px;
+    }
+    .fw-panel { display: none; }
+    .fw-panel.active { display: block; }
+
+    /* ── CALLOUTS ── */
+    .callout {
+      border-radius: var(--radius); padding: 14px 16px; margin: 16px 0 24px;
+      font-size: 14px; line-height: 1.6; display: flex; gap: 10px;
+    }
+    .callout-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+    .callout-info { background: var(--accent-bg); border: 1px solid var(--accent-border); }
+    .callout-warn { background: var(--warning-bg); border: 1px solid var(--warning-border); }
+    .callout-success { background: var(--success-bg); border: 1px solid var(--success-border); }
+    .callout p { margin-bottom: 0; font-size: 14px; color: var(--text); }
+    .callout strong { font-weight: 700; }
+
+    /* ── TABLES ── */
+    .table-wrap { margin: 16px 0 24px; overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th { text-align: left; padding: 10px 16px; font-weight: 600; font-size: 13px; color: var(--text-muted); background: var(--bg-alt); border-bottom: 1px solid var(--border); }
+    td { padding: 10px 16px; border-bottom: 1px solid var(--border-light); color: var(--text-secondary); }
+    tr:last-child td { border-bottom: none; }
+
+    /* ── METHOD SIGNATURES ── */
+    .method-sig {
+      font-family: 'JetBrains Mono', monospace; font-size: 14px;
+      padding: 12px 16px; background: var(--bg-code); border-radius: var(--radius);
+      margin: 12px 0; border: 1px solid var(--border-light); color: var(--text);
+    }
+    .method-sig .kw { color: var(--accent); font-weight: 600; }
+    .method-sig .type { color: var(--success); }
+
+    /* ── PARAM LIST ── */
+    .params { margin: 12px 0 24px; }
+    .param {
+      display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border-light);
+      font-size: 14px;
+    }
+    .param:last-child { border-bottom: none; }
+    .param-name { font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 13px; min-width: 120px; color: var(--text); }
+    .param-type { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--accent); min-width: 160px; }
+    .param-desc { color: var(--text-secondary); }
+
+    /* ── DIVIDER ── */
+    hr { border: none; height: 1px; background: var(--border); margin: 48px 0; }
+
+    /* ── FEEDBACK ── */
+    .feedback {
+      margin-top: 64px; padding: 24px; border: 1px solid var(--border);
+      border-radius: var(--radius-lg); text-align: center;
+    }
+    .feedback p { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--text); }
+    .feedback-btns { display: flex; gap: 8px; justify-content: center; }
+    .feedback-btn {
+      padding: 6px 16px; border: 1px solid var(--border); border-radius: 6px;
+      background: var(--bg); cursor: pointer; font-size: 13px; font-weight: 500;
+      font-family: inherit; color: var(--text-secondary); transition: all 0.15s;
+    }
+    .feedback-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── NAV FOOTER ── */
+    .page-nav {
+      display: flex; justify-content: space-between; margin-top: 48px;
+      padding-top: 24px; border-top: 1px solid var(--border);
+    }
+    .page-nav a {
+      font-size: 14px; font-weight: 600; text-decoration: none; color: var(--accent);
+      display: flex; align-items: center; gap: 6px; transition: opacity 0.15s;
+    }
+    .page-nav a:hover { opacity: 0.8; }
+    .page-nav-label { font-size: 12px; color: var(--text-muted); font-weight: 500; display: block; margin-bottom: 2px; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 1100px) {
+      .layout { grid-template-columns: 240px minmax(0, 1fr); }
+      .toc { display: none; }
+    }
+    @media (max-width: 768px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .content { padding: 24px 20px 80px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── TOP NAV ────────────────────────────────────────────────────── -->
+<header class="topnav">
+  <div class="topnav-inner">
+    <div class="topnav-left">
+      <a href="/" class="topnav-logo">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/><circle cx="9" cy="14" r="1.5" fill="currentColor" stroke="none"/><circle cx="15" cy="14" r="1.5" fill="currentColor" stroke="none"/><path d="M10 18h4"/></svg>
+        imrobot
+      </a>
+      <span class="topnav-sep">/</span>
+      <span class="topnav-title">Docs</span>
+      <span class="topnav-badge">v0.2.0</span>
+    </div>
+    <div class="topnav-right">
+      <a href="/">Home</a>
+      <a href="https://github.com/leopechnicki/im_robot">GitHub</a>
+      <a href="https://www.npmjs.com/package/imrobot">npm</a>
+      <button class="theme-btn" id="theme-toggle" aria-label="Toggle theme">🌙</button>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+
+<!-- ── SIDEBAR ──────────────────────────────────────────────────── -->
+<nav class="sidebar" id="sidebar">
+  <div class="sidebar-group">
+    <div class="sidebar-label">Getting Started</div>
+    <a href="#installation" class="sidebar-link active">Installation</a>
+    <a href="#quick-start" class="sidebar-link">Quick Start</a>
+  </div>
+  <div class="sidebar-group">
+    <div class="sidebar-label">Client Integration</div>
+    <a href="#frameworks" class="sidebar-link">React / Vue / Svelte</a>
+    <a href="#web-component" class="sidebar-link">Web Component</a>
+    <a href="#headless" class="sidebar-link">Headless Core</a>
+  </div>
+  <div class="sidebar-group">
+    <div class="sidebar-label">Server SDK</div>
+    <a href="#server-setup" class="sidebar-link">Setup</a>
+    <a href="#server-generate" class="sidebar-link">Generate Challenges</a>
+    <a href="#server-verify" class="sidebar-link">Verify Answers</a>
+    <a href="#server-examples" class="sidebar-link">Express / Next.js</a>
+  </div>
+  <div class="sidebar-group">
+    <div class="sidebar-label">Reference</div>
+    <a href="#api-reference" class="sidebar-link">API Reference</a>
+    <a href="#operations" class="sidebar-link">Operations</a>
+    <a href="#configuration" class="sidebar-link">Configuration</a>
+    <a href="#types" class="sidebar-link">TypeScript Types</a>
+    <a href="#security" class="sidebar-link">Security Model</a>
+  </div>
+</nav>
+
+<!-- ── MAIN CONTENT ────────────────────────────────────────────── -->
+<main class="content">
+
+<h1>Documentation</h1>
+<p class="page-desc">Everything you need to integrate imrobot into your application. From a quick drop-in widget to a full server-verified flow with HMAC-SHA256 signing.</p>
+
+<!-- ═══ INSTALLATION ═══════════════════════════════════════════ -->
+<h2 id="installation">Installation</h2>
+
+<div class="code-block">
+  <div class="code-header">
+    <span class="lang">Terminal</span>
+    <button class="copy-btn" data-copy="npm install imrobot">Copy</button>
+  </div>
+  <pre><code>npm install imrobot</code></pre>
+</div>
+
+<p>imrobot ships ESM and CJS builds with full TypeScript declarations. Zero runtime dependencies. Tree-shakeable.</p>
+
+<div class="callout callout-info">
+  <span class="callout-icon">&#x2139;&#xFE0F;</span>
+  <p><strong>Package exports:</strong> <code>imrobot</code>, <code>imrobot/core</code>, <code>imrobot/react</code>, <code>imrobot/vue</code>, <code>imrobot/svelte</code>, <code>imrobot/web-component</code>, <code>imrobot/server</code></p>
+</div>
+
+<!-- ═══ QUICK START ════════════════════════════════════════════ -->
+<h2 id="quick-start">Quick Start</h2>
+<p>Get running in three steps with the Web Component. No build tools required.</p>
+
+<div class="steps-container">
+  <div class="step">
+    <div class="step-indicator">1</div>
+    <div class="step-body">
+      <div class="step-title">Add the script tag</div>
+      <div class="code-block">
+        <div class="code-header"><span class="lang">HTML</span><button class="copy-btn">Copy</button></div>
+        <pre><code>&lt;script type="module"&gt;
+  import { register } from 'imrobot/web-component'
+  register()
+&lt;/script&gt;</code></pre>
+      </div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-indicator">2</div>
+    <div class="step-body">
+      <div class="step-title">Place the widget</div>
+      <div class="code-block">
+        <div class="code-header"><span class="lang">HTML</span><button class="copy-btn">Copy</button></div>
+        <pre><code>&lt;imrobot-widget difficulty="medium" theme="light"&gt;&lt;/imrobot-widget&gt;</code></pre>
+      </div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-indicator">3</div>
+    <div class="step-body">
+      <div class="step-title">Listen for verification</div>
+      <div class="code-block">
+        <div class="code-header"><span class="lang">JavaScript</span><button class="copy-btn">Copy</button></div>
+        <pre><code>document.querySelector('imrobot-widget')
+  .addEventListener('imrobot-verified', (e) =&gt; {
+    console.log('Verified!', e.detail)
+    // e.detail is an ImRobotToken
+  })</code></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ FRAMEWORK INTEGRATION ═════════════════════════════════ -->
+<h2 id="frameworks">Framework Integration</h2>
+<p>First-class components for React, Vue, and Svelte. Same API, native feel.</p>
+
+<div class="fw-tabs" id="fw-tabs">
+  <button class="fw-tab active" data-fw="react">React</button>
+  <button class="fw-tab" data-fw="vue">Vue</button>
+  <button class="fw-tab" data-fw="svelte">Svelte</button>
+</div>
+
+<div class="fw-panel active" id="fw-react">
+  <div class="code-block">
+    <div class="code-header"><span class="lang">React / TSX</span><button class="copy-btn">Copy</button></div>
+    <pre><code>import { ImRobot } from 'imrobot/react'
+
+function App() {
+  return (
+    &lt;ImRobot
+      difficulty="medium"
+      theme="light"
+      onVerified={(token) =&gt; {
+        console.log('Robot verified!', token)
+        <span class="comment">// Send token to your server for validation</span>
+      }}
+      onError={(error) =&gt; {
+        console.error('Challenge error:', error)
+      }}
+    /&gt;
+  )
+}</code></pre>
+  </div>
+</div>
+
+<div class="fw-panel" id="fw-vue">
+  <div class="code-block">
+    <div class="code-header"><span class="lang">Vue / SFC</span><button class="copy-btn">Copy</button></div>
+    <pre><code>&lt;script setup&gt;
+import { ImRobot } from 'imrobot/vue'
+
+function handleVerified(token) {
+  console.log('Robot verified!', token)
+}
+&lt;/script&gt;
+
+&lt;template&gt;
+  &lt;ImRobot
+    difficulty="medium"
+    theme="light"
+    @verified="handleVerified"
+  /&gt;
+&lt;/template&gt;</code></pre>
+  </div>
+</div>
+
+<div class="fw-panel" id="fw-svelte">
+  <div class="code-block">
+    <div class="code-header"><span class="lang">Svelte</span><button class="copy-btn">Copy</button></div>
+    <pre><code>&lt;script&gt;
+  import ImRobot from 'imrobot/svelte'
+&lt;/script&gt;
+
+&lt;ImRobot
+  difficulty="medium"
+  theme="light"
+  onVerified={(token) =&gt; console.log('Verified!', token)}
+/&gt;</code></pre>
+  </div>
+</div>
+
+<div class="callout callout-info">
+  <span class="callout-icon">&#x1F4A1;</span>
+  <p>For production use, validate the token server-side with the <a href="#server-setup">Server SDK</a>.</p>
+</div>
+
+<!-- ═══ WEB COMPONENT ═════════════════════════════════════════ -->
+<h2 id="web-component">Web Component</h2>
+<p>Works in any HTML page, Angular, Astro, or any framework. No build step needed.</p>
+
+<h3>Attributes</h3>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Attribute</th><th>Values</th><th>Default</th></tr></thead>
+  <tbody>
+    <tr><td><code>difficulty</code></td><td><code>easy</code> | <code>medium</code> | <code>hard</code></td><td><code>medium</code></td></tr>
+    <tr><td><code>theme</code></td><td><code>light</code> | <code>dark</code></td><td><code>light</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Events</h3>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Event</th><th>Detail</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>imrobot-verified</code></td><td><code>ImRobotToken</code></td><td>Fires when the challenge is solved correctly</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Methods</h3>
+<div class="code-block">
+  <div class="code-header"><span class="lang">JavaScript</span><button class="copy-btn">Copy</button></div>
+  <pre><code>const widget = document.querySelector('imrobot-widget')
+
+widget.getChallenge()            <span class="comment">// Returns the current Challenge object</span>
+widget.submitAnswer(answer)      <span class="comment">// Submit a computed answer</span>
+widget.reset()                   <span class="comment">// Generate a new challenge</span></code></pre>
+</div>
+
+<!-- ═══ HEADLESS / CORE ═══════════════════════════════════════ -->
+<h2 id="headless">Headless Core</h2>
+<p>Full control without any UI. Use <code>imrobot/core</code> for custom integrations, testing, or building your own widget.</p>
+
+<div class="code-block">
+  <div class="code-header"><span class="lang">TypeScript</span><button class="copy-btn">Copy</button></div>
+  <pre><code>import {
+  generateChallenge,
+  solveChallenge,
+  verifyAnswer,
+  createToken,
+} from 'imrobot/core'
+
+<span class="comment">// 1. Generate a challenge</span>
+const challenge = generateChallenge({ difficulty: 'medium' })
+
+<span class="comment">// 2. Solve (what an AI agent does)</span>
+const answer = solveChallenge(challenge)
+
+<span class="comment">// 3. Verify</span>
+const isValid = verifyAnswer(challenge, answer) <span class="comment">// true</span>
+
+<span class="comment">// 4. Create a verification token</span>
+const token = createToken(challenge, answer, startTime)</code></pre>
+</div>
+
+<hr />
+
+<!-- ═══ SERVER SDK SETUP ══════════════════════════════════════ -->
+<h2 id="server-setup">Server SDK Setup</h2>
+<p>The Server SDK adds HMAC-SHA256 signing for tamper-proof, stateless verification. No database required.</p>
+
+<div class="callout callout-warn">
+  <span class="callout-icon">&#x26A0;&#xFE0F;</span>
+  <p><strong>Keep your secret server-side.</strong> Never expose the HMAC secret to clients. Minimum 16 characters.</p>
+</div>
+
+<div class="steps-container">
+  <div class="step">
+    <div class="step-indicator">1</div>
+    <div class="step-body">
+      <div class="step-title">Set your secret</div>
+      <div class="code-block">
+        <div class="code-header"><span class="lang">.env</span><button class="copy-btn">Copy</button></div>
+        <pre><code>IMROBOT_SECRET=your-secret-key-at-least-16-characters</code></pre>
+      </div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-indicator">2</div>
+    <div class="step-body">
+      <div class="step-title">Create a verifier</div>
+      <div class="code-block">
+        <div class="code-header"><span class="lang">TypeScript</span><button class="copy-btn">Copy</button></div>
+        <pre><code>import { createVerifier } from 'imrobot/server'
+
+const verifier = createVerifier({
+  secret: process.env.IMROBOT_SECRET,
+  difficulty: 'medium',  <span class="comment">// optional, default: 'medium'</span>
+  ttl: 20_000,           <span class="comment">// optional, default: per difficulty</span>
+})</code></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SERVER GENERATE ═══════════════════════════════════════ -->
+<h2 id="server-generate">Generate Signed Challenges</h2>
+
+<div class="method-sig">
+  <span class="kw">async</span> verifier.<strong>generate</strong>(overrides?: { difficulty?: Difficulty; ttl?: number }): <span class="type">Promise&lt;SignedChallenge&gt;</span>
+</div>
+
+<p>Creates a challenge with an HMAC-SHA256 signature. Send the full <code>SignedChallenge</code> to the client agent.</p>
+
+<div class="code-block">
+  <div class="code-header"><span class="lang">TypeScript</span><button class="copy-btn">Copy</button></div>
+  <pre><code>const challenge = await verifier.generate()
+<span class="comment">// { ...challenge, hmac: '64-char-hex', expiresAt: 1711234567890 }</span>
+
+<span class="comment">// Override per-request:</span>
+const hard = await verifier.generate({ difficulty: 'hard', ttl: 10_000 })</code></pre>
+</div>
+
+<div class="callout callout-info">
+  <span class="callout-icon">&#x2728;</span>
+  <p><strong>Stateless:</strong> The HMAC signature encodes all verification state. No database needed. Send the challenge to the client and verify when it comes back.</p>
+</div>
+
+<!-- ═══ SERVER VERIFY ═════════════════════════════════════════ -->
+<h2 id="server-verify">Verify Answers</h2>
+
+<div class="method-sig">
+  <span class="kw">async</span> verifier.<strong>verify</strong>(challenge: SignedChallenge, answer: string): <span class="type">Promise&lt;VerifyResult&gt;</span>
+</div>
+
+<p>Checks HMAC integrity, expiration, and answer correctness in a single call.</p>
+
+<div class="code-block">
+  <div class="code-header"><span class="lang">TypeScript</span><button class="copy-btn">Copy</button></div>
+  <pre><code>const result = await verifier.verify(challenge, answer)
+
+<span class="comment">// VerifyResult {</span>
+<span class="comment">//   valid: boolean</span>
+<span class="comment">//   reason?: 'expired' | 'invalid_hmac' | 'wrong_answer' | 'tampered'</span>
+<span class="comment">//   elapsed?: number      // ms since challenge creation</span>
+<span class="comment">//   suspicious?: boolean  // true if elapsed > 5s</span>
+<span class="comment">// }</span></code></pre>
+</div>
+
+<h3>Verification pipeline</h3>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Order</th><th>Check</th><th>Failure</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>HMAC signature validity</td><td><code>invalid_hmac</code></td></tr>
+    <tr><td>2</td><td>Challenge expiration</td><td><code>expired</code></td></tr>
+    <tr><td>3</td><td>Answer vs verification hash</td><td><code>wrong_answer</code></td></tr>
+    <tr><td>4</td><td>Pipeline re-execution</td><td><code>tampered</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<!-- ═══ SERVER EXAMPLES ═══════════════════════════════════════ -->
+<h2 id="server-examples">Express / Next.js Examples</h2>
+
+<div class="fw-tabs" id="server-tabs">
+  <button class="fw-tab active" data-fw="express">Express.js</button>
+  <button class="fw-tab" data-fw="nextjs">Next.js App Router</button>
+  <button class="fw-tab" data-fw="client-flow">Client Flow</button>
+</div>
+
+<div class="fw-panel active" id="fw-express">
+  <div class="code-block">
+    <div class="code-header"><span class="lang">server.ts</span><button class="copy-btn">Copy</button></div>
+    <pre><code>import express from 'express'
+import { createVerifier } from 'imrobot/server'
+
+const app = express()
+app.use(express.json())
+
+const verifier = createVerifier({
+  secret: process.env.IMROBOT_SECRET!,
+  difficulty: 'medium',
+})
+
+app.get('/api/challenge', async (req, res) =&gt; {
+  const challenge = await verifier.generate()
+  res.json(challenge)
+})
+
+app.post('/api/verify', async (req, res) =&gt; {
+  const { challenge, answer } = req.body
+  const result = await verifier.verify(challenge, answer)
+
+  if (result.valid) {
+    res.json({ verified: true, elapsed: result.elapsed })
+  } else {
+    res.status(403).json({ verified: false, reason: result.reason })
+  }
+})
+
+app.listen(3000)</code></pre>
+  </div>
+</div>
+
+<div class="fw-panel" id="fw-nextjs">
+  <div class="code-block">
+    <div class="code-header"><span class="lang">app/api/challenge/route.ts</span><button class="copy-btn">Copy</button></div>
+    <pre><code>import { createVerifier } from 'imrobot/server'
+
+const verifier = createVerifier({
+  secret: process.env.IMROBOT_SECRET!,
+})
+
+export async function GET() {
+  const challenge = await verifier.generate()
+  return Response.json(challenge)
+}</code></pre>
+  </div>
+  <div class="code-block">
+    <div class="code-header"><span class="lang">app/api/verify/route.ts</span><button class="copy-btn">Copy</button></div>
+    <pre><code>import { createVerifier } from 'imrobot/server'
+
+const verifier = createVerifier({
+  secret: process.env.IMROBOT_SECRET!,
+})
+
+export async function POST(req: Request) {
+  const { challenge, answer } = await req.json()
+  const result = await verifier.verify(challenge, answer)
+
+  if (!result.valid) {
+    return Response.json({ verified: false, reason: result.reason }, { status: 403 })
+  }
+  return Response.json({ verified: true, elapsed: result.elapsed })
+}</code></pre>
+  </div>
+</div>
+
+<div class="fw-panel" id="fw-client-flow">
+  <div class="code-block">
+    <div class="code-header"><span class="lang">agent.ts</span><button class="copy-btn">Copy</button></div>
+    <pre><code>import { solveChallenge } from 'imrobot/core'
+
+<span class="comment">// 1. Fetch signed challenge from your server</span>
+const res = await fetch('/api/challenge')
+const challenge = await res.json()
+
+<span class="comment">// 2. Solve the challenge</span>
+const answer = solveChallenge(challenge)
+
+<span class="comment">// 3. Submit answer for server-side verification</span>
+const verifyRes = await fetch('/api/verify', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ challenge, answer }),
+})
+
+const result = await verifyRes.json()
+console.log(result) <span class="comment">// { verified: true, elapsed: 12 }</span></code></pre>
+  </div>
+</div>
+
+<hr />
+
+<!-- ═══ API REFERENCE ═════════════════════════════════════════ -->
+<h2 id="api-reference">API Reference</h2>
+
+<h3><code>generateChallenge(config?)</code></h3>
+<div class="method-sig"><strong>generateChallenge</strong>(config?: Partial&lt;ImRobotConfig&gt;): <span class="type">Challenge</span></div>
+<p>Generates a new challenge with a random seed and operation pipeline.</p>
+
+<h3><code>solveChallenge(challenge)</code></h3>
+<div class="method-sig"><strong>solveChallenge</strong>(challenge: Challenge): <span class="type">string</span></div>
+<p>Executes the pipeline and returns the correct answer. This is what AI agents call.</p>
+
+<h3><code>verifyAnswer(challenge, answer)</code></h3>
+<div class="method-sig"><strong>verifyAnswer</strong>(challenge: Challenge, answer: string): <span class="type">boolean</span></div>
+<p>Client-side verification using FNV-1a hash comparison. Checks TTL expiration.</p>
+
+<h3><code>createToken(challenge, answer, startTime)</code></h3>
+<div class="method-sig"><strong>createToken</strong>(challenge: Challenge, answer: string, startTime: number): <span class="type">ImRobotToken</span></div>
+<p>Creates a verification token with elapsed time and suspicious flag.</p>
+
+<h3><code>createVerifier(config)</code></h3>
+<div class="method-sig"><strong>createVerifier</strong>(config: ServerConfig): <span class="type">ImRobotVerifier</span></div>
+<p>Factory function to create a server-side verifier with HMAC-SHA256 signing.</p>
+
+<!-- ═══ OPERATIONS ════════════════════════════════════════════ -->
+<h2 id="operations">Operations Reference</h2>
+<p>Challenges are built from a pipeline of these 18 operations. Each takes a string input and returns a string output.</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Operation</th><th>Parameters</th><th>Description</th><th>Min. Difficulty</th></tr></thead>
+  <tbody>
+    <tr><td><code>reverse</code></td><td>&mdash;</td><td>Reverse the string</td><td>Easy</td></tr>
+    <tr><td><code>to_upper</code></td><td>&mdash;</td><td>Convert to uppercase</td><td>Easy</td></tr>
+    <tr><td><code>to_lower</code></td><td>&mdash;</td><td>Convert to lowercase</td><td>Easy</td></tr>
+    <tr><td><code>sort_chars</code></td><td>&mdash;</td><td>Sort characters alphabetically</td><td>Easy</td></tr>
+    <tr><td><code>length</code></td><td>&mdash;</td><td>Return string length as string</td><td>Easy</td></tr>
+    <tr><td><code>slice_alternate</code></td><td>&mdash;</td><td>Keep characters at even indices</td><td>Easy</td></tr>
+    <tr><td><code>base64_encode</code></td><td>&mdash;</td><td>Base64 encode</td><td>Medium</td></tr>
+    <tr><td><code>rot13</code></td><td>&mdash;</td><td>ROT13 cipher (involutory)</td><td>Medium</td></tr>
+    <tr><td><code>hex_encode</code></td><td>&mdash;</td><td>Hex-encode each character</td><td>Medium</td></tr>
+    <tr><td><code>char_code_sum</code></td><td>&mdash;</td><td>Sum of all character codes</td><td>Medium</td></tr>
+    <tr><td><code>substring</code></td><td><code>start</code>, <code>end</code></td><td>Extract a substring</td><td>Medium</td></tr>
+    <tr><td><code>caesar</code></td><td><code>shift</code></td><td>Caesar cipher with given shift</td><td>Medium</td></tr>
+    <tr><td><code>count_chars</code></td><td><code>char</code></td><td>Count occurrences of a character</td><td>Medium</td></tr>
+    <tr><td><code>repeat</code></td><td><code>times</code></td><td>Repeat string N times</td><td>Hard</td></tr>
+    <tr><td><code>replace</code></td><td><code>search</code>, <code>replacement</code></td><td>Replace all occurrences</td><td>Hard</td></tr>
+    <tr><td><code>pad_start</code></td><td><code>length</code>, <code>fill</code></td><td>Left-pad with fill character</td><td>Hard</td></tr>
+    <tr><td><code>xor_encode</code></td><td><code>key</code></td><td>XOR each char code with key</td><td>Hard</td></tr>
+    <tr><td><code>fnv1a_hash</code></td><td>&mdash;</td><td>FNV-1a hash (8-char hex output)</td><td>Hard</td></tr>
+  </tbody>
+</table>
+</div>
+
+<!-- ═══ CONFIGURATION ═════════════════════════════════════════ -->
+<h2 id="configuration">Configuration</h2>
+
+<h3>Client: <code>ImRobotConfig</code></h3>
+<div class="params">
+  <div class="param"><span class="param-name">difficulty</span><span class="param-type">'easy' | 'medium' | 'hard'</span><span class="param-desc">Challenge difficulty. Default: <code>'medium'</code></span></div>
+  <div class="param"><span class="param-name">ttl</span><span class="param-type">number</span><span class="param-desc">Time-to-live in ms. Default: 30s / 20s / 15s per difficulty</span></div>
+  <div class="param"><span class="param-name">theme</span><span class="param-type">'light' | 'dark'</span><span class="param-desc">Widget theme. Default: <code>'light'</code></span></div>
+  <div class="param"><span class="param-name">onVerified</span><span class="param-type">(token: ImRobotToken) =&gt; void</span><span class="param-desc">Called when challenge is solved</span></div>
+  <div class="param"><span class="param-name">onError</span><span class="param-type">(error: Error) =&gt; void</span><span class="param-desc">Called on error</span></div>
+</div>
+
+<h3>Server: <code>ServerConfig</code></h3>
+<div class="params">
+  <div class="param"><span class="param-name">secret</span><span class="param-type">string</span><span class="param-desc"><strong>Required.</strong> HMAC secret, min 16 chars. Keep server-side only.</span></div>
+  <div class="param"><span class="param-name">difficulty</span><span class="param-type">Difficulty</span><span class="param-desc">Default difficulty. Default: <code>'medium'</code></span></div>
+  <div class="param"><span class="param-name">ttl</span><span class="param-type">number</span><span class="param-desc">Default TTL in ms. Default: per difficulty</span></div>
+</div>
+
+<h3>Difficulty levels</h3>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Level</th><th>Pipeline</th><th>Nonce</th><th>TTL</th><th>Operations pool</th></tr></thead>
+  <tbody>
+    <tr><td><code>easy</code></td><td>2&ndash;3 ops</td><td>4 chars</td><td>30s</td><td>Basic transforms (reverse, case, sort, length, slice)</td></tr>
+    <tr><td><code>medium</code></td><td>3&ndash;5 ops</td><td>6 chars</td><td>20s</td><td>+ encoding, ciphers, substring, counting</td></tr>
+    <tr><td><code>hard</code></td><td>5&ndash;7 ops</td><td>8 chars</td><td>15s</td><td>+ XOR, hashing, repetition, padding</td></tr>
+  </tbody>
+</table>
+</div>
+
+<!-- ═══ TYPES ═════════════════════════════════════════════════ -->
+<h2 id="types">TypeScript Types</h2>
+
+<div class="code-block">
+  <div class="code-header"><span class="lang">TypeScript</span><button class="copy-btn">Copy</button></div>
+  <pre><code>import type {
+  Challenge,          <span class="comment">// Base challenge object</span>
+  SignedChallenge,    <span class="comment">// Challenge + HMAC signature</span>
+  Operation,          <span class="comment">// Discriminated union of 18 operations</span>
+  Difficulty,         <span class="comment">// 'easy' | 'medium' | 'hard'</span>
+  ImRobotToken,       <span class="comment">// Client verification token</span>
+  ImRobotConfig,      <span class="comment">// Client widget configuration</span>
+  ServerConfig,       <span class="comment">// Server verifier configuration</span>
+  VerifyResult,       <span class="comment">// Server verification result</span>
+} from 'imrobot'
+
+<span class="comment">// Or import from specific entry points:</span>
+import type { SignedChallenge, VerifyResult } from 'imrobot/server'
+import type { Challenge, Operation } from 'imrobot/core'</code></pre>
+</div>
+
+<!-- ═══ SECURITY ══════════════════════════════════════════════ -->
+<h2 id="security">Security Model</h2>
+
+<h3>Client-only mode</h3>
+<p>Verification uses FNV-1a hash comparison. Suitable for internal tools and low-stakes scenarios where you trust the client environment.</p>
+
+<h3>Server SDK mode <span style="color:var(--success);font-size:12px;font-weight:700;">RECOMMENDED</span></h3>
+<p>Adds multiple layers of protection for production deployments:</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Protection</th><th>Mechanism</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Tamper-proof challenges</strong></td><td>HMAC-SHA256 signs <code>id + verification + expiresAt + difficulty</code></td></tr>
+    <tr><td><strong>Replay prevention</strong></td><td>Unique challenge ID + expiration timestamp</td></tr>
+    <tr><td><strong>Pipeline integrity</strong></td><td>Verification hash covers the original answer; modified pipelines produce mismatched hashes</td></tr>
+    <tr><td><strong>Timing attack resistance</strong></td><td>Constant-time HMAC comparison</td></tr>
+    <tr><td><strong>Stateless design</strong></td><td>No database &mdash; all state encoded in the signed challenge</td></tr>
+    <tr><td><strong>Human relay detection</strong></td><td>Responses &gt; 5 seconds flagged as <code>suspicious</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="callout callout-success">
+  <span class="callout-icon">&#x2705;</span>
+  <p><strong>Best practice:</strong> Use the Server SDK for any public-facing deployment. Generate challenges server-side, send to the client agent, and verify when the answer comes back. Never expose your HMAC secret.</p>
+</div>
+
+<!-- ── NAV + FEEDBACK ── -->
+<div class="feedback">
+  <p>Was this page helpful?</p>
+  <div class="feedback-btns">
+    <button class="feedback-btn" onclick="this.textContent='Thanks!';this.disabled=true">Yes</button>
+    <button class="feedback-btn" onclick="this.textContent='We\'ll improve it!';this.disabled=true">Could be better</button>
+  </div>
+</div>
+
+<div class="page-nav">
+  <a href="/">
+    <span>&larr;</span>
+    <div><span class="page-nav-label">Previous</span>Home</div>
+  </a>
+  <a href="https://github.com/leopechnicki/im_robot">
+    <div style="text-align:right"><span class="page-nav-label">Next</span>GitHub</div>
+    <span>&rarr;</span>
+  </a>
+</div>
+
+</main>
+
+<!-- ── ON THIS PAGE ────────────────────────────────────────── -->
+<aside class="toc" id="toc">
+  <div class="toc-label">On this page</div>
+  <a href="#installation">Installation</a>
+  <a href="#quick-start">Quick Start</a>
+  <a href="#frameworks">Framework Integration</a>
+  <a href="#web-component">Web Component</a>
+  <a href="#headless">Headless Core</a>
+  <a href="#server-setup">Server SDK Setup</a>
+  <a href="#server-generate">Generate Challenges</a>
+  <a href="#server-verify">Verify Answers</a>
+  <a href="#server-examples">Express / Next.js</a>
+  <a href="#api-reference">API Reference</a>
+  <a href="#operations">Operations</a>
+  <a href="#configuration">Configuration</a>
+  <a href="#types">TypeScript Types</a>
+  <a href="#security">Security Model</a>
+</aside>
+
+</div>
+
+<script>
+// ── Theme ──
+const themeBtn = document.getElementById('theme-toggle')
+let dark = window.matchMedia('(prefers-color-scheme: dark)').matches
+function applyTheme() {
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light')
+  themeBtn.textContent = dark ? '☀️' : '🌙'
+}
+applyTheme()
+themeBtn.addEventListener('click', () => { dark = !dark; applyTheme() })
+
+// ── Copy buttons ──
+document.querySelectorAll('.copy-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const code = btn.dataset.copy || btn.closest('.code-block')?.querySelector('code')?.textContent || ''
+    navigator.clipboard.writeText(code).then(() => {
+      btn.textContent = 'Copied!'
+      btn.classList.add('copied')
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied') }, 1500)
+    })
+  })
+})
+
+// ── Framework tabs (generic) ──
+document.querySelectorAll('.fw-tabs').forEach(tabGroup => {
+  tabGroup.querySelectorAll('.fw-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      // Deactivate all tabs in this group
+      tabGroup.querySelectorAll('.fw-tab').forEach(t => t.classList.remove('active'))
+      tab.classList.add('active')
+      // Find panels: they're siblings after the tab group
+      const parent = tabGroup.parentElement
+      parent.querySelectorAll('.fw-panel').forEach(p => {
+        // Only toggle panels that belong to this tab group
+        if (p.previousElementSibling === tabGroup || (p.previousElementSibling?.classList.contains('fw-panel') && p.id.startsWith('fw-'))) {
+          p.classList.remove('active')
+        }
+      })
+      const panelId = 'fw-' + tab.dataset.fw
+      document.getElementById(panelId)?.classList.add('active')
+    })
+  })
+})
+
+// ── Scroll-tracked sidebar ──
+const sections = document.querySelectorAll('h2[id], h3[id]')
+const sidebarLinks = document.querySelectorAll('.sidebar-link')
+const tocLinks = document.querySelectorAll('.toc a')
+
+function updateActive() {
+  let current = ''
+  sections.forEach(section => {
+    const top = section.getBoundingClientRect().top
+    if (top < 120) current = section.id
+  })
+  sidebarLinks.forEach(link => {
+    link.classList.toggle('active', link.getAttribute('href') === '#' + current)
+  })
+  tocLinks.forEach(link => {
+    link.classList.toggle('active', link.getAttribute('href') === '#' + current)
+  })
+}
+window.addEventListener('scroll', updateActive, { passive: true })
+updateActive()
+</script>
+</body>
+</html>
