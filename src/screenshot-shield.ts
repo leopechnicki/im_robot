@@ -8,7 +8,10 @@ export function setupScreenshotShield(callback: ShieldCallback): () => void {
   function activate() {
     callback(true)
     if (timeout) clearTimeout(timeout)
-    timeout = setTimeout(() => { callback(false); timeout = null }, SHIELD_DURATION_MS)
+    timeout = setTimeout(() => {
+      callback(false)
+      timeout = null
+    }, SHIELD_DURATION_MS)
   }
 
   function onKey(e: KeyboardEvent) {
@@ -16,11 +19,16 @@ export function setupScreenshotShield(callback: ShieldCallback): () => void {
       e.key === 'PrintScreen' ||
       (e.metaKey && e.shiftKey && '345'.includes(e.key)) ||
       (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 's')
-    ) activate()
+    )
+      activate()
   }
 
-  function onHidden() { if (document.visibilityState === 'hidden') activate() }
-  function onBlur() { activate() }
+  function onHidden() {
+    if (document.visibilityState === 'hidden') activate()
+  }
+  function onBlur() {
+    activate()
+  }
 
   document.addEventListener('keydown', onKey, true)
   document.addEventListener('keyup', onKey, true)

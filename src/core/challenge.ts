@@ -172,11 +172,7 @@ export function verifyAnswer(challenge: Challenge, answer: string): boolean {
   return fnv1a(answer + ':' + challenge.id) === challenge.verification
 }
 
-export function createToken(
-  challenge: Challenge,
-  answer: string,
-  startTime: number,
-): ImRobotToken {
+export function createToken(challenge: Challenge, answer: string, startTime: number): ImRobotToken {
   const elapsed = Date.now() - startTime
   const signature = fnv1a(`${challenge.id}:${answer}:${elapsed}`)
   return {
