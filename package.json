@@ -72,6 +72,15 @@
     "hmac"
   ],
   "license": "MIT",
+  "author": "Leo Pechnicki",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/leopechnicki/im_robot.git"
+  },
+  "homepage": "https://imrobot.vercel.app",
+  "bugs": {
+    "url": "https://github.com/leopechnicki/im_robot/issues"
+  },
   "peerDependencies": {
     "react": ">=17.0.0",
     "react-dom": ">=17.0.0",
