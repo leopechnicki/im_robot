@@ -109,6 +109,7 @@ export async function invisibleVerify(options: InvisibleVerifyOptions): Promise<
           proofToken: result.proofToken,
           token,
           attempts,
+          solveTime,
           totalTime: Date.now() - startTime,
         }
       }
