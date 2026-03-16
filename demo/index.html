@@ -469,11 +469,170 @@
     /* Nav glow accent */
     .nav-logo svg { color: var(--accent); }
 
+    /* QUICKSTART */
+    .quickstart-section {
+      border-top: 2px solid var(--border);
+      padding-top: 80px;
+    }
+    .agent-prompt-bar {
+      background: var(--code-bg);
+      border: 1px solid var(--accent);
+      border-radius: 12px;
+      margin-bottom: 32px;
+      overflow: hidden;
+    }
+    .prompt-bar-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      gap: 16px;
+    }
+    .agent-prompt-bar .prompt-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      color: var(--text);
+    }
+    .copy-prompt-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 22px;
+      background: var(--accent);
+      color: #0a0a1a;
+      font-weight: 700;
+      font-size: 13px;
+      font-family: 'JetBrains Mono', monospace;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .copy-prompt-btn:hover {
+      filter: brightness(1.1);
+      transform: translateY(-1px);
+      box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
+    }
+    .copy-prompt-btn.copied {
+      background: var(--success);
+    }
+    .prompt-expand-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      background: var(--accent-glow);
+      border: 1px solid rgba(0, 229, 255, 0.2);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .prompt-expand-btn:hover { background: var(--accent); }
+    .prompt-expand-btn .chevron {
+      font-size: 14px;
+      color: var(--accent);
+      transition: transform 0.25s ease;
+      line-height: 1;
+    }
+    .prompt-expand-btn:hover .chevron { color: #0a0a1a; }
+    .prompt-expand-btn.open .chevron {
+      transform: rotate(180deg);
+    }
+    .divider-or {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin: 32px 0;
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .divider-or::before,
+    .divider-or::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+    .qs-step-label {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+    .qs-code-block {
+      background: var(--bg-alt);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 32px;
+    }
+    .qs-code-block .file-tab {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      background: var(--code-bg);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+    }
+    .qs-code-block .file-tab .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+    .qs-code-block pre {
+      padding: 20px;
+      overflow-x: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--text);
+      margin: 0;
+    }
+    .qs-code-block pre .kw { color: var(--accent); }
+    .qs-code-block pre .str { color: #a78bfa; }
+    .qs-code-block pre .cmt { color: var(--text-muted); }
+
+    .agent-prompt-content {
+      display: none;
+      padding: 16px 20px;
+      border-top: 1px solid var(--border);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--text-muted);
+      max-height: 400px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .agent-prompt-content.open {
+      display: block;
+    }
+
     @media (max-width: 640px) {
       .hero { padding: 60px 16px 40px; min-height: auto; }
       section { padding: 50px 16px; }
       .demo-card { padding: 24px; }
       .nav-links a:not(.gh-link) { display: none; }
+      .prompt-bar-top { flex-direction: column; text-align: center; }
+      .agent-prompt-bar .prompt-label { font-size: 12px; }
     }
   </style>
 </head>
@@ -487,6 +646,7 @@
       </a>
       <div class="nav-links">
         <a href="#how-it-works">How it works</a>
+        <a href="#quickstart">Quickstart</a>
         <a href="#code">Code</a>
         <a href="#features">Features</a>
         <a href="/docs.html">Docs</a>
@@ -570,6 +730,76 @@
         <h3>Verify identity</h3>
         <p>The agent submits the computed result. Verify client-side or use the Server SDK with HMAC-SHA256 for tamper-proof, stateless verification.</p>
       </div>
+    </div>
+  </section>
+
+  <!-- QUICKSTART -->
+  <section class="quickstart-section" id="quickstart">
+    <div class="section-label">Quickstart</div>
+    <h2>Up and running in 2 minutes</h2>
+
+    <div class="agent-prompt-bar" id="agent-prompt-bar">
+      <div class="prompt-bar-top">
+        <div class="prompt-label">
+          <button class="prompt-expand-btn" id="prompt-toggle" aria-label="Toggle prompt preview">
+            <span class="chevron">&#9660;</span>
+          </button>
+          Copy this quickstart as a prompt for your coding agent.
+        </div>
+        <button class="copy-prompt-btn" id="copy-prompt-btn">Copy prompt</button>
+      </div>
+      <div class="agent-prompt-content" id="prompt-content"></div>
+    </div>
+
+    <div class="divider-or">or do it yourself</div>
+
+    <div class="qs-step-label">01 &mdash; Install</div>
+    <div class="qs-code-block">
+      <div class="file-tab"><span class="dot"></span> terminal</div>
+      <pre><code>$ npm install imrobot</code></pre>
+    </div>
+
+    <div class="qs-step-label">02 &mdash; Add the widget</div>
+    <div class="qs-code-block">
+      <div class="file-tab"><span class="dot"></span> your-component.tsx</div>
+      <pre><code><span class="kw">import</span> { ImRobot } <span class="kw">from</span> <span class="str">'imrobot/react'</span>
+
+<span class="kw">function</span> App() {
+  <span class="kw">return</span> (
+    &lt;ImRobot
+      difficulty=<span class="str">"medium"</span>
+      theme=<span class="str">"light"</span>
+      onVerified={(token) =&gt; {
+        console.log(<span class="str">'Robot verified!'</span>, token)
+      }}
+    /&gt;
+  )
+}</code></pre>
+    </div>
+
+    <div class="qs-step-label">03 &mdash; Verify server-side <span style="font-weight:400; text-transform:none; letter-spacing:0; color:var(--text-muted)">(optional)</span></div>
+    <div class="qs-code-block">
+      <div class="file-tab"><span class="dot"></span> server.ts</div>
+      <pre><code><span class="kw">import</span> { createVerifier } <span class="kw">from</span> <span class="str">'imrobot/server'</span>
+
+<span class="cmt">// Create verifier with HMAC secret</span>
+<span class="kw">const</span> verifier = createVerifier({
+  secret: process.env.IMROBOT_SECRET!,
+  difficulty: <span class="str">'medium'</span>,
+})
+
+<span class="cmt">// Generate a signed challenge (send to client)</span>
+app.get(<span class="str">'/api/challenge'</span>, <span class="kw">async</span> (req, res) =&gt; {
+  <span class="kw">const</span> challenge = <span class="kw">await</span> verifier.generate()
+  res.json(challenge)
+})
+
+<span class="cmt">// Verify agent's answer (stateless, no DB needed)</span>
+app.post(<span class="str">'/api/verify'</span>, <span class="kw">async</span> (req, res) =&gt; {
+  <span class="kw">const</span> { challenge, answer } = req.body
+  <span class="kw">const</span> result = <span class="kw">await</span> verifier.verify(challenge, answer)
+  res.json(result)
+})</code></pre>
     </div>
   </section>
 
