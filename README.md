@@ -155,7 +155,62 @@ app.post('/api/verify', async (req, res) => {
 })
 ```
 
-The server verifier checks three things in order: HMAC signature validity (challenge not tampered), expiration (challenge not expired), and answer correctness (pipeline re-executed). A different secret on a different server will reject the challenge — preventing cross-site replay attacks.
+The server verifier checks in order: HMAC signature validity (challenge and pipeline not tampered), expiration (challenge not expired), and answer correctness (pipeline re-executed). A different secret on a different server will reject the challenge — preventing cross-site replay attacks.
+
+### Middleware & Proof-of-Agent tokens
+
+Protect your API endpoints with framework-agnostic middleware. Verified agents receive a JWT-like Proof-of-Agent token (HMAC-SHA256 signed) that they pass via `X-Agent-Proof` header on subsequent requests.
+
+```ts
+import { requireAgent, createAgentRouter } from 'imrobot/server'
+
+// Mount challenge/verify endpoints
+const router = createAgentRouter({ secret: process.env.IMROBOT_SECRET! })
+app.post('/imrobot/challenge', router.challenge)
+app.post('/imrobot/verify', router.verify)
+
+// Protect routes — only verified agents can access
+const agentOnly = requireAgent({
+  secret: process.env.IMROBOT_SECRET!,
+  rateLimit: { windowMs: 60_000, maxRequests: 30 },
+})
+app.get('/api/data', agentOnly, (req, res) => {
+  res.json({ agent: req.agentProof })
+})
+```
+
+### Invisible verification (zero-UI)
+
+For agents that need to verify themselves programmatically without any UI:
+
+```ts
+import { invisibleVerify } from 'imrobot/core'
+
+const result = await invisibleVerify({
+  challengeUrl: 'https://api.example.com/imrobot/challenge',
+  verifyUrl: 'https://api.example.com/imrobot/verify',
+  agentId: 'my-bot-v1',
+  maxRetries: 3,
+})
+
+if (result.success) {
+  // Use result.proofToken in X-Agent-Proof header
+  fetch('/api/protected', {
+    headers: { 'X-Agent-Proof': result.proofToken! },
+  })
+}
+```
+
+### CLI
+
+Built-in CLI for testing, benchmarking, and inspecting challenges:
+
+```bash
+npx imrobot challenge --difficulty hard
+npx imrobot solve --difficulty medium
+npx imrobot benchmark --count 1000
+npx imrobot info
+```
 
 ## Screenshot protection
 
@@ -235,6 +290,11 @@ el.querySelector('button').click()
 | `slice_alternate()` | Keep every other character | `"abcdef"` → `"ace"` |
 | `fnv1a_hash()` | FNV-1a hash of the string | `"test"` → `"bc2c0be9"` |
 | `length()` | String length as string | `"hello"` → `"5"` |
+| `sha256_hash()` | SHA-256 hash (sync FNV-based) | deterministic hex output |
+| `byte_xor(key[])` | XOR each byte with key array | byte-level encryption |
+| `hash_chain(rounds)` | Iterated FNV-1a hash | cascaded hashing |
+| `nibble_swap()` | Swap high/low nibbles per byte | `0xAB` → `0xBA` |
+| `bit_rotate(bits)` | Rotate bits left within byte | bitwise rotation |
 
 ## Configuration
 
@@ -250,7 +310,7 @@ el.querySelector('button').click()
 
 - **easy**: 2-3 simple operations (reverse, case, sort, length, slice_alternate)
 - **medium**: 3-5 operations including encoding, extraction, caesar, and char counting
-- **hard**: 5-7 operations including XOR encoding, hashing, replacement, and padding
+- **hard**: 5-7 operations including XOR encoding, hashing, replacement, padding, SHA-256, byte XOR, hash chains, nibble swap, and bit rotate
 
 ## Server verification
 

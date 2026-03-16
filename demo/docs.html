@@ -768,7 +768,7 @@ app.use(express.json())
 const router = createAgentRouter({
   secret: process.env.IMROBOT_SECRET!,
   difficulty: 'medium',
-  tokenTtl: 300_000, <span class="comment">// 5 min token lifetime</span>
+  tokenTTL: 300_000, <span class="comment">// 5 min token lifetime</span>
 })
 app.post('/imrobot/challenge', router.challenge)
 app.post('/imrobot/verify', router.verify)
@@ -776,7 +776,7 @@ app.post('/imrobot/verify', router.verify)
 <span class="comment">// Protect your API with the middleware</span>
 const agentOnly = requireAgent({
   secret: process.env.IMROBOT_SECRET!,
-  rateLimit: { windowMs: 60_000, max: 30 },
+  rateLimit: { windowMs: 60_000, maxRequests: 30 },
 })
 app.get('/api/data', agentOnly, (req, res) =&gt; {
   res.json({ message: 'Only verified agents reach here' })
@@ -804,7 +804,7 @@ app.get('/api/data', agentOnly, (req, res) =&gt; {
 const issuer = createTokenIssuer({
   secret: process.env.IMROBOT_SECRET!,
   issuer: 'my-app',
-  tokenTtl: 300_000, <span class="comment">// 5 minutes</span>
+  tokenTTL: 300_000, <span class="comment">// 5 minutes</span>
 })
 
 <span class="comment">// Issue a token after successful challenge verification</span>
