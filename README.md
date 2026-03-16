@@ -166,7 +166,7 @@ import { requireAgent, createAgentRouter } from 'imrobot/server'
 
 // Mount challenge/verify endpoints
 const router = createAgentRouter({ secret: process.env.IMROBOT_SECRET! })
-app.post('/imrobot/challenge', router.challenge)
+app.get('/imrobot/challenge', router.challenge)
 app.post('/imrobot/verify', router.verify)
 
 // Protect routes — only verified agents can access
