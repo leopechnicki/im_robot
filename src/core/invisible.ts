@@ -26,6 +26,8 @@ export interface InvisibleVerifyResult {
   error?: string
   /** Number of attempts made */
   attempts: number
+  /** Time taken to solve the challenge in ms */
+  solveTime?: number
   /** Total time taken in ms */
   totalTime: number
 }
