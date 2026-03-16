@@ -215,13 +215,11 @@ describe('ImRobotVerifier.verify', () => {
 
     // Tamper with pipeline (replace with trivial operations)
     const tampered = { ...challenge, pipeline: [{ op: 'length' as const }] }
-    // The verification hash is HMAC-protected and covers the original answer.
-    // A tampered pipeline produces a different answer that won't match verification.
+    // The HMAC now covers the pipeline, so tampering invalidates the signature.
     const fakeAnswer = executePipeline(challenge.seed, tampered.pipeline)
     const result = await v.verify(tampered as SignedChallenge, fakeAnswer)
     expect(result.valid).toBe(false)
-    // Should be wrong_answer since verification hash won't match the fake answer
-    expect(result.reason).toBe('wrong_answer')
+    expect(result.reason).toBe('invalid_hmac')
   })
 
   it('works across all difficulties', async () => {

@@ -50,8 +50,10 @@ export class ImRobotVerifier {
     verification: string,
     expiresAt: number,
     difficulty: Difficulty,
+    pipeline?: unknown[],
   ): string {
-    return `${id}:${verification}:${expiresAt}:${difficulty}`
+    const base = `${id}:${verification}:${expiresAt}:${difficulty}`
+    return pipeline ? `${base}:${JSON.stringify(pipeline)}` : base
   }
 
   /**
@@ -71,6 +73,7 @@ export class ImRobotVerifier {
       challenge.verification,
       expiresAt,
       challenge.difficulty,
+      challenge.pipeline,
     )
     const hmac = await hmacSign(this.secret, message)
 
@@ -98,6 +101,7 @@ export class ImRobotVerifier {
       challenge.verification,
       challenge.expiresAt,
       challenge.difficulty,
+      challenge.pipeline,
     )
     const hmacValid = await hmacVerify(this.secret, message, challenge.hmac)
     if (!hmacValid) {
