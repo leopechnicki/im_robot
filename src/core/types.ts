@@ -18,6 +18,12 @@ export type Operation =
   | { op: 'slice_alternate' }
   | { op: 'fnv1a_hash' }
   | { op: 'length' }
+  // Crypto-grade operations (v0.4)
+  | { op: 'sha256_hash' }
+  | { op: 'byte_xor'; key: number[] }
+  | { op: 'hash_chain'; rounds: number }
+  | { op: 'nibble_swap' }
+  | { op: 'bit_rotate'; bits: number }
 
 export interface Challenge {
   version: 1
@@ -68,6 +74,33 @@ export interface ImRobotConfig {
   onVerified?: (token: ImRobotToken) => void
   onError?: (error: Error) => void
 }
+
+/**
+ * JWT-like Proof-of-Agent token issued after successful verification.
+ * Designed for cross-service agent authentication via X-Agent-Proof header.
+ */
+export interface AgentProofToken {
+  /** Header */
+  alg: 'HMAC-SHA256'
+  typ: 'agent+jwt'
+  /** Payload */
+  iss: string
+  sub: string
+  aud?: string
+  iat: number
+  exp: number
+  jti: string
+  imr: {
+    challenge_id: string
+    difficulty: Difficulty
+    solve_time_ms: number
+    suspicious: boolean
+    version: number
+  }
+}
+
+/** Serialized proof token (base64url-encoded header.payload.signature) */
+export type SerializedProofToken = string
 
 /**
  * Configuration for the server-side verifier.

@@ -1,6 +1,6 @@
 {
   "name": "imrobot",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "I'm a robot. Reverse-CAPTCHA that verifies AI agents and robots, not humans.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -42,6 +42,9 @@
       "require": "./dist/server/index.cjs"
     }
   },
+  "bin": {
+    "imrobot": "./dist/cli/index.cjs"
+  },
   "files": [
     "dist",
     "src"
@@ -69,7 +72,13 @@
     "vue",
     "svelte",
     "server",
-    "hmac"
+    "hmac",
+    "jwt",
+    "proof-of-agent",
+    "middleware",
+    "cli",
+    "invisible",
+    "crypto"
   ],
   "license": "MIT",
   "author": "Leo Pechnicki",

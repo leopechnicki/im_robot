@@ -505,7 +505,7 @@
     </div>
     <div class="hero-badge">
       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M8 12l2.5 2.5L16 9"/></svg>
-      Open Source &middot; v0.3.1
+      Open Source &middot; v0.4.0
     </div>
     <h1>I'm a <span>robot</span>.</h1>
     <p>
@@ -586,6 +586,9 @@
       <button class="tab" data-tab="web" role="tab">Web Component</button>
       <button class="tab" data-tab="core" role="tab">Headless</button>
       <button class="tab" data-tab="server" role="tab">Server SDK</button>
+      <button class="tab" data-tab="middleware" role="tab">Middleware</button>
+      <button class="tab" data-tab="invisible" role="tab">Invisible</button>
+      <button class="tab" data-tab="cli" role="tab">CLI</button>
     </div>
     <div class="code-panels">
       <div class="code-panel active" id="panel-react"><pre><code>import { ImRobot } from 'imrobot/react'
@@ -684,6 +687,65 @@ app.post('/api/verify', async (req, res) =&gt; {
   // { valid: true, elapsed: 42, suspicious: false }
   res.json(result)
 })</code></pre></div>
+
+      <div class="code-panel" id="panel-middleware"><pre><code>import {
+  requireAgent,
+  createAgentRouter,
+  createTokenIssuer,
+} from 'imrobot/server'
+
+// Mount challenge/verify endpoints
+const router = createAgentRouter({
+  secret: process.env.IMROBOT_SECRET!,
+})
+app.get('/imrobot/challenge', router.challenge)
+app.post('/imrobot/verify', router.verify)
+
+// Protect agent-only routes with middleware
+app.use('/api/agent-only', requireAgent({
+  secret: process.env.IMROBOT_SECRET!,
+  rateLimit: { windowMs: 60000, maxRequests: 100 },
+}))
+
+// Agent sends: X-Agent-Proof: &lt;proof-token&gt;
+app.get('/api/agent-only/data', (req, res) =&gt; {
+  const agent = req.agentProof // decoded token claims
+  res.json({ message: 'Agent verified!', agent })
+})</code></pre></div>
+
+      <div class="code-panel" id="panel-invisible"><pre><code>import { invisibleVerify } from 'imrobot/core'
+
+// Zero-UI: fetch challenge, solve, submit &mdash; all automatic
+const result = await invisibleVerify({
+  challengeUrl: 'https://api.example.com/imrobot/challenge',
+  verifyUrl: 'https://api.example.com/imrobot/verify',
+  agentId: 'my-agent-v1',
+  maxRetries: 3,
+})
+
+if (result.success) {
+  // Use the proof token for all subsequent requests
+  const response = await fetch('/api/data', {
+    headers: { 'X-Agent-Proof': result.proofToken! }
+  })
+  console.log(`Verified in ${result.totalTime}ms`)
+}</code></pre></div>
+
+      <div class="code-panel" id="panel-cli"><pre><code># Generate a test challenge
+$ npx imrobot challenge --difficulty hard
+
+# Solve and verify immediately
+$ npx imrobot solve --difficulty medium
+
+# Server-side verification with HMAC
+$ npx imrobot verify --secret my-secret-at-least-16
+
+# Performance benchmark
+$ npx imrobot benchmark --count 1000 --difficulty hard
+#   Throughput: ~12,351 verifications/sec/core
+
+# Project info
+$ npx imrobot info</code></pre></div>
     </div>
   </section>
 
@@ -701,27 +763,37 @@ app.post('/api/verify', async (req, res) =&gt; {
       <div class="feature">
         <div class="feature-icon">🔒</div>
         <h3>HMAC-SHA256 server SDK</h3>
-        <p>Optional server-side verification with tamper-proof HMAC signing. Stateless &mdash; no database needed. Or use client-only mode.</p>
+        <p>Tamper-proof HMAC signing with stateless verification. No database needed. Proof-of-Agent tokens for cross-service auth.</p>
       </div>
       <div class="feature">
         <div class="feature-icon">⚡</div>
         <h3>Instant for agents</h3>
-        <p>Deterministic string pipelines are trivially solvable by any programmatic agent in milliseconds.</p>
+        <p>Deterministic pipelines are trivially solvable by any programmatic agent. ~12,000 verifications/sec per core.</p>
       </div>
       <div class="feature">
         <div class="feature-icon">🧠</div>
-        <h3>18 operation types</h3>
-        <p>String transforms, Caesar ciphers, XOR encoding, FNV-1a hashing, and more &mdash; impossible for humans to compute manually.</p>
+        <h3>23 operation types</h3>
+        <p>String transforms, SHA-256, byte XOR, hash chains, nibble swap, bit rotation, Caesar ciphers &mdash; impossible for humans.</p>
       </div>
       <div class="feature">
-        <div class="feature-icon">🎨</div>
-        <h3>Themeable</h3>
-        <p>Built-in light and dark themes. CSS-in-JS styles with full customization support.</p>
+        <div class="feature-icon">🛡️</div>
+        <h3>Middleware &amp; proof tokens</h3>
+        <p>Built-in <code>requireAgent()</code> middleware with rate limiting. JWT-style proof tokens via <code>X-Agent-Proof</code> header.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">👻</div>
+        <h3>Invisible verification</h3>
+        <p>Zero-UI mode: fetch, solve, and submit automatically. Retry with exponential backoff. No user interaction needed.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">💻</div>
+        <h3>CLI tool</h3>
+        <p><code>npx imrobot</code> &mdash; generate challenges, solve, verify, and benchmark from the terminal. Great for testing.</p>
       </div>
       <div class="feature">
         <div class="feature-icon">📦</div>
         <h3>Tiny footprint</h3>
-        <p>~6 KB core, zero runtime dependencies. Tree-shakeable ESM and CJS builds with full TypeScript types.</p>
+        <p>~14 KB core, zero runtime dependencies. Tree-shakeable ESM and CJS builds with full TypeScript types.</p>
       </div>
     </div>
   </section>

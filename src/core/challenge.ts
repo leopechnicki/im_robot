@@ -94,9 +94,18 @@ const HARD_OPS: OpFactory[] = [
     length: Math.max(val.length, 1) + randomInt(2, 6),
     fill: randomHex(1),
   }),
-  // New: harder operations
+  // XOR and hash operations
   () => ({ op: 'xor_encode', key: randomInt(1, 127) }),
   () => ({ op: 'fnv1a_hash' }),
+  // Crypto-grade operations (v0.4)
+  () => ({ op: 'sha256_hash' }),
+  () => ({
+    op: 'byte_xor',
+    key: Array.from({ length: randomInt(2, 8) }, () => randomInt(1, 255)),
+  }),
+  () => ({ op: 'hash_chain', rounds: randomInt(2, 5) }),
+  () => ({ op: 'nibble_swap' }),
+  () => ({ op: 'bit_rotate', bits: randomInt(1, 7) }),
 ]
 
 function getOpsForDifficulty(difficulty: Difficulty) {

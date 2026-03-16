@@ -11,6 +11,7 @@ export default defineConfig({
       ['test/server.test.ts', 'node'],
       ['test/integration.test.ts', 'node'],
       ['test/core.test.ts', 'node'],
+      ['test/v04-features.test.ts', 'node'],
     ],
   },
 })
