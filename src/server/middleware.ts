@@ -188,7 +188,12 @@ export function createAgentRouter(options: RequireAgentOptions) {
     /**
      * Verify an agent's answer and issue a proof token.
      */
-    verify: async (req: MiddlewareRequest & { body?: { challenge: SignedChallenge; answer: string; agentId?: string } }, res: MiddlewareResponse) => {
+    verify: async (
+      req: MiddlewareRequest & {
+        body?: { challenge: SignedChallenge; answer: string; agentId?: string }
+      },
+      res: MiddlewareResponse,
+    ) => {
       const body = req.body
       if (!body?.challenge || !body?.answer) {
         return res.status(400).json({

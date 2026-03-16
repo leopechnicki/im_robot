@@ -132,12 +132,22 @@ async function cmdBenchmark(difficulty: Difficulty, count: number) {
 
   console.log('  Metric         Avg        Min        Max        P99')
   console.log('  ──────────── ────────── ────────── ────────── ──────────')
-  console.log(`  Generate     ${avg(genTimes).toFixed(3).padStart(8)}ms ${min(genTimes).toFixed(3).padStart(8)}ms ${max(genTimes).toFixed(3).padStart(8)}ms ${p99(genTimes).toFixed(3).padStart(8)}ms`)
-  console.log(`  Solve        ${avg(solveTimes).toFixed(3).padStart(8)}ms ${min(solveTimes).toFixed(3).padStart(8)}ms ${max(solveTimes).toFixed(3).padStart(8)}ms ${p99(solveTimes).toFixed(3).padStart(8)}ms`)
-  console.log(`  Verify       ${avg(verifyTimes).toFixed(3).padStart(8)}ms ${min(verifyTimes).toFixed(3).padStart(8)}ms ${max(verifyTimes).toFixed(3).padStart(8)}ms ${p99(verifyTimes).toFixed(3).padStart(8)}ms`)
-  console.log(`  Total cycle  ${(avg(genTimes) + avg(solveTimes) + avg(verifyTimes)).toFixed(3).padStart(8)}ms`)
+  console.log(
+    `  Generate     ${avg(genTimes).toFixed(3).padStart(8)}ms ${min(genTimes).toFixed(3).padStart(8)}ms ${max(genTimes).toFixed(3).padStart(8)}ms ${p99(genTimes).toFixed(3).padStart(8)}ms`,
+  )
+  console.log(
+    `  Solve        ${avg(solveTimes).toFixed(3).padStart(8)}ms ${min(solveTimes).toFixed(3).padStart(8)}ms ${max(solveTimes).toFixed(3).padStart(8)}ms ${p99(solveTimes).toFixed(3).padStart(8)}ms`,
+  )
+  console.log(
+    `  Verify       ${avg(verifyTimes).toFixed(3).padStart(8)}ms ${min(verifyTimes).toFixed(3).padStart(8)}ms ${max(verifyTimes).toFixed(3).padStart(8)}ms ${p99(verifyTimes).toFixed(3).padStart(8)}ms`,
+  )
+  console.log(
+    `  Total cycle  ${(avg(genTimes) + avg(solveTimes) + avg(verifyTimes)).toFixed(3).padStart(8)}ms`,
+  )
   console.log()
-  console.log(`  Throughput:  ~${Math.floor(1000 / (avg(genTimes) + avg(solveTimes) + avg(verifyTimes)))} verifications/sec/core`)
+  console.log(
+    `  Throughput:  ~${Math.floor(1000 / (avg(genTimes) + avg(solveTimes) + avg(verifyTimes)))} verifications/sec/core`,
+  )
   console.log()
 }
 

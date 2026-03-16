@@ -55,7 +55,9 @@ export interface InvisibleVerifyResult {
  * }
  * ```
  */
-export async function invisibleVerify(options: InvisibleVerifyOptions): Promise<InvisibleVerifyResult> {
+export async function invisibleVerify(
+  options: InvisibleVerifyOptions,
+): Promise<InvisibleVerifyResult> {
   const maxRetries = options.maxRetries ?? 3
   const timeout = options.timeout ?? 10_000
   const startTime = Date.now()
@@ -65,10 +67,14 @@ export async function invisibleVerify(options: InvisibleVerifyOptions): Promise<
     attempts++
     try {
       // 1. Fetch challenge
-      const challengeResponse = await fetchWithTimeout(options.challengeUrl, {
-        method: 'GET',
-        headers: { 'Accept': 'application/json' },
-      }, timeout)
+      const challengeResponse = await fetchWithTimeout(
+        options.challengeUrl,
+        {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+        },
+        timeout,
+      )
 
       if (!challengeResponse.ok) {
         throw new Error(`Challenge request failed: ${challengeResponse.status}`)
@@ -82,22 +88,28 @@ export async function invisibleVerify(options: InvisibleVerifyOptions): Promise<
       const solveTime = Date.now() - solveStart
 
       // 3. Submit answer
-      const verifyResponse = await fetchWithTimeout(options.verifyUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          challenge,
-          answer,
-          agentId: options.agentId,
-        }),
-      }, timeout)
+      const verifyResponse = await fetchWithTimeout(
+        options.verifyUrl,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            challenge,
+            answer,
+            agentId: options.agentId,
+          }),
+        },
+        timeout,
+      )
 
       if (!verifyResponse.ok) {
         const errorBody = await verifyResponse.json().catch(() => ({}))
-        throw new Error(`Verify failed: ${(errorBody as Record<string, string>).reason ?? verifyResponse.status}`)
+        throw new Error(
+          `Verify failed: ${(errorBody as Record<string, string>).reason ?? verifyResponse.status}`,
+        )
       }
 
-      const result = await verifyResponse.json() as {
+      const result = (await verifyResponse.json()) as {
         valid: boolean
         proofToken?: string
         elapsed?: number
