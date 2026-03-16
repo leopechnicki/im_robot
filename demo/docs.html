@@ -296,7 +296,7 @@
       </a>
       <span class="topnav-sep">/</span>
       <span class="topnav-title">Docs</span>
-      <span class="topnav-badge">v0.3.1</span>
+      <span class="topnav-badge">v0.4.0</span>
     </div>
     <div class="topnav-right">
       <a href="/">Home</a>
@@ -330,6 +330,13 @@
     <a href="#server-examples" class="sidebar-link">Express / Next.js</a>
   </div>
   <div class="sidebar-group">
+    <div class="sidebar-label">v0.4 Features</div>
+    <a href="#middleware" class="sidebar-link">Middleware</a>
+    <a href="#proof-tokens" class="sidebar-link">Proof-of-Agent Tokens</a>
+    <a href="#invisible" class="sidebar-link">Invisible Verify</a>
+    <a href="#cli" class="sidebar-link">CLI Tool</a>
+  </div>
+  <div class="sidebar-group">
     <div class="sidebar-label">Reference</div>
     <a href="#api-reference" class="sidebar-link">API Reference</a>
     <a href="#operations" class="sidebar-link">Operations</a>
@@ -343,7 +350,7 @@
 <main class="content">
 
 <h1>Documentation</h1>
-<p class="page-desc">Everything you need to integrate imrobot into your application. From a quick drop-in widget to a full server-verified flow with HMAC-SHA256 signing.</p>
+<p class="page-desc">Everything you need to integrate imrobot into your application. From a quick drop-in widget to middleware-protected APIs with Proof-of-Agent tokens and invisible verification.</p>
 
 <!-- ═══ INSTALLATION ═══════════════════════════════════════════ -->
 <h2 id="installation">Installation</h2>
@@ -742,6 +749,155 @@ console.log(result) <span class="comment">// { verified: true, elapsed: 12 }</sp
 
 <hr />
 
+<!-- ═══ MIDDLEWARE ════════════════════════════════════════════ -->
+<h2 id="middleware">Middleware</h2>
+<p>Framework-agnostic middleware that protects your endpoints by requiring a valid Proof-of-Agent token. Works with Express, Fastify, Next.js, or any Node.js server.</p>
+
+<h3><code>requireAgent(options)</code></h3>
+<p>Returns a middleware function that extracts the <code>X-Agent-Proof</code> header, verifies the token, and rejects unauthorized requests with a 401 or 429 status.</p>
+
+<div class="code-block">
+  <div class="code-header"><span class="lang">TypeScript</span><button class="copy-btn">Copy</button></div>
+  <pre><code>import express from 'express'
+import { requireAgent, createAgentRouter } from 'imrobot/server'
+
+const app = express()
+app.use(express.json())
+
+<span class="comment">// Mount challenge/verify endpoints</span>
+const router = createAgentRouter({
+  secret: process.env.IMROBOT_SECRET!,
+  difficulty: 'medium',
+  tokenTTL: 300_000, <span class="comment">// 5 min token lifetime</span>
+})
+app.post('/imrobot/challenge', router.challenge)
+app.post('/imrobot/verify', router.verify)
+
+<span class="comment">// Protect your API with the middleware</span>
+const agentOnly = requireAgent({
+  secret: process.env.IMROBOT_SECRET!,
+  rateLimit: { windowMs: 60_000, maxRequests: 30 },
+})
+app.get('/api/data', agentOnly, (req, res) =&gt; {
+  res.json({ message: 'Only verified agents reach here' })
+})</code></pre>
+</div>
+
+<h3><code>createAgentRouter(options)</code></h3>
+<p>Factory that returns <code>{ challenge, verify }</code> request handlers. Mount them at your preferred paths. The <code>verify</code> handler issues a Proof-of-Agent token on success.</p>
+
+<div class="callout callout-info">
+  <span class="callout-icon">&#x2139;&#xFE0F;</span>
+  <p><strong>Rate limiting:</strong> The middleware includes built-in per-IP rate limiting via <code>rateLimit: { windowMs, max }</code>. Requests exceeding the limit receive a 429 response.</p>
+</div>
+
+<!-- ═══ PROOF TOKENS ═════════════════════════════════════════ -->
+<h2 id="proof-tokens">Proof-of-Agent Tokens</h2>
+<p>JWT-like tokens issued upon successful verification. Format: <code>base64url(header).base64url(payload).base64url(signature)</code>, signed with HMAC-SHA256.</p>
+
+<h3><code>ProofTokenIssuer</code></h3>
+
+<div class="code-block">
+  <div class="code-header"><span class="lang">TypeScript</span><button class="copy-btn">Copy</button></div>
+  <pre><code>import { createTokenIssuer } from 'imrobot/server'
+
+const issuer = createTokenIssuer({
+  secret: process.env.IMROBOT_SECRET!,
+  issuer: 'my-app',
+  tokenTTL: 300_000, <span class="comment">// 5 minutes</span>
+})
+
+<span class="comment">// Issue a token after successful challenge verification</span>
+const token = await issuer.issue({
+  challengeId: challenge.id,
+  difficulty: 'medium',
+  solveTimeMs: 42,
+  suspicious: false,
+})
+
+<span class="comment">// Verify a token from the X-Agent-Proof header</span>
+const result = await issuer.verify(token)
+<span class="comment">// { valid: true, payload: { iss, sub, iat, exp, imr: { ... } } }</span>
+
+<span class="comment">// Decode without verification (for inspection)</span>
+const payload = ProofTokenIssuer.decode(token)</code></pre>
+</div>
+
+<div class="params">
+  <div class="param"><span class="param-name">alg</span><span class="param-type">'HMAC-SHA256'</span><span class="param-desc">Signing algorithm</span></div>
+  <div class="param"><span class="param-name">typ</span><span class="param-type">'agent+jwt'</span><span class="param-desc">Token type identifier</span></div>
+  <div class="param"><span class="param-name">iss</span><span class="param-type">string</span><span class="param-desc">Issuer identifier</span></div>
+  <div class="param"><span class="param-name">imr</span><span class="param-type">object</span><span class="param-desc">imrobot claims: challenge_id, difficulty, solve_time_ms, suspicious, version</span></div>
+</div>
+
+<!-- ═══ INVISIBLE VERIFY ═════════════════════════════════════ -->
+<h2 id="invisible">Invisible Verification</h2>
+<p>Zero-UI verification for AI agents that need to prove themselves programmatically. Handles the full challenge &rarr; solve &rarr; verify flow with retry and exponential backoff.</p>
+
+<div class="code-block">
+  <div class="code-header"><span class="lang">TypeScript</span><button class="copy-btn">Copy</button></div>
+  <pre><code>import { invisibleVerify } from 'imrobot/core'
+
+const result = await invisibleVerify({
+  challengeUrl: 'https://api.example.com/imrobot/challenge',
+  verifyUrl: 'https://api.example.com/imrobot/verify',
+  agentId: 'my-bot-v1',
+  maxRetries: 3,
+  timeout: 10_000,
+})
+
+if (result.success) {
+  console.log('Verified!', result.proofToken)
+  console.log(`Solved in ${result.solveTime}ms, ${result.attempts} attempt(s)`)
+
+  <span class="comment">// Use the proof token for subsequent API calls</span>
+  fetch('/api/protected', {
+    headers: { 'X-Agent-Proof': result.proofToken },
+  })
+} else {
+  console.error('Failed:', result.error)
+}</code></pre>
+</div>
+
+<div class="callout callout-success">
+  <span class="callout-icon">&#x2705;</span>
+  <p><strong>Retry strategy:</strong> Exponential backoff starting at 100ms (100ms &rarr; 200ms &rarr; 400ms). The function returns after the first successful verification or after exhausting all retries.</p>
+</div>
+
+<!-- ═══ CLI ═══════════════════════════════════════════════════ -->
+<h2 id="cli">CLI Tool</h2>
+<p>A built-in command-line interface for testing, benchmarking, and inspecting imrobot challenges. No installation needed beyond the package.</p>
+
+<div class="code-block">
+  <div class="code-header"><span class="lang">Terminal</span><button class="copy-btn">Copy</button></div>
+  <pre><code><span class="comment"># Generate a challenge</span>
+npx imrobot challenge --difficulty hard
+
+<span class="comment"># Solve a challenge (pipe from generate)</span>
+npx imrobot challenge | npx imrobot solve
+
+<span class="comment"># Run a performance benchmark</span>
+npx imrobot benchmark --iterations 1000 --difficulty medium
+
+<span class="comment"># Show library info</span>
+npx imrobot info</code></pre>
+</div>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Command</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>challenge</code></td><td>Generate a new challenge (JSON output)</td></tr>
+    <tr><td><code>solve</code></td><td>Solve a challenge from stdin</td></tr>
+    <tr><td><code>verify</code></td><td>Verify a challenge + answer pair</td></tr>
+    <tr><td><code>benchmark</code></td><td>Run performance benchmarks with stats (avg, min, max, p99)</td></tr>
+    <tr><td><code>info</code></td><td>Show version, features, and operation counts</td></tr>
+  </tbody>
+</table>
+</div>
+
+<hr />
+
 <!-- ═══ API REFERENCE ═════════════════════════════════════════ -->
 <h2 id="api-reference">API Reference</h2>
 
@@ -765,9 +921,25 @@ console.log(result) <span class="comment">// { verified: true, elapsed: 12 }</sp
 <div class="method-sig"><strong>createVerifier</strong>(config: ServerConfig): <span class="type">ImRobotVerifier</span></div>
 <p>Factory function to create a server-side verifier with HMAC-SHA256 signing.</p>
 
+<h3><code>invisibleVerify(options)</code></h3>
+<div class="method-sig"><strong>invisibleVerify</strong>(options: InvisibleVerifyOptions): <span class="type">Promise&lt;InvisibleVerifyResult&gt;</span></div>
+<p>Zero-UI verification flow with automatic retry and exponential backoff. Returns proof token on success.</p>
+
+<h3><code>createTokenIssuer(config)</code></h3>
+<div class="method-sig"><strong>createTokenIssuer</strong>(config: ProofTokenConfig): <span class="type">ProofTokenIssuer</span></div>
+<p>Creates a JWT-like Proof-of-Agent token issuer with HMAC-SHA256 signing.</p>
+
+<h3><code>requireAgent(options)</code></h3>
+<div class="method-sig"><strong>requireAgent</strong>(options: RequireAgentOptions): <span class="type">MiddlewareFunction</span></div>
+<p>Framework-agnostic middleware that verifies <code>X-Agent-Proof</code> header tokens. Includes rate limiting.</p>
+
+<h3><code>createAgentRouter(options)</code></h3>
+<div class="method-sig"><strong>createAgentRouter</strong>(options: RequireAgentOptions): <span class="type">{ challenge, verify }</span></div>
+<p>Returns handler pair for mounting challenge/verify endpoints.</p>
+
 <!-- ═══ OPERATIONS ════════════════════════════════════════════ -->
 <h2 id="operations">Operations Reference</h2>
-<p>Challenges are built from a pipeline of these 18 operations. Each takes a string input and returns a string output.</p>
+<p>Challenges are built from a pipeline of these 23 operations. Each takes a string input and returns a string output.</p>
 
 <div class="table-wrap">
 <table>
@@ -791,6 +963,11 @@ console.log(result) <span class="comment">// { verified: true, elapsed: 12 }</sp
     <tr><td><code>pad_start</code></td><td><code>length</code>, <code>fill</code></td><td>Left-pad with fill character</td><td>Hard</td></tr>
     <tr><td><code>xor_encode</code></td><td><code>key</code></td><td>XOR each char code with key</td><td>Hard</td></tr>
     <tr><td><code>fnv1a_hash</code></td><td>&mdash;</td><td>FNV-1a hash (8-char hex output)</td><td>Hard</td></tr>
+    <tr><td><code>sha256_hash</code></td><td>&mdash;</td><td>SHA-256 hash (sync FNV-based approximation)</td><td>Hard</td></tr>
+    <tr><td><code>byte_xor</code></td><td><code>key</code></td><td>XOR each byte with a key array</td><td>Hard</td></tr>
+    <tr><td><code>hash_chain</code></td><td><code>rounds</code></td><td>Iterated FNV-1a hash chain</td><td>Hard</td></tr>
+    <tr><td><code>nibble_swap</code></td><td>&mdash;</td><td>Swap high/low nibbles of each byte</td><td>Hard</td></tr>
+    <tr><td><code>bit_rotate</code></td><td><code>bits</code></td><td>Rotate bits left within each byte</td><td>Hard</td></tr>
   </tbody>
 </table>
 </div>
@@ -821,7 +998,7 @@ console.log(result) <span class="comment">// { verified: true, elapsed: 12 }</sp
   <tbody>
     <tr><td><code>easy</code></td><td>2&ndash;3 ops</td><td>4 chars</td><td>30s</td><td>Basic transforms (reverse, case, sort, length, slice)</td></tr>
     <tr><td><code>medium</code></td><td>3&ndash;5 ops</td><td>6 chars</td><td>20s</td><td>+ encoding, ciphers, substring, counting</td></tr>
-    <tr><td><code>hard</code></td><td>5&ndash;7 ops</td><td>8 chars</td><td>15s</td><td>+ XOR, hashing, repetition, padding</td></tr>
+    <tr><td><code>hard</code></td><td>5&ndash;7 ops</td><td>8 chars</td><td>15s</td><td>+ XOR, hashing, repetition, padding, SHA-256, byte XOR, hash chains, nibble swap, bit rotate</td></tr>
   </tbody>
 </table>
 </div>
@@ -832,19 +1009,24 @@ console.log(result) <span class="comment">// { verified: true, elapsed: 12 }</sp
 <div class="code-block">
   <div class="code-header"><span class="lang">TypeScript</span><button class="copy-btn">Copy</button></div>
   <pre><code>import type {
-  Challenge,          <span class="comment">// Base challenge object</span>
-  SignedChallenge,    <span class="comment">// Challenge + HMAC signature</span>
-  Operation,          <span class="comment">// Discriminated union of 18 operations</span>
-  Difficulty,         <span class="comment">// 'easy' | 'medium' | 'hard'</span>
-  ImRobotToken,       <span class="comment">// Client verification token</span>
-  ImRobotConfig,      <span class="comment">// Client widget configuration</span>
-  ServerConfig,       <span class="comment">// Server verifier configuration</span>
-  VerifyResult,       <span class="comment">// Server verification result</span>
+  Challenge,              <span class="comment">// Base challenge object</span>
+  SignedChallenge,        <span class="comment">// Challenge + HMAC signature</span>
+  Operation,              <span class="comment">// Discriminated union of 23 operations</span>
+  Difficulty,             <span class="comment">// 'easy' | 'medium' | 'hard'</span>
+  ImRobotToken,           <span class="comment">// Client verification token</span>
+  ImRobotConfig,          <span class="comment">// Client widget configuration</span>
+  ServerConfig,           <span class="comment">// Server verifier configuration</span>
+  VerifyResult,           <span class="comment">// Server verification result</span>
+  AgentProofToken,        <span class="comment">// JWT-like proof-of-agent token payload</span>
+  SerializedProofToken,   <span class="comment">// Encoded token string</span>
+  InvisibleVerifyResult,  <span class="comment">// Result from invisible verification</span>
 } from 'imrobot'
 
 <span class="comment">// Or import from specific entry points:</span>
 import type { SignedChallenge, VerifyResult } from 'imrobot/server'
-import type { Challenge, Operation } from 'imrobot/core'</code></pre>
+import type { Challenge, Operation } from 'imrobot/core'
+import { invisibleVerify } from 'imrobot/core'
+import { ProofTokenIssuer, requireAgent, createAgentRouter } from 'imrobot/server'</code></pre>
 </div>
 
 <!-- ═══ SECURITY ══════════════════════════════════════════════ -->
@@ -860,7 +1042,7 @@ import type { Challenge, Operation } from 'imrobot/core'</code></pre>
 <table>
   <thead><tr><th>Protection</th><th>Mechanism</th></tr></thead>
   <tbody>
-    <tr><td><strong>Tamper-proof challenges</strong></td><td>HMAC-SHA256 signs <code>id + verification + expiresAt + difficulty</code></td></tr>
+    <tr><td><strong>Tamper-proof challenges</strong></td><td>HMAC-SHA256 signs <code>id + verification + expiresAt + difficulty + pipeline</code></td></tr>
     <tr><td><strong>Replay prevention</strong></td><td>Unique challenge ID + expiration timestamp</td></tr>
     <tr><td><strong>Pipeline integrity</strong></td><td>Verification hash covers the original answer; modified pipelines produce mismatched hashes</td></tr>
     <tr><td><strong>Timing attack resistance</strong></td><td>Constant-time HMAC comparison</td></tr>
@@ -909,6 +1091,10 @@ import type { Challenge, Operation } from 'imrobot/core'</code></pre>
   <a href="#server-generate">Generate Challenges</a>
   <a href="#server-verify">Verify Answers</a>
   <a href="#server-examples">Express / Next.js</a>
+  <a href="#middleware">Middleware</a>
+  <a href="#proof-tokens">Proof-of-Agent Tokens</a>
+  <a href="#invisible">Invisible Verify</a>
+  <a href="#cli">CLI Tool</a>
   <a href="#api-reference">API Reference</a>
   <a href="#operations">Operations</a>
   <a href="#configuration">Configuration</a>

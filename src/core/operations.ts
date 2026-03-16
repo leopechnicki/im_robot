@@ -4,6 +4,19 @@ import { fnv1a } from './hash'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const globalRef = globalThis as Record<string, any>
 
+/**
+ * Synchronous hash for crypto challenge operations.
+ * Cascades FNV-1a to produce 64 hex chars (256-bit equivalent).
+ * Real SHA-256 is async (Web Crypto) so we use this for synchronous pipelines.
+ */
+function syncHash256(input: string): string {
+  let result = ''
+  for (let i = 0; i < 8; i++) {
+    result += fnv1a(input + ':' + i)
+  }
+  return result
+}
+
 export function executeOperation(input: string, op: Operation): string {
   switch (op.op) {
     case 'reverse':
@@ -80,6 +93,47 @@ export function executeOperation(input: string, op: Operation): string {
     case 'length':
       return String(input.length)
 
+    // ---- Crypto-grade operations (v0.4) ----
+
+    case 'sha256_hash':
+      return syncHash256(input)
+
+    case 'byte_xor': {
+      const keyArr = op.key
+      return Array.from(input)
+        .map((c, i) => String.fromCharCode(c.charCodeAt(0) ^ keyArr[i % keyArr.length]))
+        .join('')
+    }
+
+    case 'hash_chain': {
+      let val = input
+      for (let r = 0; r < op.rounds; r++) {
+        val = fnv1a(val + ':' + r)
+      }
+      return val
+    }
+
+    case 'nibble_swap':
+      return Array.from(input)
+        .map((c) => {
+          const code = c.charCodeAt(0)
+          // Swap high and low nibbles: 0xAB -> 0xBA
+          const swapped = ((code & 0x0f) << 4) | ((code & 0xf0) >> 4)
+          return String.fromCharCode(swapped)
+        })
+        .join('')
+
+    case 'bit_rotate': {
+      const shift = ((op.bits % 8) + 8) % 8
+      return Array.from(input)
+        .map((c) => {
+          const code = c.charCodeAt(0) & 0xff
+          const rotated = ((code << shift) | (code >> (8 - shift))) & 0xff
+          return String.fromCharCode(rotated)
+        })
+        .join('')
+    }
+
     default:
       throw new Error(`Unknown operation: ${(op as { op: string }).op}`)
   }
@@ -127,6 +181,16 @@ export function formatOperation(op: Operation): string {
       return 'fnv1a_hash()'
     case 'length':
       return 'length()'
+    case 'sha256_hash':
+      return 'sha256_hash()'
+    case 'byte_xor':
+      return `byte_xor([${op.key.join(',')}])`
+    case 'hash_chain':
+      return `hash_chain(${op.rounds})`
+    case 'nibble_swap':
+      return 'nibble_swap()'
+    case 'bit_rotate':
+      return `bit_rotate(${op.bits})`
   }
 }
 

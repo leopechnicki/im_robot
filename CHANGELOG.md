@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-03-16
+
+### Added
+
+- 5 new crypto pipeline operations: `sha256_hash`, `byte_xor`, `hash_chain`, `nibble_swap`, `bit_rotate` (23 total)
+- JWT-like Proof-of-Agent tokens with HMAC-SHA256 signing (`ProofTokenIssuer`, `createTokenIssuer`)
+- Framework-agnostic `requireAgent()` middleware with per-IP rate limiting
+- `createAgentRouter()` factory for mounting challenge/verify endpoints
+- Invisible zero-UI verification (`invisibleVerify`) with retry and exponential backoff
+- CLI tool: `npx imrobot challenge|solve|verify|benchmark|info`
+- 39 new tests covering all v0.4 features (195 total)
+
+### Changed
+
+- HMAC signature now covers the full pipeline (prevents pipeline-swap attacks)
+- Updated demo page with v0.4 feature tabs (Middleware, Invisible, CLI) and 8 feature cards
+- Updated docs page with Middleware, Proof-of-Agent Tokens, Invisible Verify, and CLI sections
+- Bumped version to 0.4.0
+
+### Fixed
+
+- Pipeline tampering detection: HMAC now signs `id + verification + expiresAt + difficulty + pipeline`
+
 ## [0.3.1] - 2026-03-13
 
 ### Added
