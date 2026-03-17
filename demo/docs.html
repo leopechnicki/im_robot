@@ -937,6 +937,24 @@ npx imrobot info</code></pre>
 <div class="method-sig"><strong>createAgentRouter</strong>(options: RequireAgentOptions): <span class="type">{ challenge, verify }</span></div>
 <p>Returns handler pair for mounting challenge/verify endpoints.</p>
 
+<h3><code>formatOperationNL(op)</code></h3>
+<div class="method-sig"><strong>formatOperationNL</strong>(op: Operation): <span class="type">string</span></div>
+<p>Returns a random natural-language description of a single operation. Each call picks from 3&ndash;4 distinct phrasings, making regex-based scraping of display text unreliable. Import from <code>imrobot/core</code>.</p>
+
+<h3><code>formatPipelineNL(seed, pipeline)</code></h3>
+<div class="method-sig"><strong>formatPipelineNL</strong>(seed: string, pipeline: Operation[]): <span class="type">string</span></div>
+<p>Formats an entire challenge pipeline using randomised natural-language descriptions. Each call produces different phrasing for both the intro line and every step. Agents must parse the JSON <code>pipeline</code> to solve challenges &mdash; scraping the display text is unreliable. Import from <code>imrobot/core</code>.</p>
+<pre><code>import { generateChallenge } from 'imrobot/core'
+import { formatPipelineNL } from 'imrobot/core'
+
+const challenge = generateChallenge({ difficulty: 'hard' })
+console.log(formatPipelineNL(challenge.visibleSeed, challenge.pipeline))
+// "Begin with the text: "a7f3..."
+//  Step 1: Flip the string backwards
+//  Then 2: Shift every letter 7 positions in the alphabet
+//  Next 3: Bitwise-XOR every character with the value 42</code></pre>
+<p><strong>Tip:</strong> The original <code>formatOperation</code> / <code>formatPipeline</code> functions remain unchanged for stable, deterministic output.</p>
+
 <!-- ═══ OPERATIONS ════════════════════════════════════════════ -->
 <h2 id="operations">Operations Reference</h2>
 <p>Challenges are built from a pipeline of these 23 operations. Each takes a string input and returns a string output.</p>

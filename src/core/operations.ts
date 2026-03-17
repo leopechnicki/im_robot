@@ -276,7 +276,7 @@ export function formatOperationNL(op: Operation): string {
         'Sum the character codes of every character',
         'Add up all ASCII/Unicode code values',
         'Compute the total of all character code points',
-        'Calculate the sum of each character\'s code value',
+        "Calculate the sum of each character's code value",
       ])
 
     case 'substring':
