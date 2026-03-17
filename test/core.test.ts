@@ -4,6 +4,8 @@ import {
   executePipeline,
   formatOperation,
   formatPipeline,
+  formatOperationNL,
+  formatPipelineNL,
 } from '../src/core/operations'
 import {
   generateChallenge,
@@ -189,6 +191,109 @@ describe('formatPipeline', () => {
     expect(result).toContain('seed: "abc123"')
     expect(result).toContain('1. reverse()')
     expect(result).toContain('2. to_upper()')
+  })
+})
+
+describe('formatOperationNL', () => {
+  it('returns a non-empty string for every operation type', () => {
+    const ops: Operation[] = [
+      { op: 'reverse' },
+      { op: 'base64_encode' },
+      { op: 'to_upper' },
+      { op: 'to_lower' },
+      { op: 'rot13' },
+      { op: 'hex_encode' },
+      { op: 'sort_chars' },
+      { op: 'char_code_sum' },
+      { op: 'substring', start: 0, end: 5 },
+      { op: 'repeat', times: 3 },
+      { op: 'replace', search: 'a', replacement: 'b' },
+      { op: 'pad_start', length: 10, fill: '0' },
+      { op: 'xor_encode', key: 42 },
+      { op: 'count_chars', char: 'a' },
+      { op: 'caesar', shift: 3 },
+      { op: 'slice_alternate' },
+      { op: 'fnv1a_hash' },
+      { op: 'length' },
+      { op: 'sha256_hash' },
+      { op: 'byte_xor', key: [1, 2, 3] },
+      { op: 'hash_chain', rounds: 3 },
+      { op: 'nibble_swap' },
+      { op: 'bit_rotate', bits: 3 },
+    ]
+    for (const op of ops) {
+      const result = formatOperationNL(op)
+      expect(result).toBeTruthy()
+      expect(typeof result).toBe('string')
+      expect(result.length).toBeGreaterThan(5)
+    }
+  })
+
+  it('produces different phrasings for the same operation (randomised)', () => {
+    // Run 20 times and expect at least 2 distinct phrasings
+    const results = new Set<string>()
+    for (let i = 0; i < 20; i++) {
+      results.add(formatOperationNL({ op: 'reverse' }))
+    }
+    expect(results.size).toBeGreaterThanOrEqual(2)
+  })
+
+  it('does not return programmatic format strings', () => {
+    // NL format should never look like "reverse()" or "to_upper()"
+    for (let i = 0; i < 30; i++) {
+      const nl = formatOperationNL({ op: 'reverse' })
+      expect(nl).not.toBe('reverse()')
+    }
+  })
+
+  it('includes parameters in the description', () => {
+    const nl = formatOperationNL({ op: 'caesar', shift: 7 })
+    expect(nl).toContain('7')
+
+    const nl2 = formatOperationNL({ op: 'substring', start: 2, end: 8 })
+    expect(nl2).toContain('2')
+    expect(nl2).toContain('8')
+
+    const nl3 = formatOperationNL({ op: 'byte_xor', key: [10, 20] })
+    expect(nl3).toContain('10')
+    expect(nl3).toContain('20')
+  })
+})
+
+describe('formatPipelineNL', () => {
+  it('includes the seed and all steps', () => {
+    const result = formatPipelineNL('abc123', [
+      { op: 'reverse' },
+      { op: 'to_upper' },
+    ])
+    expect(result).toContain('abc123')
+    // Should have step numbers
+    expect(result).toContain('1:')
+    expect(result).toContain('2:')
+  })
+
+  it('produces different output on repeated calls', () => {
+    const results = new Set<string>()
+    for (let i = 0; i < 20; i++) {
+      results.add(
+        formatPipelineNL('seed', [
+          { op: 'reverse' },
+          { op: 'to_upper' },
+          { op: 'hex_encode' },
+        ]),
+      )
+    }
+    expect(results.size).toBeGreaterThanOrEqual(2)
+  })
+
+  it('never matches the programmatic formatPipeline output', () => {
+    const pipeline: Operation[] = [{ op: 'reverse' }, { op: 'to_upper' }]
+    const programmatic = formatPipeline('seed', pipeline)
+    let matchCount = 0
+    for (let i = 0; i < 30; i++) {
+      if (formatPipelineNL('seed', pipeline) === programmatic) matchCount++
+    }
+    expect(matchCount).toBe(0)
   })
 })
 

@@ -261,6 +261,28 @@ input.dispatchEvent(new Event('input', { bubbles: true }))
 el.querySelector('button').click()
 ```
 
+## Natural-language challenge formatting
+
+By default, challenges display operations in programmatic syntax (`reverse()`, `caesar(7)`). For deployments where you want to make regex-based scraping of the display text harder, use the natural-language formatting functions:
+
+```ts
+import { formatOperationNL, formatPipelineNL } from 'imrobot/core'
+
+const challenge = generateChallenge({ difficulty: 'hard' })
+
+// Each call produces randomised phrasing:
+console.log(formatPipelineNL(challenge.visibleSeed, challenge.pipeline))
+// "Begin with the text: "a7f3..."
+//  Step 1: Flip the string backwards
+//  Then 2: Shift every letter 7 positions in the alphabet
+//  Next 3: Bitwise-XOR every character with the value 42
+//  ..."
+```
+
+Every operation has 3–4 distinct phrasings that are randomly selected on each call, so the display text varies unpredictably. Agents must parse the JSON `pipeline` (unaffected), while regex scraping of the visual text becomes unreliable.
+
+> **Tip:** The original programmatic functions `formatOperation` / `formatPipeline` remain unchanged — use them when you need a stable, deterministic format.
+
 ## Operations reference
 
 ### String operations
