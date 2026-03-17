@@ -19,6 +19,8 @@ export {
   executePipeline,
   formatOperation,
   formatPipeline,
+  formatOperationNL,
+  formatPipelineNL,
 } from './core/operations'
 
 export { generateChallenge, verifyAnswer, createToken } from './core/challenge'

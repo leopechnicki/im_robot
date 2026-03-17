@@ -201,3 +201,229 @@ export function formatPipeline(seed: string, pipeline: Operation[]): string {
   })
   return lines.join('\n')
 }
+
+// ---------------------------------------------------------------------------
+// Natural-language formatting — randomised phrasings per operation
+// ---------------------------------------------------------------------------
+
+function pick<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)]
+}
+
+/**
+ * Returns a random natural-language description of an operation.
+ * The phrasing changes on every call, making regex-based scraping unreliable.
+ */
+export function formatOperationNL(op: Operation): string {
+  switch (op.op) {
+    case 'reverse':
+      return pick([
+        'Reverse the character order',
+        'Flip the string backwards',
+        'Mirror the text from end to start',
+        'Write the characters in reverse order',
+      ])
+
+    case 'base64_encode':
+      return pick([
+        'Encode the text as Base64',
+        'Apply Base64 encoding',
+        'Convert the string to its Base64 representation',
+      ])
+
+    case 'to_upper':
+      return pick([
+        'Convert all characters to uppercase',
+        'Make every letter uppercase',
+        'Transform the text to UPPER CASE',
+        'Capitalize all letters',
+      ])
+
+    case 'to_lower':
+      return pick([
+        'Convert all characters to lowercase',
+        'Make every letter lowercase',
+        'Transform the text to lower case',
+        'Downcase all letters',
+      ])
+
+    case 'rot13':
+      return pick([
+        'Apply ROT13 substitution',
+        'Rotate each letter 13 positions in the alphabet',
+        'Shift every letter by 13 places (ROT13)',
+        'Apply the ROT-13 cipher',
+      ])
+
+    case 'hex_encode':
+      return pick([
+        'Encode each character as two-digit hexadecimal',
+        'Convert to hex representation',
+        'Transform each character to its hex byte value',
+        'Hex-encode the entire string',
+      ])
+
+    case 'sort_chars':
+      return pick([
+        'Sort all characters alphabetically',
+        'Rearrange the characters in ascending order',
+        'Put every character in sorted order',
+        'Alphabetically sort the characters',
+      ])
+
+    case 'char_code_sum':
+      return pick([
+        'Sum the character codes of every character',
+        'Add up all ASCII/Unicode code values',
+        'Compute the total of all character code points',
+        'Calculate the sum of each character\'s code value',
+      ])
+
+    case 'substring':
+      return pick([
+        `Extract characters from position ${op.start} to ${op.end}`,
+        `Take the substring from index ${op.start} up to ${op.end}`,
+        `Slice out characters ${op.start} through ${op.end}`,
+        `Keep only the characters between index ${op.start} and ${op.end}`,
+      ])
+
+    case 'repeat':
+      return pick([
+        `Repeat the text ${op.times} times`,
+        `Concatenate the string with itself ${op.times} times`,
+        `Duplicate the text ${op.times}x`,
+        `Produce ${op.times} copies of the string, joined together`,
+      ])
+
+    case 'replace':
+      return pick([
+        `Replace every "${op.search}" with "${op.replacement}"`,
+        `Substitute all occurrences of "${op.search}" for "${op.replacement}"`,
+        `Swap each "${op.search}" to "${op.replacement}"`,
+        `Change every instance of "${op.search}" to "${op.replacement}"`,
+      ])
+
+    case 'pad_start':
+      return pick([
+        `Pad the start with "${op.fill}" until the length is ${op.length}`,
+        `Left-pad with "${op.fill}" to reach ${op.length} characters`,
+        `Prepend "${op.fill}" characters until the string is ${op.length} long`,
+        `Front-fill with "${op.fill}" to a total length of ${op.length}`,
+      ])
+
+    case 'xor_encode':
+      return pick([
+        `XOR each character code with ${op.key}`,
+        `Apply XOR encoding using key ${op.key}`,
+        `Bitwise-XOR every character with the value ${op.key}`,
+        `XOR-encode with key ${op.key}`,
+      ])
+
+    case 'count_chars':
+      return pick([
+        `Count how many times "${op.char}" appears`,
+        `Return the number of occurrences of "${op.char}"`,
+        `Tally every "${op.char}" in the string`,
+        `Count all instances of the character "${op.char}"`,
+      ])
+
+    case 'caesar':
+      return pick([
+        `Apply a Caesar cipher with a shift of ${op.shift}`,
+        `Shift every letter ${op.shift} positions in the alphabet`,
+        `Rotate each alphabetic character by ${op.shift}`,
+        `Caesar-shift all letters by ${op.shift}`,
+      ])
+
+    case 'slice_alternate':
+      return pick([
+        'Keep only characters at even indices (0, 2, 4, …)',
+        'Take every other character starting from the first',
+        'Remove all odd-indexed characters',
+        'Select alternating characters beginning at index 0',
+      ])
+
+    case 'fnv1a_hash':
+      return pick([
+        'Hash the text using FNV-1a',
+        'Compute the FNV-1a hash',
+        'Apply the FNV-1a hash function',
+        'Produce an FNV-1a digest of the string',
+      ])
+
+    case 'length':
+      return pick([
+        'Return the length of the string',
+        'Count the total number of characters',
+        'Compute the character count',
+        'Output how many characters the string contains',
+      ])
+
+    case 'sha256_hash':
+      return pick([
+        'Hash the text using SHA-256',
+        'Compute a SHA-256 digest',
+        'Apply the SHA-256 hash function',
+        'Produce a SHA-256 hash of the input',
+      ])
+
+    case 'byte_xor':
+      return pick([
+        `XOR each byte with the key [${op.key.join(', ')}] (cycling)`,
+        `Apply byte-level XOR using the repeating key [${op.key.join(', ')}]`,
+        `Bitwise-XOR each character against the cyclic key [${op.key.join(', ')}]`,
+        `Byte-XOR with the rotating key [${op.key.join(', ')}]`,
+      ])
+
+    case 'hash_chain':
+      return pick([
+        `Apply ${op.rounds} rounds of iterated hashing`,
+        `Hash the result ${op.rounds} times in succession`,
+        `Chain ${op.rounds} hash iterations`,
+        `Compute a ${op.rounds}-round hash chain`,
+      ])
+
+    case 'nibble_swap':
+      return pick([
+        'Swap the high and low nibbles of each byte',
+        'Exchange the upper and lower 4 bits of every character',
+        'Nibble-swap each byte (0xAB → 0xBA)',
+        'Flip the high and low halves of every byte',
+      ])
+
+    case 'bit_rotate':
+      return pick([
+        `Rotate each byte left by ${op.bits} bits`,
+        `Bitwise left-rotate every byte by ${op.bits}`,
+        `Circular-shift each byte ${op.bits} bits to the left`,
+        `Left-rotate every character's bits by ${op.bits}`,
+      ])
+  }
+}
+
+/**
+ * Formats a full pipeline using randomised natural-language descriptions.
+ *
+ * Each call produces different phrasing, so scraping the display text
+ * with regular expressions is unreliable — agents must parse the JSON
+ * pipeline instead.
+ */
+export function formatPipelineNL(seed: string, pipeline: Operation[]): string {
+  const intros = [
+    `Starting value: "${seed}"`,
+    `Begin with the text: "${seed}"`,
+    `Initial input: "${seed}"`,
+    `Your seed string is: "${seed}"`,
+  ]
+  const lines = [pick(intros)]
+
+  const prefixes = ['Step', 'Then', 'Next']
+
+  pipeline.forEach((op, i) => {
+    const prefix = i === 0 ? 'Step' : pick(prefixes)
+    const num = i + 1
+    lines.push(`${prefix} ${num}: ${formatOperationNL(op)}`)
+  })
+
+  return lines.join('\n')
+}

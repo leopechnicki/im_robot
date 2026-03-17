@@ -13,7 +13,14 @@ export type {
 
 export { SUSPICIOUS_THRESHOLD_MS } from './types'
 
-export { executeOperation, executePipeline, formatOperation, formatPipeline } from './operations'
+export {
+  executeOperation,
+  executePipeline,
+  formatOperation,
+  formatPipeline,
+  formatOperationNL,
+  formatPipelineNL,
+} from './operations'
 export { generateChallenge, verifyAnswer, createToken } from './challenge'
 export { solveChallenge } from './solver'
 export { fnv1a } from './hash'
