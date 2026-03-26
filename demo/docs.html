@@ -376,6 +376,7 @@
     <a href="#proof-tokens" class="sidebar-link">Proof-of-Agent Tokens</a>
     <a href="#invisible" class="sidebar-link">Invisible Verify</a>
     <a href="#cli" class="sidebar-link">CLI Tool</a>
+    <a href="#discovery" class="sidebar-link">Agent Discovery</a>
   </div>
   <div class="sidebar-group">
     <div class="sidebar-label">Reference</div>
@@ -933,6 +934,73 @@ npx imrobot info</code></pre>
     <tr><td><code>verify</code></td><td>Verify a challenge + answer pair</td></tr>
     <tr><td><code>benchmark</code></td><td>Run performance benchmarks with stats (avg, min, max, p99)</td></tr>
     <tr><td><code>info</code></td><td>Show version, features, and operation counts</td></tr>
+  </tbody>
+</table>
+</div>
+
+<hr />
+
+<!-- ═══ AGENT DISCOVERY ════════════════════════════════════════ -->
+<h2 id="discovery">Agent Discovery (<code>.well-known/imrobot.json</code>)</h2>
+<p>Inspired by the <a href="https://google.github.io/A2A/" target="_blank" rel="noopener">A2A Agent Card</a> pattern, imrobot supports a discovery endpoint that lets AI agents automatically find and interact with your imrobot-protected service. Agents fetch <code>/.well-known/imrobot.json</code> and receive a structured document describing the protocol, endpoints, and verification instructions.</p>
+
+<h3>Express setup</h3>
+<div class="code-block">
+  <div class="code-header"><span class="lang">TypeScript</span><button class="copy-btn" aria-live="polite">Copy</button></div>
+  <pre><code><span class="keyword">import</span> { createDiscoveryHandler } <span class="keyword">from</span> <span class="string">'imrobot/server'</span>
+
+<span class="keyword">const</span> discovery = createDiscoveryHandler({
+  challengePath: <span class="string">'/imrobot'</span>,
+  name: <span class="string">'My Agent API'</span>,
+  description: <span class="string">'Agent-verified data service'</span>,
+})
+
+app.get(<span class="string">'/.well-known/imrobot.json'</span>, discovery)</code></pre>
+</div>
+
+<h3>Framework-agnostic</h3>
+<p>For Hono, Koa, Fastify, or any other framework, use <code>buildDiscoveryDocument()</code> directly and serve the result as JSON:</p>
+<div class="code-block">
+  <div class="code-header"><span class="lang">TypeScript</span><button class="copy-btn" aria-live="polite">Copy</button></div>
+  <pre><code><span class="keyword">import</span> { buildDiscoveryDocument } <span class="keyword">from</span> <span class="string">'imrobot/server'</span>
+
+<span class="keyword">const</span> doc = buildDiscoveryDocument({
+  challengePath: <span class="string">'/imrobot'</span>,
+  name: <span class="string">'My Agent API'</span>,
+})
+<span class="comment">// Serve `doc` as JSON at /.well-known/imrobot.json</span></code></pre>
+</div>
+
+<h3>Discovery document</h3>
+<p>The response includes everything an agent needs to complete verification:</p>
+<div class="code-block">
+  <div class="code-header"><span class="lang">JSON</span><button class="copy-btn" aria-live="polite">Copy</button></div>
+  <pre><code>{
+  <span class="string">"protocol"</span>: <span class="string">"imrobot"</span>,
+  <span class="string">"version"</span>: <span class="string">"1.0"</span>,
+  <span class="string">"name"</span>: <span class="string">"My Agent API"</span>,
+  <span class="string">"description"</span>: <span class="string">"Agent-verified data service"</span>,
+  <span class="string">"endpoints"</span>: {
+    <span class="string">"challenge"</span>: <span class="string">"/imrobot/challenge"</span>,
+    <span class="string">"verify"</span>: <span class="string">"/imrobot/verify"</span>,
+    <span class="string">"proofHeader"</span>: <span class="string">"X-Agent-Proof"</span>
+  },
+  <span class="string">"difficulties"</span>: [<span class="string">"easy"</span>, <span class="string">"medium"</span>, <span class="string">"hard"</span>],
+  <span class="string">"instructions"</span>: <span class="string">"1. GET the challenge endpoint..."</span>
+}</code></pre>
+</div>
+
+<h3>Configuration options</h3>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Option</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>challengePath</code></td><td><code>string</code></td><td><code>'/imrobot'</code></td><td>Base path for challenge/verify endpoints</td></tr>
+    <tr><td><code>difficulties</code></td><td><code>Difficulty[]</code></td><td><code>['easy','medium','hard']</code></td><td>Supported difficulty levels</td></tr>
+    <tr><td><code>name</code></td><td><code>string</code></td><td>—</td><td>Service name</td></tr>
+    <tr><td><code>description</code></td><td><code>string</code></td><td>Auto-generated</td><td>Human-readable service description</td></tr>
+    <tr><td><code>contact</code></td><td><code>string</code></td><td>—</td><td>Contact URL or email for the operator</td></tr>
+    <tr><td><code>metadata</code></td><td><code>Record&lt;string, unknown&gt;</code></td><td>—</td><td>Additional metadata to include</td></tr>
   </tbody>
 </table>
 </div>

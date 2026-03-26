@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `.well-known/imrobot.json` discovery endpoint inspired by A2A Agent Card pattern
+- `buildDiscoveryDocument()` for framework-agnostic discovery document generation
+- `createDiscoveryHandler()` Express-compatible middleware for serving discovery documents
+- `DiscoveryConfig` and `DiscoveryDocument` TypeScript types
+- 10 new tests for discovery module (222 total)
+- Documentation: discovery endpoint section in README and docs page
+
 ## [0.4.0] - 2026-03-16
 
 ### Added

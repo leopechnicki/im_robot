@@ -212,6 +212,52 @@ npx imrobot benchmark --count 1000
 npx imrobot info
 ```
 
+### Agent discovery (`.well-known/imrobot.json`)
+
+Inspired by the [A2A Agent Card](https://google.github.io/A2A/) pattern, imrobot supports a discovery endpoint that lets AI agents automatically find and interact with your imrobot-protected service.
+
+```ts
+import { createDiscoveryHandler, createAgentRouter, requireAgent } from 'imrobot/server'
+
+// Mount the discovery endpoint
+const discovery = createDiscoveryHandler({
+  challengePath: '/imrobot',
+  name: 'My Agent API',
+  description: 'Agent-verified data service',
+})
+app.get('/.well-known/imrobot.json', discovery)
+
+// Mount challenge/verify as usual
+const router = createAgentRouter({ secret: process.env.IMROBOT_SECRET! })
+app.get('/imrobot/challenge', router.challenge)
+app.post('/imrobot/verify', router.verify)
+```
+
+Agents fetch `/.well-known/imrobot.json` and receive a structured document describing the protocol, endpoint paths, supported difficulty levels, and step-by-step instructions for completing verification:
+
+```json
+{
+  "protocol": "imrobot",
+  "version": "1.0",
+  "endpoints": {
+    "challenge": "/imrobot/challenge",
+    "verify": "/imrobot/verify",
+    "proofHeader": "X-Agent-Proof"
+  },
+  "difficulties": ["easy", "medium", "hard"],
+  "instructions": "1. GET the challenge endpoint..."
+}
+```
+
+For framework-agnostic usage (Hono, Koa, Fastify, etc.), use `buildDiscoveryDocument()` directly:
+
+```ts
+import { buildDiscoveryDocument } from 'imrobot/server'
+
+const doc = buildDiscoveryDocument({ challengePath: '/imrobot' })
+// Serve `doc` as JSON at /.well-known/imrobot.json
+```
+
 ## Screenshot protection
 
 The challenge text is **blurred by default** and only revealed when the user hovers over it. This defeats screenshot-based attacks (screen capture tools, CDP screenshots, PrintScreen) since the captured image shows only blurred content.
