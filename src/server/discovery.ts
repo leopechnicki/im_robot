@@ -77,7 +77,8 @@ export function buildDiscoveryDocument(config: DiscoveryConfig = {}): DiscoveryD
   return {
     protocol: 'imrobot',
     version: '1.0',
-    description: config.description ?? 'This service uses imrobot reverse-CAPTCHA for AI agent verification.',
+    description:
+      config.description ?? 'This service uses imrobot reverse-CAPTCHA for AI agent verification.',
     ...(config.name ? { name: config.name } : {}),
     endpoints: {
       challenge: `${normalizedBase}/challenge`,
