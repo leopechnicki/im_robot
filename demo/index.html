@@ -924,9 +924,10 @@ app.post('/api/verify', async (req, res) =&gt; {
   createTokenIssuer,
 } from 'imrobot/server'
 
-// Mount challenge/verify endpoints
+// Mount challenge/verify endpoints with rate limiting
 const router = createAgentRouter({
   secret: process.env.IMROBOT_SECRET!,
+  rateLimit: { windowMs: 60_000, maxRequests: 30 },
 })
 app.get('/imrobot/challenge', router.challenge)
 app.post('/imrobot/verify', router.verify)
@@ -1007,8 +1008,8 @@ $ npx imrobot info</code></pre></div>
       </div>
       <div class="feature">
         <div class="feature-icon">🛡️</div>
-        <h3>Middleware &amp; proof tokens</h3>
-        <p>Built-in <code>requireAgent()</code> middleware with rate limiting. JWT-style proof tokens via <code>X-Agent-Proof</code> header.</p>
+        <h3>Middleware &amp; rate limiting</h3>
+        <p>Built-in <code>requireAgent()</code> and <code>createAgentRouter()</code> with sliding-window rate limiting. JWT-style proof tokens via <code>X-Agent-Proof</code> header. Standard 429 responses with <code>Retry-After</code> headers.</p>
       </div>
       <div class="feature">
         <div class="feature-icon">👻</div>

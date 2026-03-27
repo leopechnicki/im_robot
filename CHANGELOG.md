@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-03-21
+
+### Added
+
+- Natural-language challenge formatting (`formatOperationNL`, `formatPipelineNL`) with 3–4 randomised phrasings per operation — makes regex-based scraping of display text unreliable
+- In-memory sliding window `RateLimiter` class with automatic expired-entry cleanup
+- Rate limiting support for both `createAgentRouter` and `requireAgent` middleware via `rateLimit` config option
+- Standard HTTP rate limit response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`, `Retry-After`
+- `RateLimiter.getStatus(key)` for inspecting remaining requests and reset time
+- `RateLimiter.reset(key?)` to clear individual or all rate limit entries
+- `RateLimiter.destroy()` for graceful shutdown cleanup
+- `onLimitReached` callback option for rate limiter events
+- 39 new tests for rate limiter (234 total)
+
+### Changed
+
+- Updated docs page with rate limiting section and `RateLimiter` API reference
+- Updated demo page middleware example to include `rateLimit` config
+- Bumped version to 0.5.0
+
 ## [0.4.0] - 2026-03-16
 
 ### Added
