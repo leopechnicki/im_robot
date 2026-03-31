@@ -106,21 +106,16 @@ function handleVerified(token) {
 <imrobot-widget difficulty="medium" theme="light"></imrobot-widget>
 
 <script>
-  document.querySelector('imrobot-widget')
-    .addEventListener('imrobot-verified', (e) => {
-      console.log('Robot verified!', e.detail)
-    })
+  document.querySelector('imrobot-widget').addEventListener('imrobot-verified', (e) => {
+    console.log('Robot verified!', e.detail)
+  })
 </script>
 ```
 
 ### Core API (headless)
 
 ```ts
-import {
-  generateChallenge,
-  solveChallenge,
-  verifyAnswer,
-} from 'imrobot/core'
+import { generateChallenge, solveChallenge, verifyAnswer } from 'imrobot/core'
 
 const challenge = generateChallenge({ difficulty: 'medium' })
 const answer = solveChallenge(challenge)
@@ -164,8 +159,11 @@ Protect your API endpoints with framework-agnostic middleware. Verified agents r
 ```ts
 import { requireAgent, createAgentRouter } from 'imrobot/server'
 
-// Mount challenge/verify endpoints
-const router = createAgentRouter({ secret: process.env.IMROBOT_SECRET! })
+// Mount challenge/verify endpoints with rate limiting
+const router = createAgentRouter({
+  secret: process.env.IMROBOT_SECRET!,
+  rateLimit: { windowMs: 60_000, maxRequests: 30 },
+})
 app.get('/imrobot/challenge', router.challenge)
 app.post('/imrobot/verify', router.verify)
 
@@ -196,6 +194,56 @@ The handler automatically routes based on HTTP method:
 - **GET** → challenge endpoint (returns a signed challenge)
 - **POST** → verify endpoint (verifies answer, returns proof token)
 - **Other methods** → 405 Method Not Allowed
+
+### Rate limiting
+
+Both `createAgentRouter` and `requireAgent` support built-in rate limiting to protect against brute-force attacks and request flooding. The rate limiter is in-memory with zero external dependencies.
+
+```ts
+import { createAgentRouter } from 'imrobot/server'
+
+const router = createAgentRouter({
+  secret: process.env.IMROBOT_SECRET!,
+  rateLimit: {
+    windowMs: 60_000, // 1-minute sliding window
+    maxRequests: 30, // max 30 requests per window per IP
+    onLimitReached: (key) => console.warn(`Rate limited: ${key}`),
+  },
+})
+```
+
+When a client exceeds the limit, they receive a `429 Too Many Requests` response with standard headers:
+
+```
+HTTP/1.1 429 Too Many Requests
+X-RateLimit-Limit: 30
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1711540860
+Retry-After: 45
+```
+
+The `RateLimiter` class can also be used standalone:
+
+```ts
+import { RateLimiter } from 'imrobot/server'
+
+const limiter = new RateLimiter({ windowMs: 60_000, maxRequests: 10 })
+
+if (!limiter.isAllowed(clientIp)) {
+  // Handle rate limit exceeded
+}
+
+const status = limiter.getStatus(clientIp)
+// { remaining: 7, resetAt: 1711540860000 }
+```
+
+| Option           | Type            | Default | Description                              |
+| ---------------- | --------------- | ------- | ---------------------------------------- |
+| `windowMs`       | `number`        | `60000` | Sliding window duration in ms            |
+| `maxRequests`    | `number`        | `30`    | Max requests per window per key          |
+| `onLimitReached` | `(key) => void` | —       | Callback when a client exceeds the limit |
+
+Expired entries are automatically cleaned up to prevent memory leaks in long-running servers.
 
 ### Invisible verification (zero-UI)
 
@@ -351,46 +399,46 @@ Every operation has 3–4 distinct phrasings that are randomly selected on each 
 
 ### String operations
 
-| Operation | Description | Example |
-|-----------|-------------|---------|
-| `reverse()` | Reverse the string | `"abc"` → `"cba"` |
-| `to_upper()` | Convert to uppercase | `"abc"` → `"ABC"` |
-| `to_lower()` | Convert to lowercase | `"ABC"` → `"abc"` |
-| `base64_encode()` | Base64 encode | `"hello"` → `"aGVsbG8="` |
-| `rot13()` | ROT13 cipher | `"hello"` → `"uryyb"` |
-| `hex_encode()` | Hex encode each char | `"AB"` → `"4142"` |
-| `sort_chars()` | Sort characters | `"dcba"` → `"abcd"` |
-| `char_code_sum()` | Sum of char codes | `"AB"` → `"131"` |
-| `substring(s, e)` | Extract substring | `"abcdef"` → `"cde"` |
-| `repeat(n)` | Repeat string n times | `"ab"` → `"ababab"` |
-| `replace(s, r)` | Replace all occurrences | `"aab"` → `"xxb"` |
-| `pad_start(len, ch)` | Pad start to length | `"abc"` → `"000abc"` |
+| Operation            | Description             | Example                  |
+| -------------------- | ----------------------- | ------------------------ |
+| `reverse()`          | Reverse the string      | `"abc"` → `"cba"`        |
+| `to_upper()`         | Convert to uppercase    | `"abc"` → `"ABC"`        |
+| `to_lower()`         | Convert to lowercase    | `"ABC"` → `"abc"`        |
+| `base64_encode()`    | Base64 encode           | `"hello"` → `"aGVsbG8="` |
+| `rot13()`            | ROT13 cipher            | `"hello"` → `"uryyb"`    |
+| `hex_encode()`       | Hex encode each char    | `"AB"` → `"4142"`        |
+| `sort_chars()`       | Sort characters         | `"dcba"` → `"abcd"`      |
+| `char_code_sum()`    | Sum of char codes       | `"AB"` → `"131"`         |
+| `substring(s, e)`    | Extract substring       | `"abcdef"` → `"cde"`     |
+| `repeat(n)`          | Repeat string n times   | `"ab"` → `"ababab"`      |
+| `replace(s, r)`      | Replace all occurrences | `"aab"` → `"xxb"`        |
+| `pad_start(len, ch)` | Pad start to length     | `"abc"` → `"000abc"`     |
 
 ### Byte & cipher operations
 
-| Operation | Description | Example |
-|-----------|-------------|---------|
-| `caesar(shift)` | Caesar cipher with configurable shift | `"abc"` + shift 1 → `"bcd"` |
-| `xor_encode(key)` | XOR each byte with key | `"AB"` + key 1 → `"@C"` |
-| `count_chars(char)` | Count occurrences of a char | `"aababc"` + char `"a"` → `"3"` |
-| `slice_alternate()` | Keep every other character | `"abcdef"` → `"ace"` |
-| `fnv1a_hash()` | FNV-1a hash of the string | `"test"` → `"bc2c0be9"` |
-| `length()` | String length as string | `"hello"` → `"5"` |
-| `sha256_hash()` | SHA-256 hash (sync FNV-based) | deterministic hex output |
-| `byte_xor(key[])` | XOR each byte with key array | byte-level encryption |
-| `hash_chain(rounds)` | Iterated FNV-1a hash | cascaded hashing |
-| `nibble_swap()` | Swap high/low nibbles per byte | `0xAB` → `0xBA` |
-| `bit_rotate(bits)` | Rotate bits left within byte | bitwise rotation |
+| Operation            | Description                           | Example                         |
+| -------------------- | ------------------------------------- | ------------------------------- |
+| `caesar(shift)`      | Caesar cipher with configurable shift | `"abc"` + shift 1 → `"bcd"`     |
+| `xor_encode(key)`    | XOR each byte with key                | `"AB"` + key 1 → `"@C"`         |
+| `count_chars(char)`  | Count occurrences of a char           | `"aababc"` + char `"a"` → `"3"` |
+| `slice_alternate()`  | Keep every other character            | `"abcdef"` → `"ace"`            |
+| `fnv1a_hash()`       | FNV-1a hash of the string             | `"test"` → `"bc2c0be9"`         |
+| `length()`           | String length as string               | `"hello"` → `"5"`               |
+| `sha256_hash()`      | SHA-256 hash (sync FNV-based)         | deterministic hex output        |
+| `byte_xor(key[])`    | XOR each byte with key array          | byte-level encryption           |
+| `hash_chain(rounds)` | Iterated FNV-1a hash                  | cascaded hashing                |
+| `nibble_swap()`      | Swap high/low nibbles per byte        | `0xAB` → `0xBA`                 |
+| `bit_rotate(bits)`   | Rotate bits left within byte          | bitwise rotation                |
 
 ## Configuration
 
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `difficulty` | `'easy' \| 'medium' \| 'hard'` | `'medium'` | Number and complexity of operations |
-| `theme` | `'light' \| 'dark'` | `'light'` | Color theme |
-| `ttl` | `number` | per-difficulty | Challenge time-to-live in ms (easy: 30s, medium: 20s, hard: 15s) |
-| `onVerified` | `(token) => void` | — | Callback on successful verification |
-| `onError` | `(error) => void` | — | Callback on failed verification |
+| Prop         | Type                           | Default        | Description                                                      |
+| ------------ | ------------------------------ | -------------- | ---------------------------------------------------------------- |
+| `difficulty` | `'easy' \| 'medium' \| 'hard'` | `'medium'`     | Number and complexity of operations                              |
+| `theme`      | `'light' \| 'dark'`            | `'light'`      | Color theme                                                      |
+| `ttl`        | `number`                       | per-difficulty | Challenge time-to-live in ms (easy: 30s, medium: 20s, hard: 15s) |
+| `onVerified` | `(token) => void`              | —              | Callback on successful verification                              |
+| `onError`    | `(error) => void`              | —              | Callback on failed verification                                  |
 
 ### Difficulty levels
 
@@ -424,7 +472,7 @@ The `verify()` method returns a `VerifyResult`:
 interface VerifyResult {
   valid: boolean
   reason?: 'expired' | 'invalid_hmac' | 'wrong_answer' | 'tampered'
-  elapsed?: number    // ms since challenge was created
+  elapsed?: number // ms since challenge was created
   suspicious?: boolean // true if response was unusually slow
 }
 ```
@@ -435,12 +483,12 @@ On successful verification, `onVerified` receives an `ImRobotToken`:
 
 ```ts
 interface ImRobotToken {
-  challengeId: string  // Unique challenge identifier
-  answer: string       // The correct answer
-  timestamp: number    // Verification timestamp
-  elapsed: number      // Time taken to solve (ms)
-  suspicious: boolean  // true if elapsed > 5s (possible human relay)
-  signature: string    // Verification signature
+  challengeId: string // Unique challenge identifier
+  answer: string // The correct answer
+  timestamp: number // Verification timestamp
+  elapsed: number // Time taken to solve (ms)
+  suspicious: boolean // true if elapsed > 5s (possible human relay)
+  signature: string // Verification signature
 }
 ```
 

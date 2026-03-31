@@ -1,6 +1,8 @@
 import type { SignedChallenge, VerifyResult } from '../core/types'
 import { ImRobotVerifier } from './verifier'
 import { ProofTokenIssuer } from './proof-token'
+import { RateLimiter } from './rate-limiter'
+import type { RateLimiterConfig } from './rate-limiter'
 
 /**
  * Generic middleware types — framework-agnostic.
@@ -15,6 +17,7 @@ export interface MiddlewareRequest {
 
 export interface MiddlewareResponse {
   status(code: number): MiddlewareResponse
+  setHeader?(name: string, value: string | number): void
   json(body: unknown): void
 }
 
@@ -25,19 +28,14 @@ export interface RequireAgentOptions {
   secret: string
   /** Where to extract the token from. Default: 'X-Agent-Proof' header */
   headerName?: string
-  /** Rate limit: max requests per window per IP */
-  rateLimit?: { windowMs: number; maxRequests: number }
+  /** Rate limit configuration for verification endpoint */
+  rateLimit?: RateLimiterConfig
   /** Custom bypass function (return true to skip verification) */
   bypass?: (req: MiddlewareRequest) => boolean
   /** Issuer name for proof tokens */
   issuer?: string
   /** Token TTL in ms (default: 1 hour) */
   tokenTTL?: number
-}
-
-interface RateLimitRecord {
-  count: number
-  resetAt: number
 }
 
 /**
@@ -74,19 +72,8 @@ export function requireAgent(options: RequireAgentOptions) {
     tokenTTL: options.tokenTTL,
   })
 
-  // Rate limiting state
-  const rateLimitStore = new Map<string, RateLimitRecord>()
-  const rateLimit = options.rateLimit
-
-  // Periodic cleanup (every 60s)
-  if (rateLimit) {
-    setInterval(() => {
-      const now = Date.now()
-      for (const [key, record] of rateLimitStore.entries()) {
-        if (record.resetAt < now) rateLimitStore.delete(key)
-      }
-    }, 60_000).unref?.()
-  }
+  // Initialize rate limiter if configured
+  const rateLimiter = options.rateLimit ? new RateLimiter(options.rateLimit) : undefined
 
   return async (req: MiddlewareRequest, res: MiddlewareResponse, next: NextFunction) => {
     // Bypass check
@@ -95,23 +82,32 @@ export function requireAgent(options: RequireAgentOptions) {
     }
 
     // Rate limiting
-    if (rateLimit) {
+    if (rateLimiter) {
       const key = req.ip ?? 'unknown'
-      const now = Date.now()
-      const record = rateLimitStore.get(key)
+      const allowed = rateLimiter.isAllowed(key)
 
-      if (!record || record.resetAt < now) {
-        rateLimitStore.set(key, { count: 1, resetAt: now + rateLimit.windowMs })
-      } else if (record.count >= rateLimit.maxRequests) {
-        const retryAfter = Math.ceil((record.resetAt - now) / 1000)
+      if (!allowed) {
+        const status = rateLimiter.getStatus(key)
+        const retryAfter = Math.ceil((status.resetAt - Date.now()) / 1000)
+
+        // Set standard rate limit headers
+        res.setHeader?.('X-RateLimit-Limit', rateLimiter['maxRequests'] ?? 30)
+        res.setHeader?.('X-RateLimit-Remaining', status.remaining)
+        res.setHeader?.('X-RateLimit-Reset', status.resetAt)
+        res.setHeader?.('Retry-After', retryAfter)
+
         return res.status(429).json({
           error: 'Too many requests',
           code: 'RATE_LIMIT_EXCEEDED',
           retryAfter,
         })
-      } else {
-        record.count++
       }
+
+      // Set rate limit headers for allowed requests
+      const status = rateLimiter.getStatus(key)
+      res.setHeader?.('X-RateLimit-Limit', rateLimiter['maxRequests'] ?? 30)
+      res.setHeader?.('X-RateLimit-Remaining', status.remaining)
+      res.setHeader?.('X-RateLimit-Reset', status.resetAt)
     }
 
     // Extract token
@@ -150,10 +146,15 @@ export function requireAgent(options: RequireAgentOptions) {
  * - GET  /challenge — generate a signed challenge
  * - POST /verify    — verify answer and issue proof token
  *
+ * Optionally applies rate limiting to both endpoints if configured.
+ *
  * @example
  * ```typescript
  * // Express
- * const router = createAgentRouter({ secret: 'your-secret-min-16-chars' })
+ * const router = createAgentRouter({
+ *   secret: 'your-secret-min-16-chars',
+ *   rateLimit: { windowMs: 60000, maxRequests: 30 }
+ * })
  * app.get('/imrobot/challenge', router.challenge)
  * app.post('/imrobot/verify', router.verify)
  *
@@ -172,14 +173,55 @@ export function createAgentRouter(options: RequireAgentOptions) {
     tokenTTL: options.tokenTTL,
   })
 
+  // Initialize rate limiter if configured
+  const rateLimiter = options.rateLimit ? new RateLimiter(options.rateLimit) : undefined
+
   type VerifyRequest = MiddlewareRequest & {
     body?: { challenge: SignedChallenge; answer: string; agentId?: string }
   }
 
   /**
+   * Helper to apply rate limiting to a response.
+   */
+  const applyRateLimit = (req: MiddlewareRequest, res: MiddlewareResponse): boolean => {
+    if (!rateLimiter) return true
+
+    const key = req.ip ?? 'unknown'
+    const allowed = rateLimiter.isAllowed(key)
+
+    if (!allowed) {
+      const status = rateLimiter.getStatus(key)
+      const retryAfter = Math.ceil((status.resetAt - Date.now()) / 1000)
+
+      // Set standard rate limit headers
+      res.setHeader?.('X-RateLimit-Limit', options.rateLimit?.maxRequests ?? 30)
+      res.setHeader?.('X-RateLimit-Remaining', status.remaining)
+      res.setHeader?.('X-RateLimit-Reset', status.resetAt)
+      res.setHeader?.('Retry-After', retryAfter)
+
+      res.status(429).json({
+        error: 'Too many requests',
+        code: 'RATE_LIMIT_EXCEEDED',
+        retryAfter,
+      })
+      return false
+    }
+
+    // Set rate limit headers for allowed requests
+    const status = rateLimiter.getStatus(key)
+    res.setHeader?.('X-RateLimit-Limit', options.rateLimit?.maxRequests ?? 30)
+    res.setHeader?.('X-RateLimit-Remaining', status.remaining)
+    res.setHeader?.('X-RateLimit-Reset', status.resetAt)
+    return true
+  }
+
+  /**
    * Generate a signed challenge for an agent.
    */
-  const challenge = async (_req: MiddlewareRequest, res: MiddlewareResponse) => {
+  const challenge = async (req: MiddlewareRequest, res: MiddlewareResponse) => {
+    // Apply rate limiting
+    if (!applyRateLimit(req, res)) return
+
     const ch = await verifier.generate()
     return res.status(200).json(ch)
   }
@@ -188,6 +230,9 @@ export function createAgentRouter(options: RequireAgentOptions) {
    * Verify an agent's answer and issue a proof token.
    */
   const verify = async (req: VerifyRequest, res: MiddlewareResponse) => {
+    // Apply rate limiting
+    if (!applyRateLimit(req, res)) return
+
     const body = req.body
     if (!body?.challenge || !body?.answer) {
       return res.status(400).json({
