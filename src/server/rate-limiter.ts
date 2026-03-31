@@ -152,17 +152,12 @@ export class RateLimiter {
    */
   private cleanup(): void {
     const now = Date.now()
-    let deletedCount = 0
 
     for (const [key, record] of this.store.entries()) {
       if (record.resetAt < now) {
         this.store.delete(key)
-        deletedCount++
       }
     }
-
-    // Optionally log cleanup activity (commented out for production)
-    // if (deletedCount > 0) console.log(`[RateLimiter] Cleaned up ${deletedCount} expired entries`)
   }
 
   /**
