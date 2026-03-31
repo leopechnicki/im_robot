@@ -5,10 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.5.0] - 2026-03-21
+## [Unreleased]
 
 ### Added
 
+- `.well-known/imrobot.json` discovery endpoint inspired by A2A Agent Card pattern
+- `buildDiscoveryDocument()` for framework-agnostic discovery document generation
+- `createDiscoveryHandler()` Express-compatible middleware for serving discovery documents
+- `DiscoveryConfig` and `DiscoveryDocument` TypeScript types
+- 10 new tests for discovery module (222 total)
+- Documentation: discovery endpoint section in README and docs page
 - Natural-language challenge formatting (`formatOperationNL`, `formatPipelineNL`) with 3–4 randomised phrasings per operation — makes regex-based scraping of display text unreliable
 - In-memory sliding window `RateLimiter` class with automatic expired-entry cleanup
 - Rate limiting support for both `createAgentRouter` and `requireAgent` middleware via `rateLimit` config option
@@ -21,9 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Updated docs page with discovery endpoint section
 - Updated docs page with rate limiting section and `RateLimiter` API reference
 - Updated demo page middleware example to include `rateLimit` config
-- Bumped version to 0.5.0
 
 ## [0.4.0] - 2026-03-16
 

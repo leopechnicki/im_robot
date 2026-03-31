@@ -2,6 +2,7 @@ export { ImRobotVerifier, createVerifier } from './verifier'
 export { ProofTokenIssuer, createTokenIssuer } from './proof-token'
 export { requireAgent, createAgentRouter } from './middleware'
 export { RateLimiter } from './rate-limiter'
+export { buildDiscoveryDocument, createDiscoveryHandler } from './discovery'
 export type { ProofTokenConfig, IssueTokenParams } from './proof-token'
 export type {
   RequireAgentOptions,
@@ -10,6 +11,7 @@ export type {
   NextFunction,
 } from './middleware'
 export type { RateLimiterConfig, RateLimiterStatus } from './rate-limiter'
+export type { DiscoveryConfig, DiscoveryDocument } from './discovery'
 export type {
   SignedChallenge,
   ServerConfig,
