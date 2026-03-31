@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `buildDiscoveryDocument()` for framework-agnostic discovery document generation
 - `createDiscoveryHandler()` Express-compatible middleware for serving discovery documents
 - `DiscoveryConfig` and `DiscoveryDocument` TypeScript types
+- `.handler` property on `createAgentRouter()` for combined GET/POST routing (routes GET → challenge, POST → verify)
 - 10 new tests for discovery module (222 total)
 - Documentation: discovery endpoint section in README and docs page
 

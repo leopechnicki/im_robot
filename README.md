@@ -179,6 +179,24 @@ app.get('/api/data', agentOnly, (req, res) => {
 })
 ```
 
+#### Combined handler
+
+Alternatively, use the combined `.handler` property to route both GET and POST requests to a single path:
+
+```ts
+import { createAgentRouter } from 'imrobot/server'
+
+const router = createAgentRouter({ secret: process.env.IMROBOT_SECRET! })
+
+// Routes GET → /challenge and POST → /verify under one path
+app.use('/imrobot', router.handler)
+```
+
+The handler automatically routes based on HTTP method:
+- **GET** → challenge endpoint (returns a signed challenge)
+- **POST** → verify endpoint (verifies answer, returns proof token)
+- **Other methods** → 405 Method Not Allowed
+
 ### Invisible verification (zero-UI)
 
 For agents that need to verify themselves programmatically without any UI:
