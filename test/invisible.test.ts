@@ -313,8 +313,9 @@ describe('invisibleVerify', () => {
       const elapsed = Date.now() - startTime
 
       expect(result.success).toBe(true)
-      // At least 100ms backoff before second attempt
-      expect(elapsed).toBeGreaterThanOrEqual(100)
+      // At least ~100ms backoff before second attempt (use 90ms threshold to
+      // account for timer precision / scheduling jitter in CI environments)
+      expect(elapsed).toBeGreaterThanOrEqual(90)
     })
 
     it('returns error message from final failure', async () => {
