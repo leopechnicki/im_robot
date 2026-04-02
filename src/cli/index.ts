@@ -163,7 +163,9 @@ async function cmdInfo() {
   console.log('  Operations:  23 types')
   console.log('  Frameworks:  React, Vue, Svelte, Web Components')
   console.log('  Security:    HMAC-SHA256, constant-time verify, nonce, screenshot shield')
-  console.log('  New in 0.4:  Crypto ops, proof tokens, middleware, invisible verify, CLI')
+  console.log(
+    '  New in 0.5:  Discovery endpoint, rate limiting, natural-language challenges, combined router handler',
+  )
   console.log()
 }
 
