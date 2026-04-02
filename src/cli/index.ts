@@ -3,6 +3,7 @@ import { solveChallenge } from '../core/solver'
 import { formatPipeline } from '../core/operations'
 import { createVerifier } from '../server/verifier'
 import type { Difficulty } from '../core/types'
+import { CLI_VERSION } from './version'
 
 const HELP = `
 imrobot — Reverse-CAPTCHA CLI for AI Agent Verification
@@ -153,7 +154,7 @@ async function cmdBenchmark(difficulty: Difficulty, count: number) {
 
 async function cmdInfo() {
   console.log('\n🤖 imrobot — Reverse-CAPTCHA for AI Agents\n')
-  console.log('  Version:     0.5.0')
+  console.log(`  Version:     ${CLI_VERSION}`)
   console.log('  License:     MIT')
   console.log('  Repository:  https://github.com/leopechnicki/im_robot')
   console.log('  npm:         https://www.npmjs.com/package/imrobot')
