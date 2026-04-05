@@ -187,7 +187,12 @@ export const IMAGE_CHALLENGE_TEMPLATES: Record<ImageChallengeType, ImageChalleng
   object_count: {
     type: 'object_count',
     generate: (difficulty) => {
-      const count = difficulty === 'easy' ? randomInt(1, 3) : difficulty === 'medium' ? randomInt(2, 5) : randomInt(3, 8)
+      const count =
+        difficulty === 'easy'
+          ? randomInt(1, 3)
+          : difficulty === 'medium'
+            ? randomInt(2, 5)
+            : randomInt(3, 8)
       const object = pickRandom(OBJECTS)
       const color = pickRandom(COLORS)
       const scene = pickRandom(SCENES)
@@ -202,7 +207,7 @@ export const IMAGE_CHALLENGE_TEMPLATES: Record<ImageChallengeType, ImageChalleng
 
   spatial_reasoning: {
     type: 'spatial_reasoning',
-    generate: (difficulty) => {
+    generate: (_difficulty) => {
       const obj1 = pickRandom(OBJECTS)
       const obj2 = pickRandom(OBJECTS.filter((o) => o !== obj1))
       const position = pickRandom(POSITIONS)
@@ -290,7 +295,10 @@ export const IMAGE_CHALLENGE_TEMPLATES: Record<ImageChallengeType, ImageChalleng
  */
 export class ImageChallengePool {
   private readonly config: Required<
-    Pick<ImageChallengePoolConfig, 'poolSize' | 'challengeTypes' | 'rotationIntervalMs' | 'difficulty' | 'concurrency'>
+    Pick<
+      ImageChallengePoolConfig,
+      'poolSize' | 'challengeTypes' | 'rotationIntervalMs' | 'difficulty' | 'concurrency'
+    >
   > & { provider: ImageProviderConfig }
 
   private pool: ImageChallenge[] = []
@@ -417,7 +425,9 @@ export class ImageChallengePool {
     const template = IMAGE_CHALLENGE_TEMPLATES[type]
     if (!template) return null
 
-    const { prompt, question, answer, acceptableAnswers } = template.generate(this.config.difficulty)
+    const { prompt, question, answer, acceptableAnswers } = template.generate(
+      this.config.difficulty,
+    )
 
     try {
       const { imageUrl, metadata } = await this.generateImage(prompt)

@@ -160,11 +160,11 @@ async function cmdInfo() {
   console.log('  npm:         https://www.npmjs.com/package/imrobot')
   console.log('  Homepage:    https://imrobot.vercel.app')
   console.log()
-  console.log('  Operations:  23 types')
+  console.log('  Operations:  27 types')
   console.log('  Frameworks:  React, Vue, Svelte, Web Components')
   console.log('  Security:    HMAC-SHA256, constant-time verify, nonce, screenshot shield')
   console.log(
-    '  New in 0.5:  Discovery endpoint, rate limiting, natural-language challenges, combined router handler',
+    '  New in 0.5:  Adaptive difficulty, AI image challenges, compact mode, 4 new operations',
   )
   console.log()
 }

@@ -129,7 +129,14 @@ function relax(d: Difficulty): Difficulty {
 
 export class AdaptiveDifficulty {
   private readonly config: Required<
-    Pick<AdaptiveConfig, 'initialDifficulty' | 'escalateAfterFailures' | 'relaxAfterSuccesses' | 'maxHistory' | 'analysisWindowMs'>
+    Pick<
+      AdaptiveConfig,
+      | 'initialDifficulty'
+      | 'escalateAfterFailures'
+      | 'relaxAfterSuccesses'
+      | 'maxHistory'
+      | 'analysisWindowMs'
+    >
   > & { solveTimeThresholds: Required<NonNullable<AdaptiveConfig['solveTimeThresholds']>> }
 
   private readonly agents = new Map<string, AgentProfile>()
@@ -283,9 +290,7 @@ export class AdaptiveDifficulty {
 
     // Factor 1: Failure rate (0-1)
     const failureRate =
-      profile.totalAttempts > 0
-        ? 1 - profile.totalSuccesses / profile.totalAttempts
-        : 0
+      profile.totalAttempts > 0 ? 1 - profile.totalSuccesses / profile.totalAttempts : 0
 
     // Factor 2: Abnormal timing (too fast or too slow)
     const successfulTimes = recentHistory.filter((h) => h.success).map((h) => h.solveTimeMs)
@@ -303,7 +308,8 @@ export class AdaptiveDifficulty {
     // Factor 3: Rapid-fire attempts (many attempts in short window)
     let rapidAttempts = 0
     if (recentHistory.length >= 10) {
-      const timeSpan = recentHistory[recentHistory.length - 1].timestamp - recentHistory[0].timestamp
+      const timeSpan =
+        recentHistory[recentHistory.length - 1].timestamp - recentHistory[0].timestamp
       if (timeSpan > 0) {
         const rate = recentHistory.length / (timeSpan / 1000) // attempts per second
         rapidAttempts = Math.min(1, rate / 2) // >2 per second = max risk
@@ -324,10 +330,7 @@ export class AdaptiveDifficulty {
     // Weighted composite score
     const score = Math.min(
       1,
-      failureRate * 0.35 +
-        abnormalTiming * 0.25 +
-        rapidAttempts * 0.25 +
-        inconsistentTiming * 0.15,
+      failureRate * 0.35 + abnormalTiming * 0.25 + rapidAttempts * 0.25 + inconsistentTiming * 0.15,
     )
 
     const level: RiskAssessment['level'] =

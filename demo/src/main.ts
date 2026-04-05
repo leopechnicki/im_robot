@@ -241,11 +241,11 @@ app.use('/api/agent-only', requireAgent({
 \`\`\`
 
 ## Key facts
-- Package: \`imrobot\` on npm (v0.4.0)
+- Package: \`imrobot\` on npm (v0.5.0)
 - Zero runtime dependencies, ~14 KB core
 - Exports: \`imrobot/core\`, \`imrobot/react\`, \`imrobot/vue\`, \`imrobot/svelte\`, \`imrobot/web-component\`, \`imrobot/server\`
 - Challenge data lives in \`data-imrobot-challenge\` DOM attribute as JSON
-- 23 operation types: reverse, base64, rot13, caesar, xor, sha256, fnv1a, bit_rotate, etc.
+- 27 operation types: reverse, base64, rot13, caesar, xor, sha256, fnv1a, bit_rotate, atbash, vowel_count, etc.
 - TypeScript-first with full type exports
 - CLI available: \`npx imrobot challenge\`, \`npx imrobot solve\`, \`npx imrobot benchmark\`
 - Docs: https://imrobot.vercel.app/docs.html

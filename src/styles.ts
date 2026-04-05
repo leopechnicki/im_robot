@@ -226,7 +226,9 @@ export function getStyles(theme: 'light' | 'dark', size?: WidgetSize): string {
       color: ${t.textMuted};
       text-decoration: none;
     }
-    ${size === 'compact' ? `
+    ${
+      size === 'compact'
+        ? `
     /* ── Compact mode overrides ── */
     .imrobot {
       padding: 12px;
@@ -283,7 +285,9 @@ export function getStyles(theme: 'light' | 'dark', size?: WidgetSize): string {
     .imrobot-brand {
       font-size: 9px;
     }
-    ` : ''}
+    `
+        : ''
+    }
   `
 }
 

@@ -30,12 +30,7 @@ export type { InvisibleVerifyOptions, InvisibleVerifyResult } from './invisible'
 
 // Adaptive difficulty
 export { AdaptiveDifficulty } from './adaptive'
-export type {
-  AdaptiveConfig,
-  AttemptRecord,
-  AgentProfile,
-  RiskAssessment,
-} from './adaptive'
+export type { AdaptiveConfig, AttemptRecord, AgentProfile, RiskAssessment } from './adaptive'
 
 // AI Image challenges
 export { ImageChallengePool, IMAGE_CHALLENGE_TEMPLATES } from './image-challenge'
