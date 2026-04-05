@@ -43,6 +43,8 @@ export interface AdaptiveConfig {
   relaxAfterSuccesses?: number
   /** Maximum history entries to keep per agent (default: 50) */
   maxHistory?: number
+  /** Maximum number of tracked agents before evicting oldest (default: 10000) */
+  maxAgents?: number
   /** Time window for behavioral analysis in ms (default: 5 minutes) */
   analysisWindowMs?: number
   /** Solve time thresholds per difficulty in ms */
@@ -135,6 +137,7 @@ export class AdaptiveDifficulty {
       | 'escalateAfterFailures'
       | 'relaxAfterSuccesses'
       | 'maxHistory'
+      | 'maxAgents'
       | 'analysisWindowMs'
     >
   > & { solveTimeThresholds: Required<NonNullable<AdaptiveConfig['solveTimeThresholds']>> }
@@ -147,10 +150,11 @@ export class AdaptiveDifficulty {
       escalateAfterFailures: config?.escalateAfterFailures ?? 2,
       relaxAfterSuccesses: config?.relaxAfterSuccesses ?? 5,
       maxHistory: config?.maxHistory ?? 50,
+      maxAgents: config?.maxAgents ?? 10_000,
       analysisWindowMs: config?.analysisWindowMs ?? 300_000, // 5 min
       solveTimeThresholds: {
         suspiciousMs: config?.solveTimeThresholds?.suspiciousMs ?? 5_000,
-        tooFastMs: config?.solveTimeThresholds?.tooFastMs ?? 5,
+        tooFastMs: config?.solveTimeThresholds?.tooFastMs ?? 50,
       },
     }
   }
@@ -277,6 +281,19 @@ export class AdaptiveDifficulty {
         lastSeen: now,
         history: [],
       }
+      // Evict oldest agent if at capacity (LRU eviction)
+      if (this.agents.size >= this.config.maxAgents) {
+        let oldestKey: string | undefined
+        let oldestTime = Infinity
+        for (const [key, p] of this.agents) {
+          if (p.lastSeen < oldestTime) {
+            oldestTime = p.lastSeen
+            oldestKey = key
+          }
+        }
+        if (oldestKey) this.agents.delete(oldestKey)
+      }
+
       this.agents.set(agentId, profile)
     }
     return profile
