@@ -27,3 +27,26 @@ export { fnv1a } from './hash'
 export { hmacSign, hmacVerify, sha256 } from './hmac'
 export { invisibleVerify } from './invisible'
 export type { InvisibleVerifyOptions, InvisibleVerifyResult } from './invisible'
+
+// Adaptive difficulty
+export { AdaptiveDifficulty } from './adaptive'
+export type {
+  AdaptiveConfig,
+  AttemptRecord,
+  AgentProfile,
+  RiskAssessment,
+} from './adaptive'
+
+// AI Image challenges
+export { ImageChallengePool, IMAGE_CHALLENGE_TEMPLATES } from './image-challenge'
+export type {
+  ImageChallenge,
+  ImageChallengeType,
+  ImageChallengeTemplate,
+  ImageChallengePoolConfig,
+  ImageProviderConfig,
+  OpenAIProviderConfig,
+  StabilityProviderConfig,
+  CustomProviderConfig,
+  StaticProviderConfig,
+} from './image-challenge'
