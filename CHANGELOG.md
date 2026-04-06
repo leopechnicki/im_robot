@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Adaptive difficulty engine (`AdaptiveDifficulty`) that auto-adjusts challenge difficulty per agent based on behavioral patterns (failure rate, timing, rapid attempts)
+- Risk scoring with 4 weighted factors and levels: low, medium, high, critical
+- AI image challenge foundation (`ImageChallengePool`) with 4 provider types (OpenAI, Stability AI, custom, static) and 6 challenge types (object_count, spatial_reasoning, color_identification, scene_description, text_recognition, odd_one_out)
+- Built-in prompt templates for all image challenge types with difficulty-scaled parameters
+- 4 new pipeline operations: `vowel_count`, `consonant_extract`, `run_length_encode`, `atbash` (27 total)
+- Compact widget mode via `size="compact"` prop (320px max-width, smaller typography)
+- ARIA live regions and `role="alert"` for accessibility on status changes
+- 94 new tests for adaptive difficulty, image challenges, and new operations (344 total)
 - `.well-known/imrobot.json` discovery endpoint inspired by A2A Agent Card pattern
 - `buildDiscoveryDocument()` for framework-agnostic discovery document generation
 - `createDiscoveryHandler()` Express-compatible middleware for serving discovery documents

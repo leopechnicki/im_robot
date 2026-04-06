@@ -200,7 +200,12 @@ describe('invisibleVerify', () => {
     it('fails when verify returns 403 (wrong answer)', async () => {
       const challenge = createMockChallenge()
 
+      // Each retry fetches a new challenge + submits verify, so 3 retries = 6 calls
       fetchSpy
+        .mockResolvedValueOnce(createMockChallengeResponse(challenge))
+        .mockResolvedValueOnce(createMockVerifyResponse(false))
+        .mockResolvedValueOnce(createMockChallengeResponse(challenge))
+        .mockResolvedValueOnce(createMockVerifyResponse(false))
         .mockResolvedValueOnce(createMockChallengeResponse(challenge))
         .mockResolvedValueOnce(createMockVerifyResponse(false))
 

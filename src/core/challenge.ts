@@ -57,6 +57,8 @@ const EASY_OPS: OpFactory[] = [
   // New: simple operations for variety
   () => ({ op: 'length' }),
   () => ({ op: 'slice_alternate' }),
+  () => ({ op: 'vowel_count' }),
+  () => ({ op: 'atbash' }),
 ]
 
 const MEDIUM_OPS: OpFactory[] = [
@@ -73,6 +75,8 @@ const MEDIUM_OPS: OpFactory[] = [
     return { op: 'substring', start, end }
   },
   // New: parameterized operations
+  () => ({ op: 'consonant_extract' }),
+  () => ({ op: 'run_length_encode' }),
   () => ({ op: 'caesar', shift: randomInt(1, 25) }),
   (val) => {
     const chars = Array.from(new Set(Array.from(val)))

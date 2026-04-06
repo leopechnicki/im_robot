@@ -220,6 +220,10 @@ describe('formatOperationNL', () => {
       { op: 'hash_chain', rounds: 3 },
       { op: 'nibble_swap' },
       { op: 'bit_rotate', bits: 3 },
+      { op: 'vowel_count' },
+      { op: 'consonant_extract' },
+      { op: 'run_length_encode' },
+      { op: 'atbash' },
     ]
     for (const op of ops) {
       const result = formatOperationNL(op)

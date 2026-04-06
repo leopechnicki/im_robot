@@ -134,6 +134,37 @@ export function executeOperation(input: string, op: Operation): string {
         .join('')
     }
 
+    // ---- Additional operations (v0.5+) ----
+
+    case 'vowel_count':
+      return String(Array.from(input).filter((c) => 'aeiouAEIOU'.includes(c)).length)
+
+    case 'consonant_extract':
+      return Array.from(input)
+        .filter((c) => /[a-zA-Z]/.test(c) && !'aeiouAEIOU'.includes(c))
+        .join('')
+
+    case 'run_length_encode': {
+      if (input.length === 0) return ''
+      let result = ''
+      let count = 1
+      for (let i = 1; i <= input.length; i++) {
+        if (i < input.length && input[i] === input[i - 1]) {
+          count++
+        } else {
+          result += count > 1 ? `${count}${input[i - 1]}` : input[i - 1]
+          count = 1
+        }
+      }
+      return result
+    }
+
+    case 'atbash':
+      return input.replace(/[a-zA-Z]/g, (c) => {
+        const base = c <= 'Z' ? 65 : 97
+        return String.fromCharCode(base + (25 - (c.charCodeAt(0) - base)))
+      })
+
     default:
       throw new Error(`Unknown operation: ${(op as { op: string }).op}`)
   }
@@ -191,6 +222,14 @@ export function formatOperation(op: Operation): string {
       return 'nibble_swap()'
     case 'bit_rotate':
       return `bit_rotate(${op.bits})`
+    case 'vowel_count':
+      return 'vowel_count()'
+    case 'consonant_extract':
+      return 'consonant_extract()'
+    case 'run_length_encode':
+      return 'run_length_encode()'
+    case 'atbash':
+      return 'atbash()'
   }
 }
 
@@ -397,6 +436,38 @@ export function formatOperationNL(op: Operation): string {
         `Bitwise left-rotate every byte by ${op.bits}`,
         `Circular-shift each byte ${op.bits} bits to the left`,
         `Left-rotate every character's bits by ${op.bits}`,
+      ])
+
+    case 'vowel_count':
+      return pick([
+        'Count the number of vowels (a, e, i, o, u)',
+        'Tally all vowel characters in the string',
+        'Return how many vowels appear',
+        'Count every a, e, i, o, or u',
+      ])
+
+    case 'consonant_extract':
+      return pick([
+        'Extract only the consonant letters',
+        'Remove all vowels and non-letter characters',
+        'Keep only consonants from the string',
+        'Filter to consonant characters only',
+      ])
+
+    case 'run_length_encode':
+      return pick([
+        'Apply run-length encoding (e.g., "aaabb" becomes "3a2b")',
+        'Compress using run-length encoding',
+        'RLE-encode the string',
+        'Encode consecutive repeated characters as count+char',
+      ])
+
+    case 'atbash':
+      return pick([
+        'Apply the Atbash cipher (a↔z, b↔y, c↔x, ...)',
+        'Mirror each letter in the alphabet (A→Z, B→Y)',
+        'Apply Atbash substitution',
+        'Reverse-alphabet cipher each letter',
       ])
   }
 }

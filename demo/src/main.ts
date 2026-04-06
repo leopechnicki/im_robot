@@ -240,12 +240,43 @@ app.use('/api/agent-only', requireAgent({
 }))
 \`\`\`
 
+## Step 5 — Adaptive difficulty (optional)
+
+\`\`\`ts
+import { AdaptiveDifficulty } from 'imrobot/core'
+
+const adaptive = new AdaptiveDifficulty()
+adaptive.recordAttempt('agent_123', { success: true, solveTimeMs: 42 })
+const diff = adaptive.getDifficulty('agent_123') // auto-adjusts per agent
+const risk = adaptive.getRiskScore('agent_123')  // 0-1 risk score
+\`\`\`
+
+## Step 6 — AI image challenges (optional, experimental)
+
+\`\`\`ts
+import { ImageChallengePool } from 'imrobot/core'
+
+const pool = new ImageChallengePool({
+  provider: {
+    type: 'static',
+    images: [
+      { imageUrl: '/img/scene.png', type: 'object_count', question: 'How many apples?', answer: '3' },
+    ],
+  },
+})
+await pool.initialize()
+const challenge = pool.getChallenge()
+\`\`\`
+
 ## Key facts
-- Package: \`imrobot\` on npm (v0.4.0)
+- Package: \`imrobot\` on npm (v0.5.0)
 - Zero runtime dependencies, ~14 KB core
 - Exports: \`imrobot/core\`, \`imrobot/react\`, \`imrobot/vue\`, \`imrobot/svelte\`, \`imrobot/web-component\`, \`imrobot/server\`
 - Challenge data lives in \`data-imrobot-challenge\` DOM attribute as JSON
-- 23 operation types: reverse, base64, rot13, caesar, xor, sha256, fnv1a, bit_rotate, etc.
+- 27 operation types: reverse, base64, rot13, caesar, xor, sha256, fnv1a, bit_rotate, atbash, vowel_count, etc.
+- Adaptive difficulty engine with per-agent risk scoring (AdaptiveDifficulty)
+- AI image challenge pools with 6 challenge types (ImageChallengePool)
+- Compact widget mode via \`size="compact"\` prop
 - TypeScript-first with full type exports
 - CLI available: \`npx imrobot challenge\`, \`npx imrobot solve\`, \`npx imrobot benchmark\`
 - Docs: https://imrobot.vercel.app/docs.html
