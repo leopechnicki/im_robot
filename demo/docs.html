@@ -145,6 +145,7 @@
       transition: all 0.1s; line-height: 1.5;
     }
     .sidebar-link:hover { color: var(--text); background: var(--bg-alt); }
+    .sidebar-mobile-links { display: none; }
     .sidebar-link.active {
       color: var(--accent); background: var(--accent-bg);
       font-weight: 600;
@@ -343,6 +344,7 @@
         box-shadow: 4px 0 24px rgba(0,0,0,0.15);
       }
       .sidebar.mobile-open { display: block; }
+      .sidebar-mobile-links { display: block; }
       .mobile-nav-btn { display: block; }
       .content { padding: 24px 20px 80px; }
       h1 { font-size: 26px; }
@@ -421,6 +423,12 @@
     <a href="#configuration" class="sidebar-link">Configuration</a>
     <a href="#types" class="sidebar-link">TypeScript Types</a>
     <a href="#security" class="sidebar-link">Security Model</a>
+  </div>
+  <div class="sidebar-group sidebar-mobile-links">
+    <div class="sidebar-label">Links</div>
+    <a href="/" class="sidebar-link">Home</a>
+    <a href="https://github.com/leopechnicki/im_robot" class="sidebar-link">GitHub</a>
+    <a href="https://www.npmjs.com/package/imrobot" class="sidebar-link">npm</a>
   </div>
 </nav>
 
@@ -1442,6 +1450,9 @@ backdrop.addEventListener('click', closeMobileNav)
 // Close nav when a sidebar link is clicked on mobile
 sidebar.querySelectorAll('.sidebar-link').forEach(link => {
   link.addEventListener('click', closeMobileNav)
+})
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && sidebar.classList.contains('mobile-open')) closeMobileNav()
 })
 
 // ── Copy buttons ──

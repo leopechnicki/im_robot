@@ -352,8 +352,9 @@
       justify-content: center;
     }
     .demo-controls button {
-      padding: 6px 14px;
+      padding: 10px 18px;
       border-radius: 6px;
+      min-height: 44px;
       border: 1px solid var(--border);
       background: var(--code-bg);
       color: var(--text);
@@ -722,7 +723,7 @@
       .hero { padding: 60px 16px 40px; min-height: auto; }
       section { padding: 50px 16px; }
       .demo-card { padding: 24px; }
-      .nav-links a, .nav-links button.theme-toggle { display: none; }
+      .nav-links a { display: none; }
       .mobile-menu-btn { display: block; }
       .prompt-bar-top { flex-direction: column; text-align: center; }
       .agent-prompt-bar .prompt-label { font-size: 12px; }
@@ -1190,6 +1191,9 @@ $ npx imrobot info</code></pre></div>
     overlay.addEventListener('click', closeMenu)
     panel.querySelectorAll('a').forEach(function(a) {
       a.addEventListener('click', closeMenu)
+    })
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && panel.classList.contains('open')) closeMenu()
     })
   })()
   </script>
