@@ -917,6 +917,8 @@ app.post(<span class="str">'/api/verify'</span>, <span class="kw">async</span> (
       <button class="tab" data-tab="server" role="tab" aria-selected="false" aria-controls="panel-server" id="tab-server">Server SDK</button>
       <button class="tab" data-tab="middleware" role="tab" aria-selected="false" aria-controls="panel-middleware" id="tab-middleware">Middleware</button>
       <button class="tab" data-tab="invisible" role="tab" aria-selected="false" aria-controls="panel-invisible" id="tab-invisible">Invisible</button>
+      <button class="tab" data-tab="images" role="tab" aria-selected="false" aria-controls="panel-images" id="tab-images">AI Images</button>
+      <button class="tab" data-tab="adaptive" role="tab" aria-selected="false" aria-controls="panel-adaptive" id="tab-adaptive">Adaptive</button>
       <button class="tab" data-tab="cli" role="tab" aria-selected="false" aria-controls="panel-cli" id="tab-cli">CLI</button>
     </div>
     <div class="code-panels">
@@ -1060,6 +1062,103 @@ if (result.success) {
   })
   console.log(`Verified in ${result.totalTime}ms`)
 }</code></pre></div>
+
+      <div class="code-panel" id="panel-images" role="tabpanel" aria-labelledby="tab-images"><pre><code>import { ImageChallengePool } from 'imrobot/core'
+
+// Option 1: Static provider &mdash; use pre-generated images
+const pool = new ImageChallengePool({
+  provider: {
+    type: 'static',
+    images: [
+      {
+        imageUrl: '/images/kitchen-3-apples.png',
+        type: 'object_count',
+        question: 'How many red apples are in the image?',
+        answer: '3',
+        acceptableAnswers: ['3', 'three'],
+      },
+      {
+        imageUrl: '/images/park-bench.png',
+        type: 'spatial_reasoning',
+        question: 'What is to the left of the bench?',
+        answer: 'tree',
+        acceptableAnswers: ['tree', 'a tree'],
+      },
+    ],
+  },
+})
+
+// Option 2: Custom provider &mdash; bring your own AI generator
+const aiPool = new ImageChallengePool({
+  provider: {
+    type: 'custom',
+    generate: async (prompt) =&gt; {
+      // Use DALL-E, Stable Diffusion, or any image API
+      const img = await myImageGenerator(prompt)
+      return { imageUrl: img.url }
+    },
+  },
+  poolSize: 100,                       // pre-generate 100 images
+  challengeTypes: ['object_count', 'spatial_reasoning'],
+  rotationIntervalMs: 3_600_000,       // refresh pool every hour
+})
+
+await pool.initialize()
+
+// Serve a challenge
+const challenge = pool.getChallenge()
+// { id, type, imageUrl, question, answer, difficulty, ... }
+
+// Verify agent's answer (case-insensitive, fuzzy matching)
+const correct = pool.verifyAnswer(challenge.id, agentAnswer)</code></pre></div>
+
+      <div class="code-panel" id="panel-adaptive" role="tabpanel" aria-labelledby="tab-adaptive"><pre><code>import { AdaptiveDifficulty } from 'imrobot/core'
+import { generateChallenge, solveChallenge } from 'imrobot/core'
+
+// Create engine with tunable thresholds
+const adaptive = new AdaptiveDifficulty({
+  initialDifficulty: 'medium',
+  escalateAfterFailures: 2,   // 2 fails &rarr; harder
+  relaxAfterSuccesses: 5,     // 5 wins &rarr; easier
+  maxAgents: 10_000,          // LRU eviction at capacity
+})
+
+// In your verification endpoint:
+app.post('/api/verify', async (req, res) =&gt; {
+  const { agentId, answer } = req.body
+
+  // Get recommended difficulty for this agent
+  const difficulty = adaptive.getDifficulty(agentId)
+  const challenge = generateChallenge({ difficulty })
+
+  // ... verify answer ...
+  const success = solveChallenge(challenge) === answer
+
+  // Record the outcome &mdash; engine auto-adjusts
+  adaptive.recordAttempt(agentId, {
+    success,
+    solveTimeMs: elapsed,
+  })
+
+  // Check risk score (0-1, weighted composite)
+  const risk = adaptive.getRiskAssessment(agentId)
+  // {
+  //   score: 0.15,
+  //   level: 'low',          // low | medium | high | critical
+  //   factors: {
+  //     failureRate: 0.1,    // 35% weight
+  //     abnormalTiming: 0.0, // 25% weight
+  //     rapidAttempts: 0.0,  // 25% weight
+  //     inconsistentTiming: 0.3, // 15% weight
+  //   }
+  // }
+
+  if (risk.level === 'critical') {
+    return res.status(403).json({ error: 'Blocked' })
+  }
+
+  res.json({ success, difficulty, riskLevel: risk.level })
+})</code></pre></div>
 
       <div class="code-panel" id="panel-cli" role="tabpanel" aria-labelledby="tab-cli"><pre><code># Generate a test challenge
 $ npx imrobot challenge --difficulty hard
