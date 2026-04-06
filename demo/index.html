@@ -391,6 +391,92 @@
       overflow-y: auto;
     }
 
+    /* ── IMAGE CHALLENGE DEMO ── */
+    .img-demo {
+      width: 100%;
+      max-width: 520px;
+      background: var(--bg-alt);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      box-shadow: var(--card-shadow);
+      text-align: center;
+    }
+    .img-demo h3 { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+    .img-demo .img-demo-badge {
+      display: inline-block;
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 3px 10px; border-radius: 100px;
+      background: var(--warning-bg, rgba(251,191,36,0.15));
+      color: var(--warning, #d97706);
+      border: 1px solid var(--warning-border, rgba(251,191,36,0.3));
+      margin-bottom: 16px;
+    }
+    .img-demo-scene {
+      position: relative;
+      width: 100%; aspect-ratio: 16/10;
+      background: var(--code-bg);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      margin-bottom: 16px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .img-demo-scene canvas { width: 100%; height: 100%; }
+    .img-demo-question {
+      font-size: 15px; font-weight: 600;
+      margin-bottom: 12px;
+      color: var(--text);
+    }
+    .img-demo-row {
+      display: flex; gap: 8px;
+      margin-bottom: 12px;
+    }
+    .img-demo-input {
+      flex: 1; padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+    }
+    .img-demo-input:focus { border-color: var(--accent); }
+    .img-demo-btn {
+      padding: 10px 20px;
+      border: none; border-radius: 8px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600; font-size: 14px;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      white-space: nowrap;
+    }
+    .img-demo-btn:hover { opacity: 0.85; }
+    .img-demo-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .img-demo-result {
+      font-size: 14px; font-weight: 600;
+      min-height: 22px;
+      margin-bottom: 8px;
+    }
+    .img-demo-result.success { color: var(--success); }
+    .img-demo-result.fail { color: var(--error, #dc2626); }
+    .img-demo-meta {
+      font-size: 12px; color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .img-demo-refresh {
+      background: none; border: 1px solid var(--border);
+      border-radius: 6px; padding: 6px 14px; min-height: 44px;
+      cursor: pointer; font-size: 13px; font-weight: 500;
+      color: var(--text); font-family: inherit;
+      transition: all 0.15s;
+      margin-top: 4px;
+    }
+    .img-demo-refresh:hover { border-color: var(--accent); color: var(--accent); }
+
     /* HOW IT WORKS */
     .steps {
       display: grid;
@@ -801,6 +887,28 @@
       <p class="demo-meta">
         Challenges are embedded as JSON in <code>data-imrobot-challenge</code>.<br/>
         Agents read, execute the pipeline, and submit the answer instantly.
+      </p>
+    </div>
+  </section>
+
+  <!-- IMAGE CHALLENGE DEMO -->
+  <section class="demo-section" id="image-demo">
+    <div class="img-demo">
+      <h3>AI Image Challenge</h3>
+      <span class="img-demo-badge">Experimental</span>
+      <div class="img-demo-scene">
+        <canvas id="img-demo-canvas" width="480" height="300"></canvas>
+      </div>
+      <div class="img-demo-question" id="img-demo-question"></div>
+      <div class="img-demo-row">
+        <input class="img-demo-input" id="img-demo-input" type="text" placeholder="Type your answer..." autocomplete="off" aria-label="Image challenge answer" />
+        <button class="img-demo-btn" id="img-demo-verify">Verify</button>
+      </div>
+      <div class="img-demo-result" id="img-demo-result" aria-live="polite"></div>
+      <button class="img-demo-refresh" id="img-demo-refresh">New challenge</button>
+      <p class="img-demo-meta">
+        AI-generated scenes with known ground truth. Agents parse structured challenge data.<br/>
+        Supports static pools, custom providers (DALL-E, Stable Diffusion), and 6 challenge types.
       </p>
     </div>
   </section>
@@ -1266,6 +1374,187 @@ $ npx imrobot info</code></pre></div>
     <a href="https://github.com/leopechnicki/im_robot">GitHub</a>
     <a href="https://www.npmjs.com/package/imrobot">npm</a>
   </div>
+
+  <script>
+  // ── Image Challenge Demo ──
+  ;(function() {
+    const canvas = document.getElementById('img-demo-canvas')
+    const ctx = canvas.getContext('2d')
+    const questionEl = document.getElementById('img-demo-question')
+    const inputEl = document.getElementById('img-demo-input')
+    const verifyBtn = document.getElementById('img-demo-verify')
+    const resultEl = document.getElementById('img-demo-result')
+    const refreshBtn = document.getElementById('img-demo-refresh')
+
+    const COLORS = {
+      red: '#ef4444', blue: '#3b82f6', green: '#22c55e',
+      yellow: '#eab308', orange: '#f97316', purple: '#a855f7',
+    }
+    const COLOR_NAMES = Object.keys(COLORS)
+    const SHAPES = ['circle', 'square', 'triangle', 'star']
+
+    function rand(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min }
+    function pick(arr) { return arr[rand(0, arr.length - 1)] }
+
+    function drawShape(x, y, size, shape, color) {
+      ctx.fillStyle = color
+      ctx.strokeStyle = 'rgba(0,0,0,0.15)'
+      ctx.lineWidth = 1.5
+      if (shape === 'circle') {
+        ctx.beginPath(); ctx.arc(x, y, size / 2, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
+      } else if (shape === 'square') {
+        ctx.beginPath(); ctx.rect(x - size / 2, y - size / 2, size, size); ctx.fill(); ctx.stroke()
+      } else if (shape === 'triangle') {
+        ctx.beginPath(); ctx.moveTo(x, y - size / 2); ctx.lineTo(x + size / 2, y + size / 2); ctx.lineTo(x - size / 2, y + size / 2); ctx.closePath(); ctx.fill(); ctx.stroke()
+      } else if (shape === 'star') {
+        ctx.beginPath()
+        for (let i = 0; i < 5; i++) {
+          const angle = (i * 4 * Math.PI) / 5 - Math.PI / 2
+          const r = i === 0 ? size / 2 : size / 2
+          ctx[i === 0 ? 'moveTo' : 'lineTo'](x + Math.cos(angle) * r, y + Math.sin(angle) * r)
+          const innerAngle = angle + (2 * Math.PI) / 10
+          ctx.lineTo(x + Math.cos(innerAngle) * (r * 0.45), y + Math.sin(innerAngle) * (r * 0.45))
+        }
+        ctx.closePath(); ctx.fill(); ctx.stroke()
+      }
+    }
+
+    function drawBackground() {
+      // Sky gradient
+      const isDark = !document.documentElement.getAttribute('data-theme') ||
+                     document.documentElement.getAttribute('data-theme') === 'dark' ||
+                     (!document.documentElement.getAttribute('data-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)
+      const grad = ctx.createLinearGradient(0, 0, 0, canvas.height)
+      if (isDark) {
+        grad.addColorStop(0, '#1a1a2e'); grad.addColorStop(1, '#16213e')
+      } else {
+        grad.addColorStop(0, '#dbeafe'); grad.addColorStop(1, '#f0fdf4')
+      }
+      ctx.fillStyle = grad; ctx.fillRect(0, 0, canvas.width, canvas.height)
+      // Ground
+      ctx.fillStyle = isDark ? '#1e3a1e' : '#bbf7d0'
+      ctx.fillRect(0, canvas.height * 0.7, canvas.width, canvas.height * 0.3)
+      // Grid lines
+      ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'
+      ctx.lineWidth = 1
+      for (let i = 0; i < canvas.width; i += 40) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke() }
+      for (let i = 0; i < canvas.height; i += 40) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke() }
+    }
+
+    let currentChallenge = null
+
+    function generateChallenge() {
+      const types = ['count', 'color', 'shape']
+      const type = pick(types)
+      const targetColor = pick(COLOR_NAMES)
+      const targetShape = pick(SHAPES)
+      const count = rand(2, 6)
+      const items = []
+
+      // Place target items
+      for (let i = 0; i < count; i++) {
+        items.push({
+          x: rand(50, canvas.width - 50),
+          y: rand(40, canvas.height - 50),
+          size: rand(28, 44),
+          shape: targetShape,
+          color: targetColor,
+          isTarget: true,
+        })
+      }
+      // Place distractors
+      const distractorCount = rand(2, 4)
+      for (let i = 0; i < distractorCount; i++) {
+        let dColor = pick(COLOR_NAMES.filter(c => c !== targetColor))
+        let dShape = pick(SHAPES.filter(s => s !== targetShape))
+        // Mix it up: sometimes same shape different color, sometimes same color different shape
+        if (Math.random() > 0.5) dShape = targetShape
+        else dColor = targetColor
+        // Ensure at least one property differs
+        if (dColor === targetColor && dShape === targetShape) {
+          dColor = pick(COLOR_NAMES.filter(c => c !== targetColor))
+        }
+        items.push({
+          x: rand(50, canvas.width - 50),
+          y: rand(40, canvas.height - 50),
+          size: rand(28, 44),
+          shape: dShape,
+          color: dColor,
+          isTarget: false,
+        })
+      }
+
+      // Resolve overlaps
+      for (let i = 0; i < items.length; i++) {
+        for (let j = i + 1; j < items.length; j++) {
+          const dx = items[i].x - items[j].x, dy = items[i].y - items[j].y
+          if (Math.sqrt(dx * dx + dy * dy) < 50) {
+            items[j].x = rand(50, canvas.width - 50)
+            items[j].y = rand(40, canvas.height - 50)
+          }
+        }
+      }
+
+      let question, answer, acceptable
+      if (type === 'count') {
+        question = 'How many ' + targetColor + ' ' + targetShape + 's are in the scene?'
+        answer = String(count)
+        acceptable = [answer]
+      } else if (type === 'color') {
+        question = 'What color are the ' + targetShape + 's? (most common)'
+        answer = targetColor
+        acceptable = [targetColor]
+      } else {
+        question = 'What shape are the ' + targetColor + ' objects?'
+        answer = targetShape
+        acceptable = [targetShape, targetShape + 's']
+      }
+
+      currentChallenge = { items, question, answer, acceptable, type, targetColor, targetShape, count }
+      render()
+    }
+
+    function render() {
+      drawBackground()
+      // Shuffle items for visual variety
+      const shuffled = [...currentChallenge.items].sort(() => Math.random() - 0.5)
+      shuffled.forEach(item => {
+        drawShape(item.x, item.y, item.size, item.shape, COLORS[item.color])
+      })
+      // Label
+      ctx.fillStyle = 'rgba(0,0,0,0.5)'
+      ctx.fillRect(0, 0, canvas.width, 24)
+      ctx.fillStyle = '#fff'; ctx.font = '11px Inter, system-ui, sans-serif'
+      ctx.textAlign = 'left'
+      ctx.fillText('AI-Generated Scene  •  ImageChallengePool  •  type: ' + currentChallenge.type, 8, 16)
+      questionEl.textContent = currentChallenge.question
+      resultEl.textContent = ''
+      resultEl.className = 'img-demo-result'
+      inputEl.value = ''
+      inputEl.disabled = false
+      verifyBtn.disabled = false
+    }
+
+    function verify() {
+      const val = inputEl.value.trim().toLowerCase()
+      if (!val) return
+      const ok = currentChallenge.acceptable.some(a => a.toLowerCase() === val)
+      resultEl.textContent = ok ? '✓ Correct — challenge verified' : '✗ Incorrect — try again'
+      resultEl.className = 'img-demo-result ' + (ok ? 'success' : 'fail')
+      if (ok) { inputEl.disabled = true; verifyBtn.disabled = true }
+    }
+
+    verifyBtn.addEventListener('click', verify)
+    inputEl.addEventListener('keydown', function(e) { if (e.key === 'Enter') verify() })
+    refreshBtn.addEventListener('click', generateChallenge)
+
+    // Watch for theme changes to redraw
+    const observer = new MutationObserver(function() { if (currentChallenge) render() })
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+
+    generateChallenge()
+  })()
+  </script>
 
   <script>
   // ── Mobile menu ──
