@@ -666,11 +666,64 @@
       .tabs { flex-wrap: wrap; }
     }
 
+    /* ── MOBILE NAV ── */
+    .mobile-menu-btn {
+      display: none;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 20px;
+      line-height: 1;
+      color: var(--text);
+    }
+    .mobile-nav-overlay {
+      display: none;
+      position: fixed; inset: 0; z-index: 90;
+      background: rgba(0,0,0,0.5);
+    }
+    .mobile-nav-overlay.open { display: block; }
+    .mobile-nav-panel {
+      display: none;
+      position: fixed;
+      top: 0; right: 0; bottom: 0;
+      width: 260px;
+      z-index: 100;
+      background: var(--bg-alt);
+      border-left: 1px solid var(--border);
+      padding: 24px;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow: -4px 0 24px rgba(0,0,0,0.15);
+    }
+    .mobile-nav-panel.open { display: flex; }
+    .mobile-nav-panel a {
+      display: block;
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--text);
+      text-decoration: none;
+      padding: 10px 12px;
+      border-radius: 8px;
+      transition: background 0.15s;
+    }
+    .mobile-nav-panel a:hover { background: var(--code-bg); }
+    .mobile-nav-close {
+      align-self: flex-end;
+      background: none; border: none;
+      font-size: 24px; cursor: pointer;
+      color: var(--text-muted);
+      padding: 4px 8px;
+      margin-bottom: 8px;
+    }
+
     @media (max-width: 640px) {
       .hero { padding: 60px 16px 40px; min-height: auto; }
       section { padding: 50px 16px; }
       .demo-card { padding: 24px; }
-      .nav-links a:not(.gh-link) { display: none; }
+      .nav-links a, .nav-links button.theme-toggle { display: none; }
+      .mobile-menu-btn { display: block; }
       .prompt-bar-top { flex-direction: column; text-align: center; }
       .agent-prompt-bar .prompt-label { font-size: 12px; }
     }
@@ -694,6 +747,7 @@
         <a href="/docs.html">Docs</a>
         <a href="https://github.com/leopechnicki/im_robot" class="gh-link">GitHub</a>
         <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">🌙</button>
+        <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Open menu" aria-expanded="false">&#9776;</button>
       </div>
     </div>
   </nav>
@@ -1099,6 +1153,46 @@ $ npx imrobot info</code></pre></div>
     </p>
   </footer>
   </main>
+
+  <!-- Mobile navigation panel -->
+  <div class="mobile-nav-overlay" id="mobile-nav-overlay"></div>
+  <div class="mobile-nav-panel" id="mobile-nav-panel" role="dialog" aria-label="Navigation menu">
+    <button class="mobile-nav-close" id="mobile-nav-close" aria-label="Close menu">&#10005;</button>
+    <a href="#how-it-works">How it works</a>
+    <a href="#quickstart">Quickstart</a>
+    <a href="#code">Code</a>
+    <a href="#features">Features</a>
+    <a href="/docs.html">Docs</a>
+    <a href="https://github.com/leopechnicki/im_robot">GitHub</a>
+    <a href="https://www.npmjs.com/package/imrobot">npm</a>
+  </div>
+
+  <script>
+  // ── Mobile menu ──
+  ;(function() {
+    const btn = document.getElementById('mobile-menu-btn')
+    const panel = document.getElementById('mobile-nav-panel')
+    const overlay = document.getElementById('mobile-nav-overlay')
+    const closeBtn = document.getElementById('mobile-nav-close')
+
+    function openMenu() {
+      panel.classList.add('open')
+      overlay.classList.add('open')
+      btn.setAttribute('aria-expanded', 'true')
+    }
+    function closeMenu() {
+      panel.classList.remove('open')
+      overlay.classList.remove('open')
+      btn.setAttribute('aria-expanded', 'false')
+    }
+    btn.addEventListener('click', openMenu)
+    closeBtn.addEventListener('click', closeMenu)
+    overlay.addEventListener('click', closeMenu)
+    panel.querySelectorAll('a').forEach(function(a) {
+      a.addEventListener('click', closeMenu)
+    })
+  })()
+  </script>
 
   <script type="module" src="/src/main.ts"></script>
 </body>
