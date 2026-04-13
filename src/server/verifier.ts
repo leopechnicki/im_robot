@@ -4,6 +4,7 @@ import { generateChallenge } from '../core/challenge'
 import { executePipeline } from '../core/operations'
 import { hmacSign, hmacVerify } from '../core/hmac'
 import { fnv1a } from '../core/hash'
+import type { ChallengeReplayGuard } from './replay-guard'
 
 /**
  * Server-side challenge verifier with HMAC-SHA256 signing.
@@ -31,8 +32,9 @@ export class ImRobotVerifier {
   private readonly secret: string
   private readonly difficulty: Difficulty
   private readonly ttl?: number
+  private readonly replayGuard?: ChallengeReplayGuard
 
-  constructor(config: ServerConfig) {
+  constructor(config: ServerConfig & { replayGuard?: ChallengeReplayGuard }) {
     if (!config.secret || config.secret.trim().length < 16) {
       throw new Error('ImRobotVerifier: secret must be at least 16 non-whitespace characters')
     }

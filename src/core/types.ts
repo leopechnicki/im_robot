@@ -118,7 +118,7 @@ export interface ServerConfig {
 export interface VerifyResult {
   valid: boolean
   /** Reason for failure, if any */
-  reason?: 'expired' | 'invalid_hmac' | 'wrong_answer' | 'tampered'
+  reason?: 'expired' | 'invalid_hmac' | 'wrong_answer' | 'tampered' | 'replay'
   /** Elapsed time in ms (from challenge creation to verification) */
   elapsed?: number
   /** Whether the response was suspiciously slow */

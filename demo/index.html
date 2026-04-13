@@ -12,6 +12,7 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="imrobot — Reverse CAPTCHA for AI agents" />
   <meta name="twitter:image" content="/assets/hero-static.png" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232563eb' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='8' width='16' height='12' rx='2'/%3E%3Cpath d='M9 8V6a3 3 0 0 1 6 0v2'/%3E%3Ccircle cx='9' cy='14' r='1.5' fill='%232563eb' stroke='none'/%3E%3Ccircle cx='15' cy='14' r='1.5' fill='%232563eb' stroke='none'/%3E%3Cpath d='M10 18h4'/%3E%3C/svg%3E" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -670,7 +671,8 @@
     <h1>I'm a <span>robot</span>.</h1>
     <p>
       Reverse-CAPTCHA for the age of AI agents. Verifies that visitors
-      are bots, not humans. Drop into any framework in one line.
+      are bots, not humans. 27 operations, adaptive difficulty, AI image
+      challenges. Drop into any framework in one line.
     </p>
 
     <div class="hero-actions">
@@ -678,7 +680,7 @@
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
         Try the demo
       </a>
-      <a href="#code" class="btn btn-secondary">View code</a>
+      <a href="#code" class="btn btn-secondary">Browse integrations</a>
     </div>
     <div class="install-bar" id="install-bar" title="Click to copy">
       <span>$</span>
@@ -818,6 +820,8 @@ app.post(<span class="str">'/api/verify'</span>, <span class="kw">async</span> (
       <button class="tab" data-tab="server" role="tab">Server SDK</button>
       <button class="tab" data-tab="middleware" role="tab">Middleware</button>
       <button class="tab" data-tab="invisible" role="tab">Invisible</button>
+      <button class="tab" data-tab="images" role="tab">AI Images</button>
+      <button class="tab" data-tab="adaptive" role="tab">Adaptive</button>
       <button class="tab" data-tab="cli" role="tab">CLI</button>
     </div>
     <div class="code-panels">
@@ -962,6 +966,103 @@ if (result.success) {
   console.log(`Verified in ${result.totalTime}ms`)
 }</code></pre></div>
 
+      <div class="code-panel" id="panel-images"><pre><code>import { ImageChallengePool } from 'imrobot/core'
+
+// Option 1: Static provider — use pre-generated images
+const pool = new ImageChallengePool({
+  provider: {
+    type: 'static',
+    images: [
+      {
+        imageUrl: '/images/kitchen-3-apples.png',
+        type: 'object_count',
+        question: 'How many red apples are in the image?',
+        answer: '3',
+        acceptableAnswers: ['3', 'three'],
+      },
+      {
+        imageUrl: '/images/park-bench.png',
+        type: 'spatial_reasoning',
+        question: 'What is to the left of the bench?',
+        answer: 'tree',
+        acceptableAnswers: ['tree', 'a tree'],
+      },
+    ],
+  },
+})
+
+// Option 2: Custom provider — bring your own AI generator
+const aiPool = new ImageChallengePool({
+  provider: {
+    type: 'custom',
+    generate: async (prompt) =&gt; {
+      // Use DALL-E, Stable Diffusion, or any image API
+      const img = await myImageGenerator(prompt)
+      return { imageUrl: img.url }
+    },
+  },
+  poolSize: 100,                       // pre-generate 100 images
+  challengeTypes: ['object_count', 'spatial_reasoning'],
+  rotationIntervalMs: 3_600_000,       // refresh pool every hour
+})
+
+await pool.initialize()
+
+// Serve a challenge
+const challenge = pool.getChallenge()
+// { id, type, imageUrl, question, answer, difficulty, ... }
+
+// Verify agent's answer (case-insensitive, fuzzy matching)
+const correct = pool.verifyAnswer(challenge.id, agentAnswer)</code></pre></div>
+
+      <div class="code-panel" id="panel-adaptive"><pre><code>import { AdaptiveDifficulty } from 'imrobot/core'
+import { generateChallenge, solveChallenge } from 'imrobot/core'
+
+// Create engine with tunable thresholds
+const adaptive = new AdaptiveDifficulty({
+  initialDifficulty: 'medium',
+  escalateAfterFailures: 2,   // 2 fails → harder
+  relaxAfterSuccesses: 5,     // 5 wins → easier
+  maxAgents: 10_000,          // LRU eviction at capacity
+})
+
+// In your verification endpoint:
+app.post('/api/verify', async (req, res) =&gt; {
+  const { agentId, answer } = req.body
+
+  // Get recommended difficulty for this agent
+  const difficulty = adaptive.getDifficulty(agentId)
+  const challenge = generateChallenge({ difficulty })
+
+  // ... verify answer ...
+  const success = solveChallenge(challenge) === answer
+
+  // Record the outcome — engine auto-adjusts
+  adaptive.recordAttempt(agentId, {
+    success,
+    solveTimeMs: elapsed,
+  })
+
+  // Check risk score (0-1, weighted composite)
+  const risk = adaptive.getRiskAssessment(agentId)
+  // {
+  //   score: 0.15,
+  //   level: 'low',          // low | medium | high | critical
+  //   factors: {
+  //     failureRate: 0.1,    // 35% weight
+  //     abnormalTiming: 0.0, // 25% weight
+  //     rapidAttempts: 0.0,  // 25% weight
+  //     inconsistentTiming: 0.3, // 15% weight
+  //   }
+  // }
+
+  if (risk.level === 'critical') {
+    return res.status(403).json({ error: 'Blocked' })
+  }
+
+  res.json({ success, difficulty, riskLevel: risk.level })
+})</code></pre></div>
+
       <div class="code-panel" id="panel-cli"><pre><code># Generate a test challenge
 $ npx imrobot challenge --difficulty hard
 
@@ -1003,13 +1104,23 @@ $ npx imrobot info</code></pre></div>
       </div>
       <div class="feature">
         <div class="feature-icon">🧠</div>
-        <h3>23 operation types</h3>
-        <p>String transforms, SHA-256, byte XOR, hash chains, nibble swap, bit rotation, Caesar ciphers &mdash; impossible for humans.</p>
+        <h3>27 operation types</h3>
+        <p>String transforms, SHA-256, byte XOR, hash chains, atbash, run-length encoding, vowel counting &mdash; impossible for humans.</p>
       </div>
       <div class="feature">
         <div class="feature-icon">🛡️</div>
         <h3>Middleware &amp; rate limiting</h3>
         <p>Built-in <code>requireAgent()</code> and <code>createAgentRouter()</code> with sliding-window rate limiting. JWT-style proof tokens via <code>X-Agent-Proof</code> header. Standard 429 responses with <code>Retry-After</code> headers.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🖼️</div>
+        <h3>AI image challenges</h3>
+        <p>Experimental image-based verification using AI-generated scenes with known ground truth. Pre-generate pools via OpenAI, Stability AI, or custom providers. 6 challenge types.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">📊</div>
+        <h3>Adaptive difficulty</h3>
+        <p>Auto-adjusts challenge difficulty per agent based on behavior. Risk scoring with 4 weighted factors. Inspired by reCAPTCHA v3 and Arkose Labs.</p>
       </div>
       <div class="feature">
         <div class="feature-icon">👻</div>
