@@ -488,3 +488,117 @@ describe('createAgentRouter', () => {
     expect(statusCode).toBe(403)
   })
 })
+
+// ── createAgentRouter handler ─────────────────────────────────────────
+
+describe('createAgentRouter handler', () => {
+  function mockRes() {
+    let statusCode = 0
+    let body: unknown = null
+    const res = {
+      status(code: number) { statusCode = code; return res },
+      json(b: unknown) { body = b },
+      get statusCode() { return statusCode },
+      get body() { return body },
+    }
+    return res
+  }
+
+  it('returns a handler function', () => {
+    const router = createAgentRouter({ secret: TEST_SECRET })
+    expect(typeof router.handler).toBe('function')
+  })
+
+  it('GET routes to challenge endpoint', async () => {
+    const router = createAgentRouter({ secret: TEST_SECRET })
+    const res = mockRes()
+    await router.handler({ headers: {}, method: 'GET' }, res)
+    expect(res.statusCode).toBe(200)
+    const doc = res.body as Record<string, unknown>
+    expect(doc.hmac).toBeDefined()
+    expect(doc.pipeline).toBeDefined()
+  })
+
+  it('POST routes to verify endpoint and rejects wrong answer', async () => {
+    const router = createAgentRouter({ secret: TEST_SECRET })
+
+    // Fetch challenge via handler
+    const challengeRes = mockRes()
+    await router.handler({ headers: {}, method: 'GET' }, challengeRes)
+    const challenge = challengeRes.body as Record<string, unknown>
+
+    // Submit wrong answer via handler
+    const verifyRes = mockRes()
+    await router.handler(
+      { headers: {}, method: 'POST', body: { challenge, answer: 'wrong' } } as Parameters<typeof router.handler>[0],
+      verifyRes,
+    )
+    expect(verifyRes.statusCode).toBe(403)
+  })
+
+  it('POST routes to verify endpoint and accepts correct answer', async () => {
+    const router = createAgentRouter({ secret: TEST_SECRET })
+
+    // Fetch challenge
+    const challengeRes = mockRes()
+    await router.handler({ headers: {}, method: 'GET' }, challengeRes)
+    const challenge = challengeRes.body
+
+    // Solve and verify
+    const answer = solveChallenge(challenge as Parameters<typeof solveChallenge>[0])
+    const verifyRes = mockRes()
+    await router.handler(
+      { headers: {}, method: 'POST', body: { challenge, answer, agentId: 'handler_test' } } as Parameters<typeof router.handler>[0],
+      verifyRes,
+    )
+    expect(verifyRes.statusCode).toBe(200)
+    const result = verifyRes.body as Record<string, unknown>
+    expect(result.valid).toBe(true)
+    expect(result.proofToken).toBeDefined()
+  })
+
+  it('unknown method calls next() if provided', async () => {
+    const router = createAgentRouter({ secret: TEST_SECRET })
+    const res = mockRes()
+    let nextCalled = false
+    await router.handler({ headers: {}, method: 'DELETE' }, res, () => { nextCalled = true })
+    expect(nextCalled).toBe(true)
+    expect(res.statusCode).toBe(0)
+  })
+
+  it('unknown method returns 405 when next is not provided', async () => {
+    const router = createAgentRouter({ secret: TEST_SECRET })
+    const res = mockRes()
+    await router.handler({ headers: {}, method: 'DELETE' }, res)
+    expect(res.statusCode).toBe(405)
+    const body = res.body as Record<string, string>
+    expect(body.code).toBe('METHOD_NOT_ALLOWED')
+  })
+
+  it('POST without body returns 400', async () => {
+    const router = createAgentRouter({ secret: TEST_SECRET })
+    const res = mockRes()
+    await router.handler({ headers: {}, method: 'POST' }, res)
+    expect(res.statusCode).toBe(400)
+    const body = res.body as Record<string, string>
+    expect(body.code).toBe('BAD_REQUEST')
+  })
+
+  it('handler and individual challenge/verify methods are equivalent', async () => {
+    const router = createAgentRouter({ secret: TEST_SECRET })
+
+    // challenge via direct method
+    const directRes = mockRes()
+    await router.challenge({ headers: {} }, directRes)
+
+    // challenge via handler
+    const handlerRes = mockRes()
+    await router.handler({ headers: {}, method: 'GET' }, handlerRes)
+
+    // Both should return valid challenges (different IDs but same shape)
+    expect(directRes.statusCode).toBe(200)
+    expect(handlerRes.statusCode).toBe(200)
+    expect((directRes.body as Record<string, unknown>).pipeline).toBeDefined()
+    expect((handlerRes.body as Record<string, unknown>).pipeline).toBeDefined()
+  })
+})

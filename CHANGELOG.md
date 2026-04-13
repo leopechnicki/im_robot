@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Adaptive difficulty engine (`AdaptiveDifficulty`) that auto-adjusts challenge difficulty per agent based on behavioral patterns (failure rate, timing, rapid attempts)
+- Risk scoring with 4 weighted factors and levels: low, medium, high, critical
+- AI image challenge foundation (`ImageChallengePool`) with 4 provider types (OpenAI, Stability AI, custom, static) and 6 challenge types (object_count, spatial_reasoning, color_identification, scene_description, text_recognition, odd_one_out)
+- Built-in prompt templates for all image challenge types with difficulty-scaled parameters
+- 4 new pipeline operations: `vowel_count`, `consonant_extract`, `run_length_encode`, `atbash` (27 total)
+- Compact widget mode via `size="compact"` prop (320px max-width, smaller typography)
+- ARIA live regions and `role="alert"` for accessibility on status changes
+- 94 new tests for adaptive difficulty, image challenges, and new operations (344 total)
+- `.well-known/imrobot.json` discovery endpoint inspired by A2A Agent Card pattern
+- `buildDiscoveryDocument()` for framework-agnostic discovery document generation
+- `createDiscoveryHandler()` Express-compatible middleware for serving discovery documents
+- `DiscoveryConfig` and `DiscoveryDocument` TypeScript types
+- `.handler` property on `createAgentRouter()` for combined GET/POST routing (routes GET → challenge, POST → verify)
+- 10 new tests for discovery module (222 total)
+- Documentation: discovery endpoint section in README and docs page
 - Natural-language challenge formatting (`formatOperationNL`, `formatPipelineNL`) with 3–4 randomised phrasings per operation — makes regex-based scraping of display text unreliable
 - In-memory sliding window `RateLimiter` class with automatic expired-entry cleanup
 - Rate limiting support for both `createAgentRouter` and `requireAgent` middleware via `rateLimit` config option
@@ -21,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Updated docs page with discovery endpoint section
 - Updated docs page with rate limiting section and `RateLimiter` API reference
 - Updated demo page middleware example to include `rateLimit` config
 - Bumped version to 0.5.0
@@ -118,3 +134,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Difficulty levels: easy, medium, hard
 - Zero runtime dependencies
 - Full TypeScript types with declaration maps
+

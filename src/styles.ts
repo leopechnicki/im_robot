@@ -44,7 +44,9 @@ export function getTheme(theme: 'light' | 'dark'): ThemeColors {
   return theme === 'dark' ? dark : light
 }
 
-export function getStyles(theme: 'light' | 'dark'): string {
+export type WidgetSize = 'compact' | 'standard'
+
+export function getStyles(theme: 'light' | 'dark', size?: WidgetSize): string {
   const t = getTheme(theme)
   return `
     .imrobot {
@@ -223,6 +225,68 @@ export function getStyles(theme: 'light' | 'dark'): string {
       font-size: 11px;
       color: ${t.textMuted};
       text-decoration: none;
+    }
+    ${
+      size === 'compact'
+        ? `
+    /* ── Compact mode overrides ── */
+    .imrobot {
+      padding: 12px;
+      max-width: 320px;
+      border-radius: 8px;
+    }
+    .imrobot-header {
+      gap: 6px;
+      margin-bottom: 10px;
+      font-size: 13px;
+    }
+    .imrobot-icon {
+      width: 20px;
+      height: 20px;
+      font-size: 16px;
+    }
+    .imrobot-icon svg {
+      width: 20px;
+      height: 20px;
+    }
+    .imrobot-challenge {
+      padding: 8px 10px;
+      font-size: 10px;
+      line-height: 1.5;
+      margin-bottom: 8px;
+      max-height: 100px;
+      overflow-y: auto;
+    }
+    .imrobot-timer {
+      margin-bottom: 6px;
+      font-size: 10px;
+    }
+    .imrobot-row {
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .imrobot-input {
+      padding: 6px 8px;
+      font-size: 11px;
+      border-radius: 4px;
+    }
+    .imrobot-btn {
+      padding: 6px 12px;
+      font-size: 11px;
+      border-radius: 4px;
+    }
+    .imrobot-footer {
+      font-size: 9px;
+    }
+    .imrobot-status {
+      font-size: 11px;
+      gap: 4px;
+    }
+    .imrobot-brand {
+      font-size: 9px;
+    }
+    `
+        : ''
     }
   `
 }

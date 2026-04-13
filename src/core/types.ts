@@ -24,6 +24,11 @@ export type Operation =
   | { op: 'hash_chain'; rounds: number }
   | { op: 'nibble_swap' }
   | { op: 'bit_rotate'; bits: number }
+  // Additional operations (v0.5+)
+  | { op: 'vowel_count' }
+  | { op: 'consonant_extract' }
+  | { op: 'run_length_encode' }
+  | { op: 'atbash' }
 
 export interface Challenge {
   version: 1

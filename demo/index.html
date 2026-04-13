@@ -24,7 +24,7 @@
       --bg: #0a0a1a;
       --bg-alt: #111128;
       --text: #e4e4e7;
-      --text-muted: #888;
+      --text-muted: #a0a0b0;
       --border: #2a2a40;
       --code-bg: #16162a;
       --accent: #00e5ff;
@@ -41,7 +41,7 @@
       --bg: #fafafa;
       --bg-alt: #fff;
       --text: #111;
-      --text-muted: #666;
+      --text-muted: #555;
       --border: #e0e0e0;
       --code-bg: #f4f4f5;
       --accent: #2563eb;
@@ -60,6 +60,25 @@
       color: var(--text);
       line-height: 1.6;
       transition: background 0.3s, color 0.3s;
+    }
+
+    /* SKIP LINK */
+    .skip-link {
+      position: absolute;
+      top: -100%;
+      left: 16px;
+      padding: 8px 16px;
+      background: var(--accent);
+      color: #0a0a1a;
+      font-weight: 700;
+      font-size: 14px;
+      border-radius: 0 0 8px 8px;
+      z-index: 200;
+      text-decoration: none;
+      transition: top 0.15s;
+    }
+    .skip-link:focus {
+      top: 0;
     }
 
     /* NAV */
@@ -110,6 +129,21 @@
       transition: background 0.15s;
     }
     .theme-toggle:hover { background: var(--border); }
+
+    /* FOCUS STYLES — WCAG 2.4.7 */
+    :focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    button:focus-visible, .btn:focus-visible, a:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .theme-toggle:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      box-shadow: 0 0 0 4px var(--accent-glow);
+    }
 
     /* HERO */
     .hero {
@@ -251,6 +285,7 @@
       color: var(--text-muted);
       cursor: pointer;
       transition: border-color 0.15s;
+      min-height: 44px;
     }
     .install-bar:hover { border-color: var(--accent); }
     .install-bar code { color: var(--text); }
@@ -318,8 +353,9 @@
       justify-content: center;
     }
     .demo-controls button {
-      padding: 6px 14px;
+      padding: 10px 18px;
       border-radius: 6px;
+      min-height: 44px;
       border: 1px solid var(--border);
       background: var(--code-bg);
       color: var(--text);
@@ -332,7 +368,7 @@
     .demo-controls button:hover { border-color: var(--accent); color: var(--accent); }
     .demo-controls button.active {
       background: var(--accent);
-      color: #fff;
+      color: #0a0a1a;
       border-color: var(--accent);
     }
     .solve-btn {
@@ -356,6 +392,92 @@
       overflow-y: auto;
     }
 
+    /* ── IMAGE CHALLENGE DEMO ── */
+    .img-demo {
+      width: 100%;
+      max-width: 520px;
+      background: var(--bg-alt);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      box-shadow: var(--card-shadow);
+      text-align: center;
+    }
+    .img-demo h3 { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+    .img-demo .img-demo-badge {
+      display: inline-block;
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 3px 10px; border-radius: 100px;
+      background: var(--warning-bg, rgba(251,191,36,0.15));
+      color: var(--warning, #d97706);
+      border: 1px solid var(--warning-border, rgba(251,191,36,0.3));
+      margin-bottom: 16px;
+    }
+    .img-demo-scene {
+      position: relative;
+      width: 100%; aspect-ratio: 16/10;
+      background: var(--code-bg);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      margin-bottom: 16px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .img-demo-scene canvas { width: 100%; height: 100%; }
+    .img-demo-question {
+      font-size: 15px; font-weight: 600;
+      margin-bottom: 12px;
+      color: var(--text);
+    }
+    .img-demo-row {
+      display: flex; gap: 8px;
+      margin-bottom: 12px;
+    }
+    .img-demo-input {
+      flex: 1; padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+    }
+    .img-demo-input:focus { border-color: var(--accent); }
+    .img-demo-btn {
+      padding: 10px 20px;
+      border: none; border-radius: 8px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600; font-size: 14px;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      white-space: nowrap;
+    }
+    .img-demo-btn:hover { opacity: 0.85; }
+    .img-demo-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .img-demo-result {
+      font-size: 14px; font-weight: 600;
+      min-height: 22px;
+      margin-bottom: 8px;
+    }
+    .img-demo-result.success { color: var(--success); }
+    .img-demo-result.fail { color: var(--error, #dc2626); }
+    .img-demo-meta {
+      font-size: 12px; color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .img-demo-refresh {
+      background: none; border: 1px solid var(--border);
+      border-radius: 6px; padding: 6px 14px; min-height: 44px;
+      cursor: pointer; font-size: 13px; font-weight: 500;
+      color: var(--text); font-family: inherit;
+      transition: all 0.15s;
+      margin-top: 4px;
+    }
+    .img-demo-refresh:hover { border-color: var(--accent); color: var(--accent); }
+
     /* HOW IT WORKS */
     .steps {
       display: grid;
@@ -370,7 +492,7 @@
       box-shadow: var(--card-shadow);
       transition: transform 0.15s, box-shadow 0.15s;
     }
-    .step:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+    .step:hover { transform: translateY(-2px); box-shadow: 0 4px 20px rgba(0, 229, 255, 0.08); }
     .step-num {
       width: 36px;
       height: 36px;
@@ -462,10 +584,9 @@
       font-size: 14px;
       color: var(--text-muted);
     }
-    footer a { color: var(--accent); text-decoration: none; }
+    footer a { color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 0.15s; }
+    footer a:hover { border-bottom-color: var(--accent); }
 
-    /* Glow accent on step hover */
-    .step:hover { transform: translateY(-2px); box-shadow: 0 4px 20px rgba(0, 229, 255, 0.08); }
 
     /* Nav glow accent */
     .nav-logo svg { color: var(--accent); }
@@ -627,11 +748,70 @@
       display: block;
     }
 
+    @media (max-width: 900px) {
+      .features { grid-template-columns: repeat(2, 1fr); }
+      .steps { grid-template-columns: 1fr; }
+      .tabs { flex-wrap: wrap; }
+    }
+
+    /* ── MOBILE NAV ── */
+    .mobile-menu-btn {
+      display: none;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 20px;
+      line-height: 1;
+      color: var(--text);
+    }
+    .mobile-nav-overlay {
+      display: none;
+      position: fixed; inset: 0; z-index: 90;
+      background: rgba(0,0,0,0.5);
+    }
+    .mobile-nav-overlay.open { display: block; }
+    .mobile-nav-panel {
+      display: none;
+      position: fixed;
+      top: 0; right: 0; bottom: 0;
+      width: 260px;
+      z-index: 100;
+      background: var(--bg-alt);
+      border-left: 1px solid var(--border);
+      padding: 24px;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow: -4px 0 24px rgba(0,0,0,0.15);
+    }
+    .mobile-nav-panel.open { display: flex; }
+    .mobile-nav-panel a {
+      display: block;
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--text);
+      text-decoration: none;
+      padding: 10px 12px;
+      border-radius: 8px;
+      transition: background 0.15s;
+    }
+    .mobile-nav-panel a:hover { background: var(--code-bg); }
+    .mobile-nav-close {
+      align-self: flex-end;
+      background: none; border: none;
+      font-size: 24px; cursor: pointer;
+      color: var(--text-muted);
+      padding: 4px 8px;
+      margin-bottom: 8px;
+    }
+
     @media (max-width: 640px) {
       .hero { padding: 60px 16px 40px; min-height: auto; }
       section { padding: 50px 16px; }
       .demo-card { padding: 24px; }
-      .nav-links a:not(.gh-link) { display: none; }
+      .nav-links a { display: none; }
+      .mobile-menu-btn { display: block; }
       .prompt-bar-top { flex-direction: column; text-align: center; }
       .agent-prompt-bar .prompt-label { font-size: 12px; }
     }
@@ -639,10 +819,12 @@
 </head>
 <body>
 
+  <a href="#main-content" class="skip-link">Skip to content</a>
+
   <nav>
     <div class="nav-inner">
       <a href="#" class="nav-logo">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/><circle cx="9" cy="14" r="1.5" fill="currentColor" stroke="none"/><circle cx="15" cy="14" r="1.5" fill="currentColor" stroke="none"/><path d="M10 18h4"/></svg>
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/><circle cx="9" cy="14" r="1.5" fill="currentColor" stroke="none"/><circle cx="15" cy="14" r="1.5" fill="currentColor" stroke="none"/><path d="M10 18h4"/></svg>
         imrobot
       </a>
       <div class="nav-links">
@@ -653,10 +835,12 @@
         <a href="/docs.html">Docs</a>
         <a href="https://github.com/leopechnicki/im_robot" class="gh-link">GitHub</a>
         <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">🌙</button>
+        <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Open menu" aria-expanded="false">&#9776;</button>
       </div>
     </div>
   </nav>
 
+  <main id="main-content">
   <div class="hero">
     <div class="hero-bg-video">
       <video autoplay loop muted playsinline poster="/assets/hero-static.png">
@@ -665,45 +849,67 @@
       <img class="gif-fallback" src="/assets/hero-animation.gif" alt="ImRobot animated hero background" loading="lazy" />
     </div>
     <div class="hero-badge">
-      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M8 12l2.5 2.5L16 9"/></svg>
+      <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M8 12l2.5 2.5L16 9"/></svg>
       Open Source &middot; v0.5.0
     </div>
     <h1>I'm a <span>robot</span>.</h1>
     <p>
       Reverse-CAPTCHA for the age of AI agents. Verifies that visitors
-      are bots, not humans. 27 operations, adaptive difficulty, AI image
-      challenges. Drop into any framework in one line.
+      are bots, not humans. 27 operations, adaptive difficulty, AI image challenges.
+      Drop into any framework in one line.
     </p>
 
     <div class="hero-actions">
       <a href="#demo" class="btn btn-primary">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
         Try the demo
       </a>
       <a href="#code" class="btn btn-secondary">Browse integrations</a>
     </div>
-    <div class="install-bar" id="install-bar" title="Click to copy">
+    <button class="install-bar" id="install-bar" title="Click to copy" aria-label="Copy install command: npm install imrobot">
       <span>$</span>
       <code>npm install imrobot</code>
       <span class="copy-icon">📋</span>
-    </div>
+    </button>
   </div>
 
   <!-- LIVE DEMO -->
   <section class="demo-section" id="demo">
     <div class="demo-card">
       <h3>Live Demo</h3>
-      <div class="demo-controls">
-        <button data-diff="easy">Easy</button>
-        <button data-diff="medium" class="active">Medium</button>
-        <button data-diff="hard">Hard</button>
+      <div class="demo-controls" role="group" aria-label="Challenge difficulty">
+        <button data-diff="easy" aria-label="Set difficulty to easy">Easy</button>
+        <button data-diff="medium" class="active" aria-label="Set difficulty to medium">Medium</button>
+        <button data-diff="hard" aria-label="Set difficulty to hard">Hard</button>
         <button class="solve-btn" id="auto-solve">🤖 Auto-Solve</button>
       </div>
       <div id="widget-mount"></div>
-      <div id="token-display"></div>
+      <div id="token-display" aria-live="polite" aria-label="Verification result"></div>
       <p class="demo-meta">
-        The challenge data is in <code>data-imrobot-challenge</code> on the DOM.<br/>
-        AI agents parse it, run the pipeline, and submit the result.
+        Challenges are embedded as JSON in <code>data-imrobot-challenge</code>.<br/>
+        Agents read, execute the pipeline, and submit the answer instantly.
+      </p>
+    </div>
+  </section>
+
+  <!-- IMAGE CHALLENGE DEMO -->
+  <section class="demo-section" id="image-demo">
+    <div class="img-demo">
+      <h3>AI Image Challenge</h3>
+      <span class="img-demo-badge">Experimental</span>
+      <div class="img-demo-scene">
+        <canvas id="img-demo-canvas" width="480" height="300"></canvas>
+      </div>
+      <div class="img-demo-question" id="img-demo-question"></div>
+      <div class="img-demo-row">
+        <input class="img-demo-input" id="img-demo-input" type="text" placeholder="Type your answer..." autocomplete="off" aria-label="Image challenge answer" />
+        <button class="img-demo-btn" id="img-demo-verify">Verify</button>
+      </div>
+      <div class="img-demo-result" id="img-demo-result" aria-live="polite"></div>
+      <button class="img-demo-refresh" id="img-demo-refresh">New challenge</button>
+      <p class="img-demo-meta">
+        AI-generated scenes with known ground truth. Agents parse structured challenge data.<br/>
+        Supports static pools, custom providers (DALL-E, Stable Diffusion), and 6 challenge types.
       </p>
     </div>
   </section>
@@ -812,20 +1018,20 @@ app.post(<span class="str">'/api/verify'</span>, <span class="kw">async</span> (
     <p>Drop it in with a single import. Works everywhere.</p>
 
     <div class="tabs" role="tablist">
-      <button class="tab active" data-tab="react" role="tab">React</button>
-      <button class="tab" data-tab="vue" role="tab">Vue</button>
-      <button class="tab" data-tab="svelte" role="tab">Svelte</button>
-      <button class="tab" data-tab="web" role="tab">Web Component</button>
-      <button class="tab" data-tab="core" role="tab">Headless</button>
-      <button class="tab" data-tab="server" role="tab">Server SDK</button>
-      <button class="tab" data-tab="middleware" role="tab">Middleware</button>
-      <button class="tab" data-tab="invisible" role="tab">Invisible</button>
-      <button class="tab" data-tab="images" role="tab">AI Images</button>
-      <button class="tab" data-tab="adaptive" role="tab">Adaptive</button>
-      <button class="tab" data-tab="cli" role="tab">CLI</button>
+      <button class="tab active" data-tab="react" role="tab" aria-selected="true" aria-controls="panel-react" id="tab-react">React</button>
+      <button class="tab" data-tab="vue" role="tab" aria-selected="false" aria-controls="panel-vue" id="tab-vue">Vue</button>
+      <button class="tab" data-tab="svelte" role="tab" aria-selected="false" aria-controls="panel-svelte" id="tab-svelte">Svelte</button>
+      <button class="tab" data-tab="web" role="tab" aria-selected="false" aria-controls="panel-web" id="tab-web">Web Component</button>
+      <button class="tab" data-tab="core" role="tab" aria-selected="false" aria-controls="panel-core" id="tab-core">Headless</button>
+      <button class="tab" data-tab="server" role="tab" aria-selected="false" aria-controls="panel-server" id="tab-server">Server SDK</button>
+      <button class="tab" data-tab="middleware" role="tab" aria-selected="false" aria-controls="panel-middleware" id="tab-middleware">Middleware</button>
+      <button class="tab" data-tab="invisible" role="tab" aria-selected="false" aria-controls="panel-invisible" id="tab-invisible">Invisible</button>
+      <button class="tab" data-tab="images" role="tab" aria-selected="false" aria-controls="panel-images" id="tab-images">AI Images</button>
+      <button class="tab" data-tab="adaptive" role="tab" aria-selected="false" aria-controls="panel-adaptive" id="tab-adaptive">Adaptive</button>
+      <button class="tab" data-tab="cli" role="tab" aria-selected="false" aria-controls="panel-cli" id="tab-cli">CLI</button>
     </div>
     <div class="code-panels">
-      <div class="code-panel active" id="panel-react"><pre><code>import { ImRobot } from 'imrobot/react'
+      <div class="code-panel active" id="panel-react" role="tabpanel" aria-labelledby="tab-react"><pre><code>import { ImRobot } from 'imrobot/react'
 
 function App() {
   return (
@@ -839,7 +1045,7 @@ function App() {
   )
 }</code></pre></div>
 
-      <div class="code-panel" id="panel-vue"><pre><code>&lt;script setup&gt;
+      <div class="code-panel" id="panel-vue" role="tabpanel" aria-labelledby="tab-vue"><pre><code>&lt;script setup&gt;
 import { ImRobot } from 'imrobot/vue'
 
 function handleVerified(token) {
@@ -855,7 +1061,7 @@ function handleVerified(token) {
   /&gt;
 &lt;/template&gt;</code></pre></div>
 
-      <div class="code-panel" id="panel-svelte"><pre><code>&lt;script&gt;
+      <div class="code-panel" id="panel-svelte" role="tabpanel" aria-labelledby="tab-svelte"><pre><code>&lt;script&gt;
   import ImRobot from 'imrobot/svelte'
 &lt;/script&gt;
 
@@ -867,7 +1073,7 @@ function handleVerified(token) {
   }
 /&gt;</code></pre></div>
 
-      <div class="code-panel" id="panel-web"><pre><code>&lt;script type="module"&gt;
+      <div class="code-panel" id="panel-web" role="tabpanel" aria-labelledby="tab-web"><pre><code>&lt;script type="module"&gt;
   import { register } from 'imrobot/web-component'
   register()  // registers &lt;imrobot-widget&gt;
 &lt;/script&gt;
@@ -884,7 +1090,7 @@ function handleVerified(token) {
     })
 &lt;/script&gt;</code></pre></div>
 
-      <div class="code-panel" id="panel-core"><pre><code>import {
+      <div class="code-panel" id="panel-core" role="tabpanel" aria-labelledby="tab-core"><pre><code>import {
   generateChallenge,
   solveChallenge,
   verifyAnswer,
@@ -900,7 +1106,7 @@ const answer = solveChallenge(challenge)
 const isValid = verifyAnswer(challenge, answer)
 console.log(isValid) // true</code></pre></div>
 
-      <div class="code-panel" id="panel-server"><pre><code>import { createVerifier } from 'imrobot/server'
+      <div class="code-panel" id="panel-server" role="tabpanel" aria-labelledby="tab-server"><pre><code>import { createVerifier } from 'imrobot/server'
 
 // Create verifier with HMAC secret (server-side only)
 const verifier = createVerifier({
@@ -922,7 +1128,7 @@ app.post('/api/verify', async (req, res) =&gt; {
   res.json(result)
 })</code></pre></div>
 
-      <div class="code-panel" id="panel-middleware"><pre><code>import {
+      <div class="code-panel" id="panel-middleware" role="tabpanel" aria-labelledby="tab-middleware"><pre><code>import {
   requireAgent,
   createAgentRouter,
   createTokenIssuer,
@@ -948,7 +1154,7 @@ app.get('/api/agent-only/data', (req, res) =&gt; {
   res.json({ message: 'Agent verified!', agent })
 })</code></pre></div>
 
-      <div class="code-panel" id="panel-invisible"><pre><code>import { invisibleVerify } from 'imrobot/core'
+      <div class="code-panel" id="panel-invisible" role="tabpanel" aria-labelledby="tab-invisible"><pre><code>import { invisibleVerify } from 'imrobot/core'
 
 // Zero-UI: fetch challenge, solve, submit &mdash; all automatic
 const result = await invisibleVerify({
@@ -966,9 +1172,9 @@ if (result.success) {
   console.log(`Verified in ${result.totalTime}ms`)
 }</code></pre></div>
 
-      <div class="code-panel" id="panel-images"><pre><code>import { ImageChallengePool } from 'imrobot/core'
+      <div class="code-panel" id="panel-images" role="tabpanel" aria-labelledby="tab-images"><pre><code>import { ImageChallengePool } from 'imrobot/core'
 
-// Option 1: Static provider — use pre-generated images
+// Option 1: Static provider &mdash; use pre-generated images
 const pool = new ImageChallengePool({
   provider: {
     type: 'static',
@@ -991,7 +1197,7 @@ const pool = new ImageChallengePool({
   },
 })
 
-// Option 2: Custom provider — bring your own AI generator
+// Option 2: Custom provider &mdash; bring your own AI generator
 const aiPool = new ImageChallengePool({
   provider: {
     type: 'custom',
@@ -1015,14 +1221,14 @@ const challenge = pool.getChallenge()
 // Verify agent's answer (case-insensitive, fuzzy matching)
 const correct = pool.verifyAnswer(challenge.id, agentAnswer)</code></pre></div>
 
-      <div class="code-panel" id="panel-adaptive"><pre><code>import { AdaptiveDifficulty } from 'imrobot/core'
+      <div class="code-panel" id="panel-adaptive" role="tabpanel" aria-labelledby="tab-adaptive"><pre><code>import { AdaptiveDifficulty } from 'imrobot/core'
 import { generateChallenge, solveChallenge } from 'imrobot/core'
 
 // Create engine with tunable thresholds
 const adaptive = new AdaptiveDifficulty({
   initialDifficulty: 'medium',
-  escalateAfterFailures: 2,   // 2 fails → harder
-  relaxAfterSuccesses: 5,     // 5 wins → easier
+  escalateAfterFailures: 2,   // 2 fails &rarr; harder
+  relaxAfterSuccesses: 5,     // 5 wins &rarr; easier
   maxAgents: 10_000,          // LRU eviction at capacity
 })
 
@@ -1037,7 +1243,7 @@ app.post('/api/verify', async (req, res) =&gt; {
   // ... verify answer ...
   const success = solveChallenge(challenge) === answer
 
-  // Record the outcome — engine auto-adjusts
+  // Record the outcome &mdash; engine auto-adjusts
   adaptive.recordAttempt(agentId, {
     success,
     solveTimeMs: elapsed,
@@ -1063,7 +1269,7 @@ app.post('/api/verify', async (req, res) =&gt; {
   res.json({ success, difficulty, riskLevel: risk.level })
 })</code></pre></div>
 
-      <div class="code-panel" id="panel-cli"><pre><code># Generate a test challenge
+      <div class="code-panel" id="panel-cli" role="tabpanel" aria-labelledby="tab-cli"><pre><code># Generate a test challenge
 $ npx imrobot challenge --difficulty hard
 
 # Solve and verify immediately
@@ -1088,57 +1294,66 @@ $ npx imrobot info</code></pre></div>
     <p>Purpose-built for the agent-first web.</p>
     <div class="features">
       <div class="feature">
-        <div class="feature-icon">🧩</div>
+        <div class="feature-icon" aria-hidden="true">🧩</div>
         <h3>Framework agnostic</h3>
         <p>React, Vue, Svelte, Angular, or vanilla JS. One package covers everything via native Web Components.</p>
       </div>
       <div class="feature">
-        <div class="feature-icon">🔒</div>
+        <div class="feature-icon" aria-hidden="true">🔒</div>
         <h3>HMAC-SHA256 server SDK</h3>
         <p>Tamper-proof HMAC signing with stateless verification. No database needed. Proof-of-Agent tokens for cross-service auth.</p>
       </div>
       <div class="feature">
-        <div class="feature-icon">⚡</div>
+        <div class="feature-icon" aria-hidden="true">⚡</div>
         <h3>Instant for agents</h3>
         <p>Deterministic pipelines are trivially solvable by any programmatic agent. ~12,000 verifications/sec per core.</p>
       </div>
       <div class="feature">
-        <div class="feature-icon">🧠</div>
+        <div class="feature-icon" aria-hidden="true">🧠</div>
         <h3>27 operation types</h3>
         <p>String transforms, SHA-256, byte XOR, hash chains, atbash, run-length encoding, vowel counting &mdash; impossible for humans.</p>
       </div>
       <div class="feature">
-        <div class="feature-icon">🛡️</div>
+        <div class="feature-icon" aria-hidden="true">🛡️</div>
         <h3>Middleware &amp; rate limiting</h3>
         <p>Built-in <code>requireAgent()</code> and <code>createAgentRouter()</code> with sliding-window rate limiting. JWT-style proof tokens via <code>X-Agent-Proof</code> header. Standard 429 responses with <code>Retry-After</code> headers.</p>
-      </div>
       <div class="feature">
-        <div class="feature-icon">🖼️</div>
+        <div class="feature-icon" aria-hidden="true">🖼️</div>
         <h3>AI image challenges</h3>
         <p>Experimental image-based verification using AI-generated scenes with known ground truth. Pre-generate pools via OpenAI, Stability AI, or custom providers. 6 challenge types.</p>
       </div>
       <div class="feature">
-        <div class="feature-icon">📊</div>
+        <div class="feature-icon" aria-hidden="true">📊</div>
         <h3>Adaptive difficulty</h3>
         <p>Auto-adjusts challenge difficulty per agent based on behavior. Risk scoring with 4 weighted factors. Inspired by reCAPTCHA v3 and Arkose Labs.</p>
       </div>
       <div class="feature">
-        <div class="feature-icon">👻</div>
+        <div class="feature-icon" aria-hidden="true">🖼️</div>
+        <h3>AI image challenges</h3>
+        <p>Experimental image-based verification using AI-generated scenes with known ground truth. Pre-generate pools via OpenAI, Stability AI, or custom providers. 6 challenge types.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon" aria-hidden="true">📊</div>
+        <h3>Adaptive difficulty</h3>
+        <p>Auto-adjusts challenge difficulty per agent based on behavior. Risk scoring with 4 weighted factors. Inspired by reCAPTCHA v3 and Arkose Labs.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon" aria-hidden="true">👻</div>
         <h3>Invisible verification</h3>
         <p>Zero-UI mode: fetch, solve, and submit automatically. Retry with exponential backoff. No user interaction needed.</p>
       </div>
       <div class="feature">
-        <div class="feature-icon">💻</div>
+        <div class="feature-icon" aria-hidden="true">💻</div>
         <h3>CLI tool</h3>
         <p><code>npx imrobot</code> &mdash; generate challenges, solve, verify, and benchmark from the terminal. Great for testing.</p>
       </div>
       <div class="feature">
-        <div class="feature-icon">📦</div>
+        <div class="feature-icon" aria-hidden="true">📦</div>
         <h3>Tiny footprint</h3>
         <p>~14 KB core, zero runtime dependencies. Tree-shakeable ESM and CJS builds with full TypeScript types.</p>
       </div>
       <div class="feature">
-        <div class="feature-icon">🗣️</div>
+        <div class="feature-icon" aria-hidden="true">🗣️</div>
         <h3>Anti-scraping NL format</h3>
         <p>Optional natural-language challenge descriptions with randomised phrasings. Each operation has 3&ndash;4 variants &mdash; defeats regex scraping of display text.</p>
       </div>
@@ -1155,6 +1370,231 @@ $ npx imrobot info</code></pre></div>
       <a href="https://www.npmjs.com/package/imrobot">npm</a>
     </p>
   </footer>
+  </main>
+
+  <!-- Mobile navigation panel -->
+  <div class="mobile-nav-overlay" id="mobile-nav-overlay"></div>
+  <div class="mobile-nav-panel" id="mobile-nav-panel" role="dialog" aria-label="Navigation menu">
+    <button class="mobile-nav-close" id="mobile-nav-close" aria-label="Close menu">&#10005;</button>
+    <a href="#how-it-works">How it works</a>
+    <a href="#quickstart">Quickstart</a>
+    <a href="#code">Code</a>
+    <a href="#features">Features</a>
+    <a href="/docs.html">Docs</a>
+    <a href="https://github.com/leopechnicki/im_robot">GitHub</a>
+    <a href="https://www.npmjs.com/package/imrobot">npm</a>
+  </div>
+
+  <script>
+  // ── Image Challenge Demo ──
+  ;(function() {
+    const canvas = document.getElementById('img-demo-canvas')
+    const ctx = canvas.getContext('2d')
+    const questionEl = document.getElementById('img-demo-question')
+    const inputEl = document.getElementById('img-demo-input')
+    const verifyBtn = document.getElementById('img-demo-verify')
+    const resultEl = document.getElementById('img-demo-result')
+    const refreshBtn = document.getElementById('img-demo-refresh')
+
+    const COLORS = {
+      red: '#ef4444', blue: '#3b82f6', green: '#22c55e',
+      yellow: '#eab308', orange: '#f97316', purple: '#a855f7',
+    }
+    const COLOR_NAMES = Object.keys(COLORS)
+    const SHAPES = ['circle', 'square', 'triangle', 'star']
+
+    function rand(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min }
+    function pick(arr) { return arr[rand(0, arr.length - 1)] }
+
+    function drawShape(x, y, size, shape, color) {
+      ctx.fillStyle = color
+      ctx.strokeStyle = 'rgba(0,0,0,0.15)'
+      ctx.lineWidth = 1.5
+      if (shape === 'circle') {
+        ctx.beginPath(); ctx.arc(x, y, size / 2, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
+      } else if (shape === 'square') {
+        ctx.beginPath(); ctx.rect(x - size / 2, y - size / 2, size, size); ctx.fill(); ctx.stroke()
+      } else if (shape === 'triangle') {
+        ctx.beginPath(); ctx.moveTo(x, y - size / 2); ctx.lineTo(x + size / 2, y + size / 2); ctx.lineTo(x - size / 2, y + size / 2); ctx.closePath(); ctx.fill(); ctx.stroke()
+      } else if (shape === 'star') {
+        ctx.beginPath()
+        for (let i = 0; i < 5; i++) {
+          const angle = (i * 4 * Math.PI) / 5 - Math.PI / 2
+          const r = i === 0 ? size / 2 : size / 2
+          ctx[i === 0 ? 'moveTo' : 'lineTo'](x + Math.cos(angle) * r, y + Math.sin(angle) * r)
+          const innerAngle = angle + (2 * Math.PI) / 10
+          ctx.lineTo(x + Math.cos(innerAngle) * (r * 0.45), y + Math.sin(innerAngle) * (r * 0.45))
+        }
+        ctx.closePath(); ctx.fill(); ctx.stroke()
+      }
+    }
+
+    function drawBackground() {
+      // Sky gradient
+      const isDark = !document.documentElement.getAttribute('data-theme') ||
+                     document.documentElement.getAttribute('data-theme') === 'dark' ||
+                     (!document.documentElement.getAttribute('data-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)
+      const grad = ctx.createLinearGradient(0, 0, 0, canvas.height)
+      if (isDark) {
+        grad.addColorStop(0, '#1a1a2e'); grad.addColorStop(1, '#16213e')
+      } else {
+        grad.addColorStop(0, '#dbeafe'); grad.addColorStop(1, '#f0fdf4')
+      }
+      ctx.fillStyle = grad; ctx.fillRect(0, 0, canvas.width, canvas.height)
+      // Ground
+      ctx.fillStyle = isDark ? '#1e3a1e' : '#bbf7d0'
+      ctx.fillRect(0, canvas.height * 0.7, canvas.width, canvas.height * 0.3)
+      // Grid lines
+      ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'
+      ctx.lineWidth = 1
+      for (let i = 0; i < canvas.width; i += 40) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke() }
+      for (let i = 0; i < canvas.height; i += 40) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke() }
+    }
+
+    let currentChallenge = null
+
+    function generateChallenge() {
+      const types = ['count', 'color', 'shape']
+      const type = pick(types)
+      const targetColor = pick(COLOR_NAMES)
+      const targetShape = pick(SHAPES)
+      const count = rand(2, 6)
+      const items = []
+
+      // Place target items
+      for (let i = 0; i < count; i++) {
+        items.push({
+          x: rand(50, canvas.width - 50),
+          y: rand(40, canvas.height - 50),
+          size: rand(28, 44),
+          shape: targetShape,
+          color: targetColor,
+          isTarget: true,
+        })
+      }
+      // Place distractors
+      const distractorCount = rand(2, 4)
+      for (let i = 0; i < distractorCount; i++) {
+        let dColor = pick(COLOR_NAMES.filter(c => c !== targetColor))
+        let dShape = pick(SHAPES.filter(s => s !== targetShape))
+        // Mix it up: sometimes same shape different color, sometimes same color different shape
+        if (Math.random() > 0.5) dShape = targetShape
+        else dColor = targetColor
+        // Ensure at least one property differs
+        if (dColor === targetColor && dShape === targetShape) {
+          dColor = pick(COLOR_NAMES.filter(c => c !== targetColor))
+        }
+        items.push({
+          x: rand(50, canvas.width - 50),
+          y: rand(40, canvas.height - 50),
+          size: rand(28, 44),
+          shape: dShape,
+          color: dColor,
+          isTarget: false,
+        })
+      }
+
+      // Resolve overlaps
+      for (let i = 0; i < items.length; i++) {
+        for (let j = i + 1; j < items.length; j++) {
+          const dx = items[i].x - items[j].x, dy = items[i].y - items[j].y
+          if (Math.sqrt(dx * dx + dy * dy) < 50) {
+            items[j].x = rand(50, canvas.width - 50)
+            items[j].y = rand(40, canvas.height - 50)
+          }
+        }
+      }
+
+      let question, answer, acceptable
+      if (type === 'count') {
+        question = 'How many ' + targetColor + ' ' + targetShape + 's are in the scene?'
+        answer = String(count)
+        acceptable = [answer]
+      } else if (type === 'color') {
+        question = 'What color are the ' + targetShape + 's? (most common)'
+        answer = targetColor
+        acceptable = [targetColor]
+      } else {
+        question = 'What shape are the ' + targetColor + ' objects?'
+        answer = targetShape
+        acceptable = [targetShape, targetShape + 's']
+      }
+
+      currentChallenge = { items, question, answer, acceptable, type, targetColor, targetShape, count }
+      render()
+    }
+
+    function render() {
+      drawBackground()
+      // Shuffle items for visual variety
+      const shuffled = [...currentChallenge.items].sort(() => Math.random() - 0.5)
+      shuffled.forEach(item => {
+        drawShape(item.x, item.y, item.size, item.shape, COLORS[item.color])
+      })
+      // Label
+      ctx.fillStyle = 'rgba(0,0,0,0.5)'
+      ctx.fillRect(0, 0, canvas.width, 24)
+      ctx.fillStyle = '#fff'; ctx.font = '11px Inter, system-ui, sans-serif'
+      ctx.textAlign = 'left'
+      ctx.fillText('AI-Generated Scene  •  ImageChallengePool  •  type: ' + currentChallenge.type, 8, 16)
+      questionEl.textContent = currentChallenge.question
+      resultEl.textContent = ''
+      resultEl.className = 'img-demo-result'
+      inputEl.value = ''
+      inputEl.disabled = false
+      verifyBtn.disabled = false
+    }
+
+    function verify() {
+      const val = inputEl.value.trim().toLowerCase()
+      if (!val) return
+      const ok = currentChallenge.acceptable.some(a => a.toLowerCase() === val)
+      resultEl.textContent = ok ? '✓ Correct — challenge verified' : '✗ Incorrect — try again'
+      resultEl.className = 'img-demo-result ' + (ok ? 'success' : 'fail')
+      if (ok) { inputEl.disabled = true; verifyBtn.disabled = true }
+    }
+
+    verifyBtn.addEventListener('click', verify)
+    inputEl.addEventListener('keydown', function(e) { if (e.key === 'Enter') verify() })
+    refreshBtn.addEventListener('click', generateChallenge)
+
+    // Watch for theme changes to redraw
+    const observer = new MutationObserver(function() { if (currentChallenge) render() })
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+
+    generateChallenge()
+  })()
+  </script>
+
+  <script>
+  // ── Mobile menu ──
+  ;(function() {
+    const btn = document.getElementById('mobile-menu-btn')
+    const panel = document.getElementById('mobile-nav-panel')
+    const overlay = document.getElementById('mobile-nav-overlay')
+    const closeBtn = document.getElementById('mobile-nav-close')
+
+    function openMenu() {
+      panel.classList.add('open')
+      overlay.classList.add('open')
+      btn.setAttribute('aria-expanded', 'true')
+    }
+    function closeMenu() {
+      panel.classList.remove('open')
+      overlay.classList.remove('open')
+      btn.setAttribute('aria-expanded', 'false')
+    }
+    btn.addEventListener('click', openMenu)
+    closeBtn.addEventListener('click', closeMenu)
+    overlay.addEventListener('click', closeMenu)
+    panel.querySelectorAll('a').forEach(function(a) {
+      a.addEventListener('click', closeMenu)
+    })
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && panel.classList.contains('open')) closeMenu()
+    })
+  })()
+  </script>
 
   <script type="module" src="/src/main.ts"></script>
 </body>

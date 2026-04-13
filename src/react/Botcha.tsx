@@ -2,12 +2,14 @@ import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import type { ImRobotToken, Challenge } from '../core/types'
 import { generateChallenge, verifyAnswer, createToken } from '../core/challenge'
 import { formatPipeline } from '../core/operations'
-import { getStyles, ROBOT_SVG } from '../styles'
+import { getStyles, ROBOT_SVG, type WidgetSize } from '../styles'
 import { setupScreenshotShield } from '../screenshot-shield'
 
 export interface ImRobotProps {
   difficulty?: 'easy' | 'medium' | 'hard'
   theme?: 'light' | 'dark'
+  /** Widget size: 'compact' for smaller footprint, 'standard' (default) for full size */
+  size?: WidgetSize
   ttl?: number
   onVerified?: (token: ImRobotToken) => void
   onError?: (error: Error) => void
@@ -16,6 +18,7 @@ export interface ImRobotProps {
 export function ImRobot({
   difficulty = 'medium',
   theme = 'light',
+  size = 'standard',
   ttl,
   onVerified,
   onError,
@@ -30,7 +33,7 @@ export function ImRobot({
   const startTime = useRef(Date.now())
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const css = useMemo(() => getStyles(theme), [theme])
+  const css = useMemo(() => getStyles(theme, size), [theme, size])
   const display = useMemo(
     () => formatPipeline(challenge.visibleSeed, challenge.pipeline),
     [challenge],
@@ -147,17 +150,18 @@ export function ImRobot({
         )}
 
         <div className="imrobot-footer">
-          <div>
+          <div aria-live="polite" aria-atomic="true" role="status">
             {status === 'verified' && (
               <span className="imrobot-status imrobot-status--verified">
                 &#10003; Verified: You are a robot
               </span>
             )}
             {status === 'failed' && (
-              <span className="imrobot-status imrobot-status--failed">
+              <span className="imrobot-status imrobot-status--failed" role="alert">
                 &#10007; Failed —{' '}
                 <button
                   onClick={handleRetry}
+                  aria-label="Retry verification with a new challenge"
                   style={{
                     background: 'none',
                     border: 'none',

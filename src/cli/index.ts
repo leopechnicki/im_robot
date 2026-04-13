@@ -3,6 +3,7 @@ import { solveChallenge } from '../core/solver'
 import { formatPipeline } from '../core/operations'
 import { createVerifier } from '../server/verifier'
 import type { Difficulty } from '../core/types'
+import { CLI_VERSION } from './version'
 
 const HELP = `
 imrobot — Reverse-CAPTCHA CLI for AI Agent Verification
@@ -153,16 +154,18 @@ async function cmdBenchmark(difficulty: Difficulty, count: number) {
 
 async function cmdInfo() {
   console.log('\n🤖 imrobot — Reverse-CAPTCHA for AI Agents\n')
-  console.log('  Version:     0.4.0')
+  console.log(`  Version:     ${CLI_VERSION}`)
   console.log('  License:     MIT')
   console.log('  Repository:  https://github.com/leopechnicki/im_robot')
   console.log('  npm:         https://www.npmjs.com/package/imrobot')
   console.log('  Homepage:    https://imrobot.vercel.app')
   console.log()
-  console.log('  Operations:  23 types')
+  console.log('  Operations:  27 types')
   console.log('  Frameworks:  React, Vue, Svelte, Web Components')
   console.log('  Security:    HMAC-SHA256, constant-time verify, nonce, screenshot shield')
-  console.log('  New in 0.4:  Crypto ops, proof tokens, middleware, invisible verify, CLI')
+  console.log(
+    '  New in 0.5:  Adaptive difficulty, AI image challenges, compact mode, 4 new operations',
+  )
   console.log()
 }
 

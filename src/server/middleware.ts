@@ -74,6 +74,7 @@ export function requireAgent(options: RequireAgentOptions) {
 
   // Initialize rate limiter if configured
   const rateLimiter = options.rateLimit ? new RateLimiter(options.rateLimit) : undefined
+  const rateLimitMax = options.rateLimit?.maxRequests ?? 30
 
   return async (req: MiddlewareRequest, res: MiddlewareResponse, next: NextFunction) => {
     // Bypass check
@@ -91,7 +92,7 @@ export function requireAgent(options: RequireAgentOptions) {
         const retryAfter = Math.ceil((status.resetAt - Date.now()) / 1000)
 
         // Set standard rate limit headers
-        res.setHeader?.('X-RateLimit-Limit', rateLimiter['maxRequests'] ?? 30)
+        res.setHeader?.('X-RateLimit-Limit', rateLimitMax)
         res.setHeader?.('X-RateLimit-Remaining', status.remaining)
         res.setHeader?.('X-RateLimit-Reset', status.resetAt)
         res.setHeader?.('Retry-After', retryAfter)
@@ -105,7 +106,7 @@ export function requireAgent(options: RequireAgentOptions) {
 
       // Set rate limit headers for allowed requests
       const status = rateLimiter.getStatus(key)
-      res.setHeader?.('X-RateLimit-Limit', rateLimiter['maxRequests'] ?? 30)
+      res.setHeader?.('X-RateLimit-Limit', rateLimitMax)
       res.setHeader?.('X-RateLimit-Remaining', status.remaining)
       res.setHeader?.('X-RateLimit-Reset', status.resetAt)
     }
@@ -158,12 +159,8 @@ export function requireAgent(options: RequireAgentOptions) {
  * app.get('/imrobot/challenge', router.challenge)
  * app.post('/imrobot/verify', router.verify)
  *
- * // Or use the combined handler
- * app.use('/imrobot', (req, res, next) => {
- *   if (req.method === 'GET' && req.url === '/challenge') return router.challenge(req, res, next)
- *   if (req.method === 'POST' && req.url === '/verify') return router.verify(req, res, next)
- *   next()
- * })
+ * // Or use the combined handler — routes GET → challenge, POST → verify
+ * app.use('/imrobot', router.handler)
  * ```
  */
 export function createAgentRouter(options: RequireAgentOptions) {
@@ -179,6 +176,10 @@ export function createAgentRouter(options: RequireAgentOptions) {
 
   // Initialize rate limiter if configured
   const rateLimiter = options.rateLimit ? new RateLimiter(options.rateLimit) : undefined
+
+  type VerifyRequest = MiddlewareRequest & {
+    body?: { challenge: SignedChallenge; answer: string; agentId?: string }
+  }
 
   /**
    * Helper to apply rate limiting to a response.
@@ -215,62 +216,83 @@ export function createAgentRouter(options: RequireAgentOptions) {
     return true
   }
 
-  return {
-    /**
-     * Generate a signed challenge for an agent.
-     */
-    challenge: async (req: MiddlewareRequest, res: MiddlewareResponse) => {
-      // Apply rate limiting
-      if (!applyRateLimit(req, res)) return
+  /**
+   * Generate a signed challenge for an agent.
+   */
+  const challenge = async (req: MiddlewareRequest, res: MiddlewareResponse) => {
+    // Apply rate limiting
+    if (!applyRateLimit(req, res)) return
 
-      const challenge = await verifier.generate()
-      return res.status(200).json(challenge)
-    },
-
-    /**
-     * Verify an agent's answer and issue a proof token.
-     */
-    verify: async (
-      req: MiddlewareRequest & {
-        body?: { challenge: SignedChallenge; answer: string; agentId?: string }
-      },
-      res: MiddlewareResponse,
-    ) => {
-      // Apply rate limiting
-      if (!applyRateLimit(req, res)) return
-
-      const body = req.body
-      if (!body?.challenge || !body?.answer) {
-        return res.status(400).json({
-          error: 'Missing challenge or answer in request body',
-          code: 'BAD_REQUEST',
-        })
-      }
-
-      const result: VerifyResult = await verifier.verify(body.challenge, body.answer)
-
-      if (!result.valid) {
-        return res.status(403).json({
-          valid: false,
-          reason: result.reason,
-        })
-      }
-
-      // Issue proof token
-      const proofToken = await tokenIssuer.issue({
-        agentId: body.agentId ?? `agent_${body.challenge.id.slice(0, 8)}`,
-        challengeId: body.challenge.id,
-        difficulty: body.challenge.difficulty,
-        solveTimeMs: result.elapsed ?? 0,
-        suspicious: result.suspicious ?? false,
-      })
-
-      return res.status(200).json({
-        valid: true,
-        elapsed: result.elapsed,
-        suspicious: result.suspicious,
-        proofToken,
-      })
-    },
+    const ch = await verifier.generate()
+    return res.status(200).json(ch)
   }
+
+  /**
+   * Verify an agent's answer and issue a proof token.
+   */
+  const verify = async (req: VerifyRequest, res: MiddlewareResponse) => {
+    // Apply rate limiting
+    if (!applyRateLimit(req, res)) return
+
+    const body = req.body
+    if (!body?.challenge || !body?.answer) {
+      return res.status(400).json({
+        error: 'Missing challenge or answer in request body',
+        code: 'BAD_REQUEST',
+      })
+    }
+
+    const result: VerifyResult = await verifier.verify(body.challenge, body.answer)
+
+    if (!result.valid) {
+      return res.status(403).json({
+        valid: false,
+        reason: result.reason,
+      })
+    }
+
+    // Issue proof token
+    const proofToken = await tokenIssuer.issue({
+      agentId: body.agentId ?? `agent_${body.challenge.id.slice(0, 8)}`,
+      challengeId: body.challenge.id,
+      difficulty: body.challenge.difficulty,
+      solveTimeMs: result.elapsed ?? 0,
+      suspicious: result.suspicious ?? false,
+    })
+
+    return res.status(200).json({
+      valid: true,
+      elapsed: result.elapsed,
+      suspicious: result.suspicious,
+      proofToken,
+    })
+  }
+
+  /**
+   * Combined request handler that routes by HTTP method.
+   * GET  → challenge endpoint (returns a signed challenge)
+   * POST → verify endpoint   (verifies answer, returns proof token)
+   * Other methods → 405 Method Not Allowed (or calls next() if provided)
+   *
+   * @example Express
+   * ```typescript
+   * app.use('/imrobot', router.handler)
+   * ```
+   *
+   * @example Koa / raw Node.js
+   * ```typescript
+   * server.on('request', (req, res) => router.handler(req, res))
+   * ```
+   */
+  const handler = async (req: VerifyRequest, res: MiddlewareResponse, next?: NextFunction) => {
+    if (req.method === 'GET') return challenge(req, res)
+    if (req.method === 'POST') return verify(req, res)
+    if (next) return next()
+    return res.status(405).json({
+      error: 'Method Not Allowed. Use GET for challenges, POST to verify.',
+      code: 'METHOD_NOT_ALLOWED',
+    })
+  }
+
+  return { challenge, verify, handler }
 }

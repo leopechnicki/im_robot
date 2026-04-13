@@ -177,6 +177,24 @@ app.get('/api/data', agentOnly, (req, res) => {
 })
 ```
 
+#### Combined handler
+
+Alternatively, use the combined `.handler` property to route both GET and POST requests to a single path:
+
+```ts
+import { createAgentRouter } from 'imrobot/server'
+
+const router = createAgentRouter({ secret: process.env.IMROBOT_SECRET! })
+
+// Routes GET → /challenge and POST → /verify under one path
+app.use('/imrobot', router.handler)
+```
+
+The handler automatically routes based on HTTP method:
+- **GET** → challenge endpoint (returns a signed challenge)
+- **POST** → verify endpoint (verifies answer, returns proof token)
+- **Other methods** → 405 Method Not Allowed
+
 ### Rate limiting
 
 Both `createAgentRouter` and `requireAgent` support built-in rate limiting to protect against brute-force attacks and request flooding. The rate limiter is in-memory with zero external dependencies.
@@ -258,6 +276,52 @@ npx imrobot challenge --difficulty hard
 npx imrobot solve --difficulty medium
 npx imrobot benchmark --count 1000
 npx imrobot info
+```
+
+### Agent discovery (`.well-known/imrobot.json`)
+
+Inspired by the [A2A Agent Card](https://google.github.io/A2A/) pattern, imrobot supports a discovery endpoint that lets AI agents automatically find and interact with your imrobot-protected service.
+
+```ts
+import { createDiscoveryHandler, createAgentRouter, requireAgent } from 'imrobot/server'
+
+// Mount the discovery endpoint
+const discovery = createDiscoveryHandler({
+  challengePath: '/imrobot',
+  name: 'My Agent API',
+  description: 'Agent-verified data service',
+})
+app.get('/.well-known/imrobot.json', discovery)
+
+// Mount challenge/verify as usual
+const router = createAgentRouter({ secret: process.env.IMROBOT_SECRET! })
+app.get('/imrobot/challenge', router.challenge)
+app.post('/imrobot/verify', router.verify)
+```
+
+Agents fetch `/.well-known/imrobot.json` and receive a structured document describing the protocol, endpoint paths, supported difficulty levels, and step-by-step instructions for completing verification:
+
+```json
+{
+  "protocol": "imrobot",
+  "version": "1.0",
+  "endpoints": {
+    "challenge": "/imrobot/challenge",
+    "verify": "/imrobot/verify",
+    "proofHeader": "X-Agent-Proof"
+  },
+  "difficulties": ["easy", "medium", "hard"],
+  "instructions": "1. GET the challenge endpoint..."
+}
+```
+
+For framework-agnostic usage (Hono, Koa, Fastify, etc.), use `buildDiscoveryDocument()` directly:
+
+```ts
+import { buildDiscoveryDocument } from 'imrobot/server'
+
+const doc = buildDiscoveryDocument({ challengePath: '/imrobot' })
+// Serve `doc` as JSON at /.well-known/imrobot.json
 ```
 
 ## Screenshot protection
@@ -349,6 +413,10 @@ Every operation has 3–4 distinct phrasings that are randomly selected on each 
 | `repeat(n)`          | Repeat string n times   | `"ab"` → `"ababab"`      |
 | `replace(s, r)`      | Replace all occurrences | `"aab"` → `"xxb"`        |
 | `pad_start(len, ch)` | Pad start to length     | `"abc"` → `"000abc"`     |
+| `vowel_count()`      | Count vowels            | `"hello"` → `"2"`        |
+| `consonant_extract()`| Extract consonants only | `"hello"` → `"hll"`      |
+| `run_length_encode()` | Run-length encode      | `"aaabb"` → `"3a2b"`     |
+| `atbash()`           | Atbash cipher (a↔z)    | `"abc"` → `"zyx"`        |
 
 ### Byte & cipher operations
 
@@ -368,18 +436,19 @@ Every operation has 3–4 distinct phrasings that are randomly selected on each 
 
 ## Configuration
 
-| Prop         | Type                           | Default        | Description                                                      |
-| ------------ | ------------------------------ | -------------- | ---------------------------------------------------------------- |
-| `difficulty` | `'easy' \| 'medium' \| 'hard'` | `'medium'`     | Number and complexity of operations                              |
-| `theme`      | `'light' \| 'dark'`            | `'light'`      | Color theme                                                      |
-| `ttl`        | `number`                       | per-difficulty | Challenge time-to-live in ms (easy: 30s, medium: 20s, hard: 15s) |
-| `onVerified` | `(token) => void`              | —              | Callback on successful verification                              |
-| `onError`    | `(error) => void`              | —              | Callback on failed verification                                  |
+| Prop         | Type                              | Default        | Description                                                      |
+| ------------ | --------------------------------- | -------------- | ---------------------------------------------------------------- |
+| `difficulty` | `'easy' \| 'medium' \| 'hard'`    | `'medium'`     | Number and complexity of operations                              |
+| `theme`      | `'light' \| 'dark'`               | `'light'`      | Color theme                                                      |
+| `size`       | `'compact' \| 'standard'`         | `'standard'`   | Widget size — `compact` for smaller footprint (320px)            |
+| `ttl`        | `number`                          | per-difficulty | Challenge time-to-live in ms (easy: 30s, medium: 20s, hard: 15s) |
+| `onVerified` | `(token) => void`                 | —              | Callback on successful verification                              |
+| `onError`    | `(error) => void`                 | —              | Callback on failed verification                                  |
 
 ### Difficulty levels
 
-- **easy**: 2-3 simple operations (reverse, case, sort, length, slice_alternate)
-- **medium**: 3-5 operations including encoding, extraction, caesar, and char counting
+- **easy**: 2-3 simple operations (reverse, case, sort, length, slice_alternate, vowel_count, atbash)
+- **medium**: 3-5 operations including encoding, extraction, caesar, char counting, consonant_extract, run_length_encode
 - **hard**: 5-7 operations including XOR encoding, hashing, replacement, padding, SHA-256, byte XOR, hash chains, nibble swap, and bit rotate
 
 ## Server verification
@@ -427,6 +496,73 @@ interface ImRobotToken {
   signature: string // Verification signature
 }
 ```
+
+## Adaptive difficulty
+
+The adaptive difficulty engine auto-adjusts challenge difficulty per agent based on behavioral patterns — inspired by Arkose Labs (FunCaptcha) progressive difficulty and reCAPTCHA v3 risk scoring.
+
+```ts
+import { AdaptiveDifficulty } from 'imrobot/core'
+
+const adaptive = new AdaptiveDifficulty({
+  initialDifficulty: 'medium',
+  escalateAfterFailures: 2,  // escalate after 2 consecutive failures
+  relaxAfterSuccesses: 5,    // relax after 5 consecutive successes
+})
+
+// Record outcomes as agents solve challenges
+adaptive.recordAttempt('agent_123', { success: true, solveTimeMs: 42 })
+
+// Get recommended difficulty for next challenge
+const diff = adaptive.getDifficulty('agent_123') // 'medium' | 'easy' | 'hard'
+
+// Get risk assessment (0-1 score with breakdown)
+const risk = adaptive.getRiskAssessment('agent_123')
+// { score: 0.15, level: 'low', factors: { failureRate, abnormalTiming, rapidAttempts, inconsistentTiming } }
+```
+
+The risk score weighs four factors: failure rate (35%), abnormal timing (25%), rapid-fire attempts (25%), and inconsistent solve times (15%). Risk levels: `low` | `medium` | `high` | `critical`.
+
+## AI image challenges (experimental)
+
+Foundation for AI-generated image verification challenges. Pre-generate pools of images with known ground truth, then serve them as additional challenge layers.
+
+```ts
+import { ImageChallengePool } from 'imrobot/core'
+
+// Option 1: Static provider (pre-generated images, no API needed)
+const pool = new ImageChallengePool({
+  provider: {
+    type: 'static',
+    images: [
+      { imageUrl: '/img/kitchen-3-apples.png', type: 'object_count', question: 'How many red apples?', answer: '3' },
+      { imageUrl: '/img/park-bench.png', type: 'spatial_reasoning', question: 'What is to the left of the bench?', answer: 'tree' },
+    ],
+  },
+})
+
+// Option 2: Custom provider (bring your own AI image generator)
+const pool2 = new ImageChallengePool({
+  provider: {
+    type: 'custom',
+    generate: async (prompt) => {
+      const result = await myImageGenerator(prompt)
+      return { imageUrl: result.url }
+    },
+  },
+  poolSize: 100,
+  challengeTypes: ['object_count', 'spatial_reasoning', 'color_identification'],
+  rotationIntervalMs: 3_600_000, // rotate pool every hour
+})
+
+await pool.initialize()
+const challenge = pool.getChallenge()
+const isCorrect = pool.verifyAnswer(challenge.id, userAnswer)
+```
+
+Six challenge types are supported: `object_count`, `spatial_reasoning`, `color_identification`, `scene_description`, `text_recognition`, and `odd_one_out`. Each type includes built-in prompt templates that generate prompts with known ground truth.
+
+> **Note:** Direct OpenAI/Stability AI API integration is planned. For now, use the `custom` or `static` provider.
 
 ## Contributing
 
