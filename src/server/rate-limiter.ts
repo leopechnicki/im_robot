@@ -153,7 +153,6 @@ export class RateLimiter {
   private cleanup(): void {
     const now = Date.now()
 
-
     for (const [key, record] of this.store.entries()) {
       if (record.resetAt < now) {
         this.store.delete(key)

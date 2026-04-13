@@ -112,17 +112,12 @@ export class ChallengeReplayGuard {
    */
   private cleanup(): void {
     const now = Date.now()
-    let deletedCount = 0
 
     for (const [challengeId, timestamp] of this.used.entries()) {
       if (now - timestamp > this.maxAge) {
         this.used.delete(challengeId)
-        deletedCount++
       }
     }
-
-    // Optionally log cleanup activity (commented out for production)
-    // if (deletedCount > 0) console.log(`[ChallengeReplayGuard] Cleaned up ${deletedCount} expired entries`)
   }
 
   /**
