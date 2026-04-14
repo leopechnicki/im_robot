@@ -269,7 +269,7 @@ const challenge = pool.getChallenge()
 \`\`\`
 
 ## Key facts
-- Package: \`imrobot\` on npm (v0.5.0)
+- Package: \`imrobot\` on npm (v0.6.0)
 - Zero runtime dependencies, ~14 KB core
 - Exports: \`imrobot/core\`, \`imrobot/react\`, \`imrobot/vue\`, \`imrobot/svelte\`, \`imrobot/web-component\`, \`imrobot/server\`
 - Challenge data lives in \`data-imrobot-challenge\` DOM attribute as JSON
