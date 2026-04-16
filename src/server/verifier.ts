@@ -142,7 +142,7 @@ export class ImRobotVerifier {
     if (this.replayGuard) {
       const allowed = this.replayGuard.markUsed(challenge.id)
       if (!allowed) {
-        return { valid: false, reason: "replay" }
+        return { valid: false, reason: 'replay' }
       }
     }
 

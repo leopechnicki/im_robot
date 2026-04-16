@@ -80,7 +80,7 @@ function getClientIp(req: MiddlewareRequest): string {
     const ip = Array.isArray(xri) ? xri[0] : xri
     if (ip) return ip.trim()
   }
-  return req.ip ?? "unknown"
+  return req.ip ?? 'unknown'
 }
 export function requireAgent(options: RequireAgentOptions) {
   const headerName = (options.headerName ?? 'x-agent-proof').toLowerCase()

@@ -10,7 +10,9 @@ function randomHex(length: number): string {
     const values = crypto.getRandomValues(new Uint8Array(length))
     for (let i = 0; i < length; i++) result += chars[values[i] % 16]
   } else {
-    throw new Error('randomHex: crypto.getRandomValues is not available — cannot generate secure random values')
+    throw new Error(
+      'randomHex: crypto.getRandomValues is not available — cannot generate secure random values',
+    )
   }
   return result
 }
