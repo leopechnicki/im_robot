@@ -6,11 +6,18 @@ import { fnv1a } from '../core/hash'
  * Base64url encoding (RFC 4648 §5) — no padding, URL-safe.
  */
 function base64url(input: string): string {
-  if (typeof btoa !== 'undefined') {
-    return btoa(input).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  // Use Buffer when available (Node.js) for correct UTF-8 handling
+  if (typeof Buffer !== "undefined") {
+    return Buffer.from(input).toString("base64url")
   }
-  // Node.js fallback
-  return Buffer.from(input).toString('base64url')
+  // Browser fallback: encode to UTF-8 bytes first, then btoa on Latin-1 representation
+  if (typeof btoa !== "undefined" && typeof TextEncoder !== "undefined") {
+    const bytes = new TextEncoder().encode(input)
+    let binary = ""
+    bytes.forEach((b) => (binary += String.fromCharCode(b)))
+    return btoa(binary).replace(/[+]/g, "-").replace(/[/]/g, "_").replace(/=+$/, "")
+  }
+  throw new Error("base64url: no encoding method available")
 }
 
 function base64urlDecode(input: string): string {

@@ -64,6 +64,24 @@ export interface RequireAgentOptions {
  * })
  * ```
  */
+
+/**
+ * Extract best-effort client IP from request.
+ * Tries X-Forwarded-For, X-Real-IP, then req.ip before falling back to 'unknown'.
+ */
+function getClientIp(req: MiddlewareRequest): string {
+  const xff = req.headers['x-forwarded-for']
+  if (xff) {
+    const ip = (Array.isArray(xff) ? xff[0] : xff).split(',')[0].trim()
+    if (ip) return ip
+  }
+  const xri = req.headers['x-real-ip']
+  if (xri) {
+    const ip = Array.isArray(xri) ? xri[0] : xri
+    if (ip) return ip.trim()
+  }
+  return req.ip ?? "unknown"
+}
 export function requireAgent(options: RequireAgentOptions) {
   const headerName = (options.headerName ?? 'x-agent-proof').toLowerCase()
   const tokenIssuer = new ProofTokenIssuer({
@@ -84,7 +102,7 @@ export function requireAgent(options: RequireAgentOptions) {
 
     // Rate limiting
     if (rateLimiter) {
-      const key = req.ip ?? 'unknown'
+      const key = getClientIp(req)
       const allowed = rateLimiter.isAllowed(key)
 
       if (!allowed) {
@@ -187,7 +205,7 @@ export function createAgentRouter(options: RequireAgentOptions) {
   const applyRateLimit = (req: MiddlewareRequest, res: MiddlewareResponse): boolean => {
     if (!rateLimiter) return true
 
-    const key = req.ip ?? 'unknown'
+    const key = getClientIp(req)
     const allowed = rateLimiter.isAllowed(key)
 
     if (!allowed) {

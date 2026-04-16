@@ -1,7 +1,7 @@
 <script>
-  import { generateChallenge, verifyAnswer, createToken } from 'imrobot/core'
+  import { generateChallenge, verifyAnswer, createToken } from '../core/index'
   import { formatPipeline } from 'imrobot/core'
-  import { getStyles, ROBOT_SVG } from 'imrobot'
+  import { getStyles, ROBOT_SVG } from '../styles'
   import { setupScreenshotShield } from 'imrobot'
   import { onMount, onDestroy } from 'svelte'
 
