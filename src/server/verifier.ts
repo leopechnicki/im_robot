@@ -183,6 +183,8 @@ export class ImRobotVerifier {
  * })
  * ```
  */
-export function createVerifier(config: ServerConfig): ImRobotVerifier {
+export function createVerifier(
+  config: ServerConfig & { replayGuard?: ChallengeReplayGuard },
+): ImRobotVerifier {
   return new ImRobotVerifier(config)
 }

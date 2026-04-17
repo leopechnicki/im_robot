@@ -22,10 +22,20 @@ function base64url(input: string): string {
 
 function base64urlDecode(input: string): string {
   const padded = input + '='.repeat((4 - (input.length % 4)) % 4)
-  if (typeof atob !== 'undefined') {
-    return atob(padded.replace(/-/g, '+').replace(/_/g, '/'))
+  // Use Buffer when available (Node.js) for correct UTF-8 handling
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(padded, 'base64url').toString('utf-8')
   }
-  return Buffer.from(padded, 'base64url').toString()
+  // Browser fallback: decode base64 to binary, then reconstruct UTF-8
+  if (typeof atob !== 'undefined' && typeof TextDecoder !== 'undefined') {
+    const binary = atob(padded.replace(/-/g, '+').replace(/_/g, '/'))
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i)
+    }
+    return new TextDecoder().decode(bytes)
+  }
+  return atob(padded.replace(/-/g, '+').replace(/_/g, '/'))
 }
 
 export interface ProofTokenConfig {

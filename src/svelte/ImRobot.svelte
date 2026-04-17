@@ -1,8 +1,8 @@
 <script>
   import { generateChallenge, verifyAnswer, createToken } from '../core/index'
-  import { formatPipeline } from 'imrobot/core'
+  import { formatPipeline } from '../core/index'
   import { getStyles, ROBOT_SVG } from '../styles'
-  import { setupScreenshotShield } from 'imrobot'
+  import { setupScreenshotShield } from '../screenshot-shield'
   import { onMount, onDestroy } from 'svelte'
 
   export let difficulty = 'medium'

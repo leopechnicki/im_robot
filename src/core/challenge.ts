@@ -23,7 +23,9 @@ function randomInt(min: number, max: number): number {
     const bytes = crypto.getRandomValues(new Uint32Array(1))
     return min + (bytes[0] % range)
   }
-  return Math.floor(Math.random() * (max - min + 1)) + min
+  throw new Error(
+    'randomInt: crypto.getRandomValues is not available — cannot generate secure random values',
+  )
 }
 
 function pickRandom<T>(arr: T[]): T {

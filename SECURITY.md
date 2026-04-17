@@ -8,11 +8,12 @@ If you discover a security vulnerability in imrobot, please report it responsibl
 
 ## Scope
 
-imrobot is a client-side library. The challenge generation and verification happen entirely in the browser. Keep in mind:
+imrobot provides both a client-side widget and a server SDK (`imrobot/server`, added in v0.3.0). Keep in mind:
 
 - The library is designed as a proof-of-concept reverse-CAPTCHA
 - Challenge data is exposed in the DOM by design (agents need to read it)
-- The `signature` field in `ImRobotToken` uses FNV-1a hashing, which is not cryptographically secure — it is intended for integrity checking, not authentication
+- The client-side `signature` field in `ImRobotToken` uses FNV-1a hashing, which is not cryptographically secure — it is intended for integrity checking, not authentication
+- The server SDK uses HMAC-SHA256 (via Web Crypto API) for tamper-proof challenge signing and verification — this **is** cryptographically secure
 
 ## Supported Versions
 

@@ -12,6 +12,7 @@ export default defineConfig({
       ['test/integration.test.ts', 'node'],
       ['test/core.test.ts', 'node'],
       ['test/v04-features.test.ts', 'node'],
+      ['test/security-audit.test.ts', 'node'],
     ],
   },
 })
