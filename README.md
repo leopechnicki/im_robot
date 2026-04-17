@@ -469,6 +469,30 @@ const challenge = await verifier.generate()
 const result = await verifier.verify(challenge, agentAnswer)
 ```
 
+#### Replay protection
+
+To prevent the same challenge from being verified more than once, pass a `ChallengeReplayGuard` instance to `createVerifier()`:
+
+```ts
+import { createVerifier, ChallengeReplayGuard } from 'imrobot/server'
+
+const replayGuard = new ChallengeReplayGuard({
+  maxAge: 5 * 60 * 1000,     // track IDs for 5 minutes
+  cleanupInterval: 60_000,   // purge expired entries every minute
+})
+
+const verifier = createVerifier({
+  secret: process.env.IMROBOT_SECRET!,
+  difficulty: 'medium',
+  replayGuard, // enables replay detection
+})
+
+// First verify() succeeds; second verify() with the same challenge
+// returns { valid: false, reason: 'replay' }
+```
+
+The replay guard is in-memory with automatic expiry cleanup and `unref()`'d timers, so it won't keep the process alive. Call `replayGuard.destroy()` on shutdown to clear the cleanup interval.
+
 ### VerifyResult
 
 The `verify()` method returns a `VerifyResult`:

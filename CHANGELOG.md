@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-04-17
+
+### Added
+
+- `ChallengeReplayGuard` class for in-memory challenge replay protection with automatic expiry cleanup
+- `ChallengeAnalytics` class for server-side verification metrics tracking
+- `replayGuard` option on `createVerifier()` to enable built-in replay detection
+- `'replay'` as a new `VerifyResult.reason` when duplicate challenge IDs are rejected
+- CI auto-release workflow (Friday schedule)
+- Comprehensive replay guard test suite (14 tests)
+
+### Changed
+
+- `randomHex()` and `randomInt()` now throw when `crypto.getRandomValues` is unavailable instead of silently falling back to `Math.random()`
+- HMAC signature in `ImRobotVerifier` now covers full pipeline to prevent pipeline-swap attacks
+- `getClientIp()` extracts client IP from `X-Forwarded-For` and `X-Real-IP` proxy headers before falling back to `req.ip`
+- Updated version badges to v0.6.0
+
+### Fixed
+
+- **HIGH**: Replay attack vulnerability — `ImRobotVerifier.verify()` now calls `replayGuard.markUsed()` to reject duplicate challenge submissions
+- **HIGH**: `base64url()` in proof tokens now handles non-Latin1 Unicode correctly using `TextEncoder` + `btoa` (browser) or `Buffer` (Node)
+- **MEDIUM**: `escapeHtml()` in web component now escapes single quotes (`'` → `&#39;`) to prevent XSS via attribute injection
+- **MEDIUM**: Svelte component replaced self-referential `'imrobot/core'` and `'imrobot'` imports with relative paths
+- **MEDIUM**: `ChallengeReplayGuard` and `ReplayGuardConfig` now properly exported from server index
+
+### Security
+
+- Full April 2026 security audit addressing HIGH and MEDIUM findings
+- Enforced LF line endings via `.gitattributes`
+
 ## [0.5.0] - 2026-03-21
 
 ### Added
