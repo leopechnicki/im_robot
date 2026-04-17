@@ -145,12 +145,12 @@ app.post('/api/verify', async (req, res) => {
   const { challenge, answer } = req.body
   const result = await verifier.verify(challenge, answer)
   // result: { valid: true, elapsed: 42, suspicious: false }
-  // or:     { valid: false, reason: 'wrong_answer' | 'expired' | 'invalid_hmac' | 'tampered' }
+  // or:     { valid: false, reason: 'wrong_answer' | 'expired' | 'invalid_hmac' | 'tampered' | 'replay' }
   res.json(result)
 })
 ```
 
-The server verifier checks in order: HMAC signature validity (challenge and pipeline not tampered), expiration (challenge not expired), and answer correctness (pipeline re-executed). A different secret on a different server will reject the challenge — preventing cross-site replay attacks.
+The server verifier checks in order: HMAC signature validity (challenge and pipeline not tampered), expiration (challenge not expired), answer correctness (pipeline re-executed), and replay detection (duplicate challenge IDs are rejected when a replay guard is configured). A different secret on a different server will reject the challenge — preventing cross-site replay attacks.
 
 ### Middleware & Proof-of-Agent tokens
 
@@ -476,7 +476,7 @@ The `verify()` method returns a `VerifyResult`:
 ```ts
 interface VerifyResult {
   valid: boolean
-  reason?: 'expired' | 'invalid_hmac' | 'wrong_answer' | 'tampered'
+  reason?: 'expired' | 'invalid_hmac' | 'wrong_answer' | 'tampered' | 'replay'
   elapsed?: number // ms since challenge was created
   suspicious?: boolean // true if response was unusually slow
 }

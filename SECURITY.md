@@ -16,6 +16,10 @@ imrobot is a client-side library. The challenge generation and verification happ
 
 ## Supported Versions
 
-| Version | Supported |
-|---------|-----------|
-| 0.1.x   | Yes       |
+| Version | Supported          |
+|---------|--------------------|
+| 0.6.x   | Yes (current)      |
+| 0.5.x   | Yes                |
+| 0.4.x   | Yes                |
+| 0.3.x   | Security fixes only|
+| < 0.3   | No                 |

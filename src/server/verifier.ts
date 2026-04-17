@@ -41,6 +41,7 @@ export class ImRobotVerifier {
     this.secret = config.secret
     this.difficulty = config.difficulty ?? 'medium'
     this.ttl = config.ttl
+    this.replayGuard = config.replayGuard
   }
 
   /**
@@ -137,6 +138,14 @@ export class ImRobotVerifier {
       return { valid: false, reason: 'tampered' }
     }
 
+    // 5. Check replay — rejects duplicate challenge verifications
+    if (this.replayGuard) {
+      const allowed = this.replayGuard.markUsed(challenge.id)
+      if (!allowed) {
+        return { valid: false, reason: 'replay' }
+      }
+    }
+
     const elapsed = now - challenge.timestamp
     return {
       valid: true,
@@ -174,6 +183,8 @@ export class ImRobotVerifier {
  * })
  * ```
  */
-export function createVerifier(config: ServerConfig): ImRobotVerifier {
+export function createVerifier(
+  config: ServerConfig & { replayGuard?: ChallengeReplayGuard },
+): ImRobotVerifier {
   return new ImRobotVerifier(config)
 }
