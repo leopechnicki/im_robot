@@ -3,6 +3,7 @@ export { ProofTokenIssuer, createTokenIssuer } from './proof-token'
 export { requireAgent, createAgentRouter } from './middleware'
 export { RateLimiter } from './rate-limiter'
 export { ChallengeAnalytics } from './analytics'
+export { ChallengeReplayGuard } from './replay-guard'
 export { buildDiscoveryDocument, createDiscoveryHandler } from './discovery'
 export type { ProofTokenConfig, IssueTokenParams } from './proof-token'
 export type {
@@ -20,6 +21,7 @@ export type {
   FailureReason,
 } from './analytics'
 export type { DiscoveryConfig, DiscoveryDocument } from './discovery'
+export type { ReplayGuardConfig } from './replay-guard'
 export type {
   SignedChallenge,
   ServerConfig,

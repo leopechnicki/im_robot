@@ -8,3 +8,10 @@ coverage/
 *.log
 
 .vercel
+
+# Claude Code artifacts
+.claude-mem.md
+leo-agents/
+
+# Vitest temp files
+vitest.config.ts.timestamp-*
