@@ -48,10 +48,15 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          # Read current version from package.json (source of truth)
           CURRENT=$(node -p "require('./package.json').version")
+          RELEASE_VERSION="v${CURRENT}"
+          echo "Release version: $RELEASE_VERSION"
+
+          # Compute next dev version for the bump PR
           IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
-          NEW_VERSION="v${MAJOR}.${MINOR}.$((PATCH + 1))"
-          echo "New version: $NEW_VERSION"
+          NEXT_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+          echo "Next dev version: $NEXT_VERSION"
 
           LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           if [ -z "$LAST_TAG" ]; then
@@ -60,8 +65,9 @@ jobs:
             CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges "${LAST_TAG}..HEAD")
           fi
 
-          gh release create "$NEW_VERSION" \
-            --title "Release $NEW_VERSION" \
+          # Tag + release using the current package.json version
+          gh release create "$RELEASE_VERSION" \
+            --title "Release $RELEASE_VERSION" \
             --notes "## What's Changed
 
           $CHANGELOG
@@ -70,15 +76,15 @@ jobs:
           *Auto-released on $(date -u +%Y-%m-%d)*" \
             --target main
 
-          # Create a PR to bump package.json version
-          BRANCH="chore/bump-version-${NEW_VERSION}"
+          # Create a PR to bump package.json to the next patch version
+          BRANCH="chore/bump-version-v${NEXT_VERSION}"
           git checkout -b "$BRANCH"
-          npm version patch --no-git-tag-version
+          npm version "$NEXT_VERSION" --no-git-tag-version
           git add package.json package-lock.json 2>/dev/null || git add package.json
-          git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
+          git commit -m "chore: bump version to ${NEXT_VERSION} [skip ci]"
           git push origin "$BRANCH"
           gh pr create \
-            --title "chore: bump version to $NEW_VERSION" \
-            --body "Automated version bump after release $NEW_VERSION" \
+            --title "chore: bump version to ${NEXT_VERSION}" \
+            --body "Automated version bump after release $RELEASE_VERSION" \
             --base main \
             --head "$BRANCH"

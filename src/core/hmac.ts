@@ -35,6 +35,9 @@ export async function hmacSign(secret: string, message: string): Promise<string>
 
 /**
  * Verify an HMAC-SHA256 signature in constant time.
+ *
+ * Uses a constant-time comparison that does NOT short-circuit on length
+ * mismatch, preventing timing-based side-channel attacks.
  */
 export async function hmacVerify(
   secret: string,
@@ -42,11 +45,13 @@ export async function hmacVerify(
   signature: string,
 ): Promise<boolean> {
   const expected = await hmacSign(secret, message)
-  if (expected.length !== signature.length) return false
-  // Constant-time comparison to prevent timing attacks
-  let result = 0
-  for (let i = 0; i < expected.length; i++) {
-    result |= expected.charCodeAt(i) ^ signature.charCodeAt(i)
+
+  // Pad the shorter string so we always compare `expected.length` characters.
+  // The length difference is folded into `result` to avoid short-circuiting.
+  const maxLen = Math.max(expected.length, signature.length)
+  let result = expected.length ^ signature.length // non-zero if lengths differ
+  for (let i = 0; i < maxLen; i++) {
+    result |= (expected.charCodeAt(i) || 0) ^ (signature.charCodeAt(i) || 0)
   }
   return result === 0
 }

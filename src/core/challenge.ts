@@ -189,6 +189,15 @@ export function generateChallenge(config?: Partial<ImRobotConfig>, _depth = 0): 
   }
 }
 
+/**
+ * Client-side answer verification using FNV-1a hash.
+ *
+ * **Security note**: FNV-1a is a fast, non-cryptographic 32-bit hash.
+ * It is trivially collision-prone and MUST NOT be used as a sole security gate.
+ * This function is intended only for client-side UX feedback (instant pass/fail).
+ * All security-critical verification MUST go through the server-side
+ * `ImRobotVerifier.verify()` which uses HMAC-SHA256 + pipeline re-execution.
+ */
 export function verifyAnswer(challenge: Challenge, answer: string): boolean {
   if (Date.now() - challenge.timestamp > challenge.ttl) return false
   return fnv1a(answer + ':' + challenge.id) === challenge.verification
