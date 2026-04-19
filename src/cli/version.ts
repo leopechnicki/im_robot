@@ -1,7 +1,10 @@
 /**
- * CLI version — kept in sync with package.json.
+ * CLI version — dynamically read from package.json at runtime.
  *
- * This is the single source of truth for the version displayed by
- * `imrobot info`. Tests verify it matches package.json to prevent drift.
+ * This ensures `imrobot info` always reflects the published package
+ * version without requiring a manual sync step.
  */
-export const CLI_VERSION = '0.6.0'
+import { createRequire } from 'module'
+const require = createRequire(import.meta.url)
+const pkg = require('../../package.json') as { version: string }
+export const CLI_VERSION: string = pkg.version

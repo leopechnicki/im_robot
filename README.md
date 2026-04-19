@@ -177,6 +177,28 @@ app.get('/api/data', agentOnly, (req, res) => {
 })
 ```
 
+#### `trustProxy` option
+
+Both `requireAgent` and `createAgentRouter` accept a `trustProxy` option that controls how client IPs are resolved for rate limiting. When running behind a reverse proxy (nginx, Cloudflare, etc.), set `trustProxy: true` to read the real client IP from `X-Forwarded-For` / `X-Real-IP` headers instead of `req.ip`.
+
+```ts
+import { requireAgent, createAgentRouter } from 'imrobot/server'
+
+// Behind a trusted reverse proxy
+const agentOnly = requireAgent({
+  secret: process.env.IMROBOT_SECRET!,
+  trustProxy: true, // reads X-Forwarded-For for accurate IP-based rate limiting
+  rateLimit: { windowMs: 60_000, maxRequests: 30 },
+})
+
+const router = createAgentRouter({
+  secret: process.env.IMROBOT_SECRET!,
+  trustProxy: true,
+})
+```
+
+> **Warning:** Only enable `trustProxy` when your server is behind a trusted proxy. Enabling it on a public-facing server allows clients to spoof their IP and bypass rate limiting.
+
 #### Combined handler
 
 Alternatively, use the combined `.handler` property to route both GET and POST requests to a single path:
@@ -493,6 +515,41 @@ const verifier = createVerifier({
 
 The replay guard is in-memory with automatic expiry cleanup and `unref()`'d timers, so it won't keep the process alive. Call `replayGuard.destroy()` on shutdown to clear the cleanup interval.
 
+### ChallengeAnalytics
+
+`ChallengeAnalytics` (exported from `imrobot/server`) is a lightweight, in-memory metrics tracker for monitoring challenge activity — generation rates, verification rates, solve-time percentiles, and failure-reason distributions. Zero external dependencies, memory-bounded (sliding window of configurable size).
+
+```ts
+import { ChallengeAnalytics } from 'imrobot/server'
+
+const analytics = new ChallengeAnalytics({
+  maxSamples: 1000,          // solve-time samples kept per difficulty (default: 1000)
+  trackFailureReasons: true, // track per-reason failure counts (default: true)
+})
+
+// Record events as they happen
+analytics.recordGenerated('medium')
+analytics.recordVerified('medium', 142, false) // 142ms, not suspicious
+analytics.recordFailed('hard', 'wrong_answer')
+
+// Get a full snapshot
+const stats = analytics.getStats()
+console.log(stats.summary.verificationRate)        // 0.5 (50%)
+console.log(stats.byDifficulty.medium.avgSolveTimeMs) // 142
+console.log(stats.byDifficulty.hard.failureReasons)   // { wrong_answer: 1 }
+
+// Export for dashboards / structured logging
+console.log(JSON.stringify(analytics.toJSON(), null, 2))
+
+// Periodic rotation — reset all counters
+analytics.reset()
+```
+
+`getStats()` returns an `AnalyticsSnapshot` with:
+- **`summary`** — aggregate totals: `totalGenerated`, `totalVerified`, `totalFailed`, `totalExpired`, `totalSuspicious`, `verificationRate`, `avgSolveTimeMs`, `uptimeMs`
+- **`byDifficulty`** — per-difficulty `DifficultyStats` with min/max/p95 solve times and per-reason failure counts
+- **`collectedAt`** — Unix timestamp of the snapshot
+
 ### VerifyResult
 
 The `verify()` method returns a `VerifyResult`:
@@ -543,6 +600,9 @@ const diff = adaptive.getDifficulty('agent_123') // 'medium' | 'easy' | 'hard'
 // Get risk assessment (0-1 score with breakdown)
 const risk = adaptive.getRiskAssessment('agent_123')
 // { score: 0.15, level: 'low', factors: { failureRate, abnormalTiming, rapidAttempts, inconsistentTiming } }
+
+// Get just the numeric score (shorthand)
+const score = adaptive.getRiskScore('agent_123') // 0.15
 ```
 
 The risk score weighs four factors: failure rate (35%), abnormal timing (25%), rapid-fire attempts (25%), and inconsistent solve times (15%). Risk levels: `low` | `medium` | `high` | `critical`.
