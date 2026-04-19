@@ -80,6 +80,10 @@
     "invisible",
     "crypto"
   ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "sideEffects": false,
   "license": "MIT",
   "author": "Leo Pechnicki",
   "repository": {

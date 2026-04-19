@@ -1,8 +1,14 @@
 /**
- * In-memory sliding window rate limiter for request throttling.
+ * In-memory fixed-window rate limiter for request throttling.
  *
  * Provides request rate limiting without external dependencies.
- * Uses a sliding window algorithm to track requests per client.
+ * Uses a **fixed window** algorithm: each client gets a fresh counter
+ * when its window expires. This is simple and memory-efficient but
+ * allows up to 2x burst at window boundaries (e.g., maxRequests at
+ * the end of one window and maxRequests at the start of the next).
+ *
+ * For stricter burst control, consider a sliding-window or token-bucket
+ * implementation.
  *
  * @example
  * ```typescript
@@ -50,9 +56,9 @@ interface RateLimitRecord {
 }
 
 /**
- * In-memory sliding window rate limiter.
+ * In-memory fixed-window rate limiter.
  *
- * Tracks requests per key using a sliding window algorithm.
+ * Tracks requests per key using a fixed window algorithm.
  * Automatically cleans up expired entries to prevent memory leaks.
  */
 export class RateLimiter {

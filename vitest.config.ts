@@ -13,6 +13,7 @@ export default defineConfig({
       ['test/core.test.ts', 'node'],
       ['test/v04-features.test.ts', 'node'],
       ['test/security-audit.test.ts', 'node'],
+      ['test/middleware.test.ts', 'node'],
     ],
   },
 })

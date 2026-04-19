@@ -22,14 +22,22 @@ export function executeOperation(input: string, op: Operation): string {
     case 'reverse':
       return Array.from(input).reverse().join('')
 
-    case 'base64_encode':
-      if (typeof btoa !== 'undefined') return btoa(input)
+    case 'base64_encode': {
+      // Use TextEncoder to handle full Unicode safely in browsers.
+      // btoa() only accepts Latin-1 characters and throws on anything else.
+      const bytes = new TextEncoder().encode(input)
+      let binary = ''
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i])
+      }
+      if (typeof btoa !== 'undefined') return btoa(binary)
       // Node.js fallback
       try {
-        return globalRef.Buffer.from(input, 'binary').toString('base64')
+        return globalRef.Buffer.from(input, 'utf-8').toString('base64')
       } catch {
         return input
       }
+    }
 
     case 'to_upper':
       return input.toUpperCase()

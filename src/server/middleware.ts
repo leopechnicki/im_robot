@@ -36,6 +36,12 @@ export interface RequireAgentOptions {
   issuer?: string
   /** Token TTL in ms (default: 1 hour) */
   tokenTTL?: number
+  /**
+   * Whether to trust proxy headers (X-Forwarded-For, X-Real-IP) for client IP extraction.
+   * When false (default), only req.ip is used — preventing IP spoofing via headers.
+   * Set to true only if your app runs behind a trusted reverse proxy (e.g., nginx, Cloudflare).
+   */
+  trustProxy?: boolean
 }
 
 /**
@@ -66,19 +72,28 @@ export interface RequireAgentOptions {
  */
 
 /**
- * Extract best-effort client IP from request.
- * Tries X-Forwarded-For, X-Real-IP, then req.ip before falling back to 'unknown'.
+ * Extract client IP from request.
+ *
+ * When `trustProxy` is false (default), only `req.ip` is used.
+ * This prevents attackers from spoofing their IP via X-Forwarded-For
+ * headers to bypass rate limiting.
+ *
+ * When `trustProxy` is true, proxy headers are consulted first.
+ * Only enable this behind a trusted reverse proxy that overwrites
+ * these headers.
  */
-function getClientIp(req: MiddlewareRequest): string {
-  const xff = req.headers['x-forwarded-for']
-  if (xff) {
-    const ip = (Array.isArray(xff) ? xff[0] : xff).split(',')[0].trim()
-    if (ip) return ip
-  }
-  const xri = req.headers['x-real-ip']
-  if (xri) {
-    const ip = Array.isArray(xri) ? xri[0] : xri
-    if (ip) return ip.trim()
+function getClientIp(req: MiddlewareRequest, trustProxy = false): string {
+  if (trustProxy) {
+    const xff = req.headers['x-forwarded-for']
+    if (xff) {
+      const ip = (Array.isArray(xff) ? xff[0] : xff).split(',')[0].trim()
+      if (ip) return ip
+    }
+    const xri = req.headers['x-real-ip']
+    if (xri) {
+      const ip = Array.isArray(xri) ? xri[0] : xri
+      if (ip) return ip.trim()
+    }
   }
   return req.ip ?? 'unknown'
 }
@@ -94,6 +109,8 @@ export function requireAgent(options: RequireAgentOptions) {
   const rateLimiter = options.rateLimit ? new RateLimiter(options.rateLimit) : undefined
   const rateLimitMax = options.rateLimit?.maxRequests ?? 30
 
+  const trustProxy = options.trustProxy ?? false
+
   return async (req: MiddlewareRequest, res: MiddlewareResponse, next: NextFunction) => {
     // Bypass check
     if (options.bypass && options.bypass(req)) {
@@ -102,7 +119,7 @@ export function requireAgent(options: RequireAgentOptions) {
 
     // Rate limiting
     if (rateLimiter) {
-      const key = getClientIp(req)
+      const key = getClientIp(req, trustProxy)
       const allowed = rateLimiter.isAllowed(key)
 
       if (!allowed) {
@@ -199,13 +216,15 @@ export function createAgentRouter(options: RequireAgentOptions) {
     body?: { challenge: SignedChallenge; answer: string; agentId?: string }
   }
 
+  const trustProxy = options.trustProxy ?? false
+
   /**
    * Helper to apply rate limiting to a response.
    */
   const applyRateLimit = (req: MiddlewareRequest, res: MiddlewareResponse): boolean => {
     if (!rateLimiter) return true
 
-    const key = getClientIp(req)
+    const key = getClientIp(req, trustProxy)
     const allowed = rateLimiter.isAllowed(key)
 
     if (!allowed) {
