@@ -331,7 +331,7 @@
       .toc { display: none; }
     }
     @media (max-width: 768px) {
-      .layout { grid-template-columns: 1fr; }
+      .layout { grid-template-columns: 1fr; overflow-x: hidden; }
       .sidebar {
         display: none;
         position: fixed;
@@ -347,7 +347,7 @@
       .sidebar.mobile-open { display: block; }
       .sidebar-mobile-links { display: block; }
       .mobile-nav-btn { display: block; }
-      .content { padding: 24px 20px 80px; }
+      .content { padding: 24px 20px 80px; min-width: 0; max-width: 100%; }
       h1 { font-size: 26px; }
       h2 { font-size: 19px; }
       .table-wrap { margin: 12px -20px 24px; border-radius: 0; border-left: 0; border-right: 0; }
