@@ -35,7 +35,11 @@ function base64urlDecode(input: string): string {
     }
     return new TextDecoder().decode(bytes)
   }
-  return atob(padded.replace(/-/g, '+').replace(/_/g, '/'))
+  try {
+    return atob(padded.replace(/-/g, '+').replace(/_/g, '/'))
+  } catch {
+    throw new Error('base64urlDecode: invalid base64url input')
+  }
 }
 
 export interface ProofTokenConfig {
