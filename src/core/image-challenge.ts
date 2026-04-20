@@ -170,11 +170,18 @@ export interface ImageChallengePoolConfig {
 // ---------------------------------------------------------------------------
 
 function randomInt(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const range = max - min + 1
+    const bytes = crypto.getRandomValues(new Uint32Array(1))
+    return min + (bytes[0] % range)
+  }
+  throw new Error(
+    'randomInt: crypto.getRandomValues is not available — cannot generate secure random values',
+  )
 }
 
 function pickRandom<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)]
+  return arr[randomInt(0, arr.length - 1)]
 }
 
 const OBJECTS = ['apples', 'chairs', 'books', 'cups', 'birds', 'flowers', 'cars', 'trees']
