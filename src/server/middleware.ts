@@ -13,6 +13,10 @@ export interface MiddlewareRequest {
   ip?: string
   method?: string
   url?: string
+  /** Set by requireAgent after successful verification. */
+  agentProof?: unknown
+  /** Set by requireAgent after successful verification. */
+  agentVerified?: boolean
 }
 
 export interface MiddlewareResponse {
@@ -167,8 +171,8 @@ export function requireAgent(options: RequireAgentOptions) {
     }
 
     // Attach proof to request for downstream handlers
-    ;(req as unknown as Record<string, unknown>).agentProof = result.payload
-    ;(req as unknown as Record<string, unknown>).agentVerified = true
+    req.agentProof = result.payload
+    req.agentVerified = true
 
     return next()
   }
