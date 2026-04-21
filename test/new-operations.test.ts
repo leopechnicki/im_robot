@@ -112,3 +112,41 @@ describe('new operations formatOperationNL', () => {
     expect(results.size).toBeGreaterThanOrEqual(2)
   })
 })
+
+// ---------------------------------------------------------------------------
+// Guard failure paths (PR #55)
+// ---------------------------------------------------------------------------
+
+describe('byte_xor guard', () => {
+  it('throws when key is empty', () => {
+    expect(() =>
+      executeOperation('hello', { op: 'byte_xor', key: [] }),
+    ).toThrow('byte_xor: key must not be empty')
+  })
+
+  it('does not throw for a valid key', () => {
+    expect(() =>
+      executeOperation('hello', { op: 'byte_xor', key: [0x41] }),
+    ).not.toThrow()
+  })
+})
+
+describe('hash_chain guard', () => {
+  it('throws when rounds is 0', () => {
+    expect(() =>
+      executeOperation('hello', { op: 'hash_chain', rounds: 0 }),
+    ).toThrow('hash_chain: rounds must be at least 1')
+  })
+
+  it('throws when rounds is negative', () => {
+    expect(() =>
+      executeOperation('hello', { op: 'hash_chain', rounds: -5 }),
+    ).toThrow('hash_chain: rounds must be at least 1')
+  })
+
+  it('does not throw for rounds >= 1', () => {
+    expect(() =>
+      executeOperation('hello', { op: 'hash_chain', rounds: 1 }),
+    ).not.toThrow()
+  })
+})

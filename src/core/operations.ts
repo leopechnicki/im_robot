@@ -108,12 +108,14 @@ export function executeOperation(input: string, op: Operation): string {
 
     case 'byte_xor': {
       const keyArr = op.key
+      if (keyArr.length === 0) throw new Error('byte_xor: key must not be empty')
       return Array.from(input)
         .map((c, i) => String.fromCharCode(c.charCodeAt(0) ^ keyArr[i % keyArr.length]))
         .join('')
     }
 
     case 'hash_chain': {
+      if (op.rounds < 1) throw new Error('hash_chain: rounds must be at least 1')
       let val = input
       for (let r = 0; r < op.rounds; r++) {
         val = fnv1a(val + ':' + r)
