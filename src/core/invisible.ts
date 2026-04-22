@@ -128,7 +128,10 @@ export async function invisibleVerify(
         }
       }
 
-      // If not valid, retry
+      // Server accepted the request but rejected the answer — backoff before retry
+      if (attempt < maxRetries - 1) {
+        await sleep(100 * Math.pow(2, attempt))
+      }
     } catch (error) {
       // Retry on network errors
       if (attempt === maxRetries - 1) {

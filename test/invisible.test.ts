@@ -323,6 +323,38 @@ describe('invisibleVerify', () => {
       expect(elapsed).toBeGreaterThanOrEqual(90)
     })
 
+    it('applies exponential backoff when server returns HTTP 200 but valid: false', async () => {
+      const challenge = createMockChallenge()
+
+      // Server returns HTTP 200 (ok: true) but { valid: false } in the JSON body.
+      // This is the "soft rejection" path — the request succeeded but the answer
+      // was deemed incorrect. Without a sleep here the retry loop spins instantly.
+      const softRejectResponse = {
+        ok: true,
+        status: 200,
+        json: async () => ({ valid: false, elapsed: 42, suspicious: false }),
+      } as Response
+
+      fetchSpy
+        .mockResolvedValueOnce(createMockChallengeResponse(challenge))
+        .mockResolvedValueOnce(softRejectResponse)
+        .mockResolvedValueOnce(createMockChallengeResponse(challenge))
+        .mockResolvedValueOnce(createMockVerifyResponse(true))
+
+      const startTime = Date.now()
+      const result = await invisibleVerify({
+        challengeUrl: 'https://api.example.com/challenge',
+        verifyUrl: 'https://api.example.com/verify',
+        maxRetries: 3,
+      })
+      const elapsed = Date.now() - startTime
+
+      expect(result.success).toBe(true)
+      expect(result.attempts).toBe(2)
+      // With backoff the second attempt is delayed ~100ms; without it completes in <10ms
+      expect(elapsed).toBeGreaterThanOrEqual(90)
+    })
+
     it('returns error message from final failure', async () => {
       fetchSpy.mockRejectedValue(new Error('Custom error message'))
 
