@@ -32,12 +32,49 @@ export interface ReplayGuardConfig {
 }
 
 /**
+ * Public contract for a challenge replay guard store.
+ *
+ * Any store implementation must satisfy this interface.
+ */
+export interface ReplayGuardStore {
+  /**
+   * Mark a challenge ID as used and check if it was already used.
+   *
+   * Returns true if the challenge ID has NOT been used before (first time).
+   * Returns false if replay detected (challenge already used).
+   */
+  markUsed(id: string): boolean
+
+  /**
+   * Check if a challenge ID has been used without marking it.
+   *
+   * @returns true if the challenge has been used, false otherwise
+   */
+  isUsed(id: string): boolean
+
+  /**
+   * Number of currently tracked challenge IDs.
+   */
+  readonly size: number
+
+  /**
+   * Clear all tracked challenge IDs.
+   */
+  reset(): void
+
+  /**
+   * Destroy the store and release all resources (e.g. timers).
+   */
+  destroy(): void
+}
+
+/**
  * In-memory challenge replay guard.
  *
  * Tracks used challenge IDs with automatic expiry cleanup.
  * Prevents the same challenge from being verified more than once.
  */
-export class ChallengeReplayGuard {
+export class ChallengeReplayGuard implements ReplayGuardStore {
   private used: Map<string, number> // challengeId -> timestamp
   private maxAge: number
   private cleanupTimer: ReturnType<typeof setInterval> | null
@@ -132,3 +169,12 @@ export class ChallengeReplayGuard {
     this.used.clear()
   }
 }
+
+/**
+ * Memory-backed implementation of ReplayGuardStore.
+ *
+ * Alias for ChallengeReplayGuard — the canonical in-memory store.
+ * Exported so consumers can reference the concrete memory implementation
+ * separately from the abstract guard class.
+ */
+export class MemoryReplayStore extends ChallengeReplayGuard {}
