@@ -267,6 +267,75 @@ const status = limiter.getStatus(clientIp)
 
 Expired entries are automatically cleaned up to prevent memory leaks in long-running servers.
 
+### Cloudflare Turnstile integration
+
+`createAgentRouter` optionally integrates with [Cloudflare Turnstile](https://developers.cloudflare.com/turnstile/) — a privacy-preserving CAPTCHA alternative — as an extra human-verification layer alongside the imrobot proof-of-work challenge.
+
+When configured, the `/verify` endpoint reads the `cf-turnstile-response` header, validates the token against Cloudflare's siteverify API, and stamps the result (`turnstile_verified: true/false`) into the issued proof token. Zero external dependencies — uses Node 18+ native `fetch`.
+
+```ts
+import { createAgentRouter } from 'imrobot/server'
+
+const router = createAgentRouter({
+  secret: process.env.IMROBOT_SECRET!,
+  turnstile: {
+    // Load from env — never hardcode
+    secretKey: process.env.TURNSTILE_SECRET_KEY!,
+    tokenHeader: 'cf-turnstile-response', // default, matches Cloudflare widget output
+    required: false,                       // default — non-breaking, won't block existing clients
+  },
+})
+```
+
+On the client side, include the Turnstile widget and pass its token as a request header:
+
+```html
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+
+<div class="cf-turnstile" data-sitekey="YOUR_SITE_KEY" data-callback="onTurnstileSuccess"></div>
+
+<script>
+  function onTurnstileSuccess(token) {
+    // Pass token when submitting the imrobot verify request
+    fetch('/imrobot/verify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'cf-turnstile-response': token,
+      },
+      body: JSON.stringify({ challenge, answer }),
+    })
+  }
+</script>
+```
+
+The standalone `TurnstileVerifier` class and `verifyTurnstileToken` function are also exported for use outside of `createAgentRouter`:
+
+```ts
+import { TurnstileVerifier, verifyTurnstileToken } from 'imrobot/server'
+
+// Class-based
+const verifier = new TurnstileVerifier({
+  secretKey: process.env.TURNSTILE_SECRET_KEY!,
+})
+const result = await verifier.verify(cfToken, clientIp)
+// { success: true, hostname: 'example.com', challenge_ts: '...', errorCodes: [] }
+
+// Standalone function
+const result = await verifyTurnstileToken(secretKey, cfToken, clientIp)
+```
+
+**Behaviour by `required` flag:**
+
+| `required` | Token absent | Token invalid | Token valid |
+|---|---|---|---|
+| `false` (default) | token issued, no `turnstile_verified` flag | token issued, `turnstile_verified: false` | token issued, `turnstile_verified: true` |
+| `true` | `400 TURNSTILE_TOKEN_REQUIRED` | `400 TURNSTILE_VERIFICATION_FAILED` | token issued, `turnstile_verified: true` |
+
+Set `required: false` initially for a non-breaking rollout — you can enforce it once all clients send the header.
+
+> **Security note:** The secret key must always be loaded from `process.env.TURNSTILE_SECRET_KEY`. Never hardcode it.
+
 ### Invisible verification (zero-UI)
 
 For agents that need to verify themselves programmatically without any UI:
