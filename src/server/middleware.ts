@@ -333,7 +333,9 @@ export function createAgentRouter(options: RequireAgentOptions) {
     // Cloudflare Turnstile verification (optional)
     let turnstileVerified: boolean | undefined
     if (options.turnstile) {
-      const turnstileHeaderName = (options.turnstile.tokenHeader ?? 'cf-turnstile-response').toLowerCase()
+      const turnstileHeaderName = (
+        options.turnstile.tokenHeader ?? 'cf-turnstile-response'
+      ).toLowerCase()
       const rawTurnstileHeader = req.headers[turnstileHeaderName]
       const turnstileToken = typeof rawTurnstileHeader === 'string' ? rawTurnstileHeader : undefined
 
@@ -349,7 +351,10 @@ export function createAgentRouter(options: RequireAgentOptions) {
       } else {
         const tsVerifier = new TurnstileVerifier({ secretKey: options.turnstile.secretKey })
         const clientIp = getClientIp(req, trustProxy)
-        const tsResult = await tsVerifier.verify(turnstileToken, clientIp !== 'unknown' ? clientIp : undefined)
+        const tsResult = await tsVerifier.verify(
+          turnstileToken,
+          clientIp !== 'unknown' ? clientIp : undefined,
+        )
 
         if (!tsResult.success) {
           if (options.turnstile.required) {
