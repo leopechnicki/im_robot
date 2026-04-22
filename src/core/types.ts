@@ -101,6 +101,8 @@ export interface AgentProofToken {
     solve_time_ms: number
     suspicious: boolean
     version: number
+    /** Present only when Cloudflare Turnstile is configured on the server. */
+    turnstile_verified?: boolean
   }
 }
 

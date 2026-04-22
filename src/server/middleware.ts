@@ -3,6 +3,7 @@ import { ImRobotVerifier } from './verifier'
 import { ProofTokenIssuer } from './proof-token'
 import { RateLimiter } from './rate-limiter'
 import type { RateLimiterConfig } from './rate-limiter'
+import { TurnstileVerifier } from './turnstile'
 
 /**
  * Generic middleware types — framework-agnostic.
@@ -46,6 +47,43 @@ export interface RequireAgentOptions {
    * Set to true only if your app runs behind a trusted reverse proxy (e.g., nginx, Cloudflare).
    */
   trustProxy?: boolean
+  /**
+   * Optional Cloudflare Turnstile configuration.
+   * When provided, the verify endpoint checks the Turnstile token from the request header
+   * and attaches the result to the issued proof token payload.
+   *
+   * Secret key must come from ENV:TURNSTILE_SECRET_KEY — never hardcode it.
+   *
+   * @example
+   * ```typescript
+   * createAgentRouter({
+   *   secret: process.env.IMROBOT_SECRET!,
+   *   turnstile: {
+   *     secretKey: process.env.TURNSTILE_SECRET_KEY!,
+   *     tokenHeader: 'cf-turnstile-response', // default
+   *     required: false,                       // default — no breaking change
+   *   },
+   * })
+   * ```
+   */
+  turnstile?: {
+    /**
+     * Cloudflare Turnstile secret key.
+     * Load from ENV:TURNSTILE_SECRET_KEY — never hardcode.
+     */
+    secretKey: string
+    /**
+     * Request header to read the Turnstile token from.
+     * Default: 'cf-turnstile-response'
+     */
+    tokenHeader?: string
+    /**
+     * Whether Turnstile verification is required.
+     * When false (default), missing or failed tokens are recorded but do not block.
+     * When true, a missing/failed token returns HTTP 400.
+     */
+    required?: boolean
+  }
 }
 
 /**
@@ -292,6 +330,43 @@ export function createAgentRouter(options: RequireAgentOptions) {
       })
     }
 
+    // Cloudflare Turnstile verification (optional)
+    let turnstileVerified: boolean | undefined
+    if (options.turnstile) {
+      const turnstileHeaderName = (options.turnstile.tokenHeader ?? 'cf-turnstile-response').toLowerCase()
+      const rawTurnstileHeader = req.headers[turnstileHeaderName]
+      const turnstileToken = typeof rawTurnstileHeader === 'string' ? rawTurnstileHeader : undefined
+
+      if (!turnstileToken) {
+        if (options.turnstile.required) {
+          return res.status(400).json({
+            error: 'Missing Turnstile token. Include cf-turnstile-response header.',
+            code: 'TURNSTILE_TOKEN_REQUIRED',
+          })
+        }
+        // required: false — proceed without turnstile flag
+        turnstileVerified = undefined
+      } else {
+        const tsVerifier = new TurnstileVerifier({ secretKey: options.turnstile.secretKey })
+        const clientIp = getClientIp(req, trustProxy)
+        const tsResult = await tsVerifier.verify(turnstileToken, clientIp !== 'unknown' ? clientIp : undefined)
+
+        if (!tsResult.success) {
+          if (options.turnstile.required) {
+            return res.status(400).json({
+              error: 'Turnstile verification failed.',
+              code: 'TURNSTILE_VERIFICATION_FAILED',
+              errorCodes: tsResult.errorCodes,
+            })
+          }
+          // required: false — mark as not verified but don't block
+          turnstileVerified = false
+        } else {
+          turnstileVerified = true
+        }
+      }
+    }
+
     // Issue proof token
     const proofToken = await tokenIssuer.issue({
       agentId: body.agentId ?? `agent_${body.challenge.id.slice(0, 8)}`,
@@ -299,6 +374,7 @@ export function createAgentRouter(options: RequireAgentOptions) {
       difficulty: body.challenge.difficulty,
       solveTimeMs: result.elapsed ?? 0,
       suspicious: result.suspicious ?? false,
+      turnstileVerified,
     })
 
     return res.status(200).json({
