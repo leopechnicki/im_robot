@@ -132,7 +132,7 @@ export async function verifyTurnstileToken(
       },
       body: params.toString(),
     })
-  } catch (err) {
+  } catch {
     // Network-level failure (DNS, TCP, timeout, etc.)
     return {
       success: false,
