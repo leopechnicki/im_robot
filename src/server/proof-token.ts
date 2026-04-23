@@ -64,6 +64,13 @@ export interface IssueTokenParams {
   solveTimeMs: number
   /** Whether the solve time was suspicious */
   suspicious: boolean
+  /**
+   * Whether the accompanying Cloudflare Turnstile token was verified.
+   * undefined = Turnstile not configured or token not present.
+   * true  = Turnstile verified successfully.
+   * false = Turnstile present but verification failed (required: false mode).
+   */
+  turnstileVerified?: boolean
 }
 
 /**
@@ -135,6 +142,9 @@ export class ProofTokenIssuer {
         solve_time_ms: params.solveTimeMs,
         suspicious: params.suspicious,
         version: 2,
+        ...(params.turnstileVerified !== undefined
+          ? { turnstile_verified: params.turnstileVerified }
+          : {}),
       },
     }
 
