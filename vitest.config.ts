@@ -15,5 +15,13 @@ export default defineConfig({
       ['test/security-audit.test.ts', 'node'],
       ['test/middleware.test.ts', 'node'],
     ],
+    coverage: {
+      thresholds: {
+        branches: 80,
+        functions: 80,
+        lines: 80,
+        statements: 80,
+      },
+    },
   },
 })
