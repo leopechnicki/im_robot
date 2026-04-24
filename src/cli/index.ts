@@ -174,19 +174,16 @@ const VALID_DIFFICULTIES = ['easy', 'medium', 'hard'] as const
 export function parseDifficulty(raw: string | undefined): Difficulty {
   const val = raw ?? 'medium'
   if (!(VALID_DIFFICULTIES as readonly string[]).includes(val)) {
-    throw new Error(
-      `Invalid difficulty "${val}". Must be one of: easy, medium, hard`,
-    )
+    throw new Error(`Invalid difficulty "${val}". Must be one of: ${VALID_DIFFICULTIES.join(', ')}`)
   }
   return val as Difficulty
 }
 
 export function parseCount(raw: string | undefined): number {
-  const val = parseInt(raw ?? '100', 10)
-  if (isNaN(val) || val < 1) {
-    throw new Error(
-      `Invalid count "${raw ?? '100'}". Must be a positive integer`,
-    )
+  const src = raw ?? '100'
+  const val = Number(src)
+  if (!Number.isInteger(val) || val < 1) {
+    throw new Error(`Invalid count "${src}". Must be a positive integer`)
   }
   return val
 }

@@ -231,4 +231,12 @@ describe('parseCount', () => {
   it('throws for negative values', () => {
     expect(() => parseCount('-5')).toThrow(/invalid count/i)
   })
+
+  it('throws for numeric input with trailing garbage', () => {
+    expect(() => parseCount('10abc')).toThrow(/invalid count/i)
+  })
+
+  it('throws for non-integer values', () => {
+    expect(() => parseCount('1.5')).toThrow(/invalid count/i)
+  })
 })
