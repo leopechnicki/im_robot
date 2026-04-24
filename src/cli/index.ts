@@ -169,15 +169,42 @@ async function cmdInfo() {
   console.log()
 }
 
+const VALID_DIFFICULTIES = ['easy', 'medium', 'hard'] as const
+
+export function parseDifficulty(raw: string | undefined): Difficulty {
+  const val = raw ?? 'medium'
+  if (!(VALID_DIFFICULTIES as readonly string[]).includes(val)) {
+    throw new Error(`Invalid difficulty "${val}". Must be one of: ${VALID_DIFFICULTIES.join(', ')}`)
+  }
+  return val as Difficulty
+}
+
+export function parseCount(raw: string | undefined): number {
+  const src = raw ?? '100'
+  const val = Number(src)
+  if (!Number.isInteger(val) || val < 1) {
+    throw new Error(`Invalid count "${src}". Must be a positive integer`)
+  }
+  return val
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2))
   const command = args._command ?? 'help'
-  const difficulty = (args.difficulty ?? 'medium') as Difficulty
-  const count = parseInt(args.count ?? '100', 10)
 
   if (args.help === 'true' || command === 'help') {
     console.log(HELP)
     return
+  }
+
+  let difficulty: Difficulty
+  let count: number
+  try {
+    difficulty = parseDifficulty(args.difficulty)
+    count = parseCount(args.count)
+  } catch (err) {
+    console.error(`Error: ${err instanceof Error ? err.message : String(err)}`)
+    process.exit(1)
   }
 
   switch (command) {

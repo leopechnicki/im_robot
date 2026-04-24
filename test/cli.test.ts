@@ -4,6 +4,7 @@ import { solveChallenge } from '../src/core/solver'
 import { formatPipeline } from '../src/core/operations'
 import { createVerifier } from '../src/server/verifier'
 import { CLI_VERSION } from '../src/cli/version'
+import { parseDifficulty, parseCount } from '../src/cli/index'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
@@ -180,5 +181,62 @@ describe('CLI benchmark command logic', () => {
 describe('CLI info command logic', () => {
   it('should have a valid CLI_VERSION format', () => {
     expect(CLI_VERSION).toMatch(/^\d+\.\d+\.\d+$/)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// CLI input validation (parseDifficulty / parseCount)
+// ---------------------------------------------------------------------------
+
+describe('parseDifficulty', () => {
+  it('accepts easy, medium, and hard', () => {
+    expect(parseDifficulty('easy')).toBe('easy')
+    expect(parseDifficulty('medium')).toBe('medium')
+    expect(parseDifficulty('hard')).toBe('hard')
+  })
+
+  it('defaults to medium when called with undefined', () => {
+    expect(parseDifficulty(undefined)).toBe('medium')
+  })
+
+  it('throws a descriptive error for an unknown difficulty', () => {
+    expect(() => parseDifficulty('impossible')).toThrow(/invalid difficulty/i)
+    expect(() => parseDifficulty('impossible')).toThrow('impossible')
+  })
+
+  it('throws for empty string', () => {
+    expect(() => parseDifficulty('')).toThrow(/invalid difficulty/i)
+  })
+})
+
+describe('parseCount', () => {
+  it('parses a valid positive integer string', () => {
+    expect(parseCount('100')).toBe(100)
+    expect(parseCount('1')).toBe(1)
+    expect(parseCount('9999')).toBe(9999)
+  })
+
+  it('defaults to 100 when called with undefined', () => {
+    expect(parseCount(undefined)).toBe(100)
+  })
+
+  it('throws a descriptive error for non-numeric input', () => {
+    expect(() => parseCount('abc')).toThrow(/invalid count/i)
+  })
+
+  it('throws for zero', () => {
+    expect(() => parseCount('0')).toThrow(/invalid count/i)
+  })
+
+  it('throws for negative values', () => {
+    expect(() => parseCount('-5')).toThrow(/invalid count/i)
+  })
+
+  it('throws for numeric input with trailing garbage', () => {
+    expect(() => parseCount('10abc')).toThrow(/invalid count/i)
+  })
+
+  it('throws for non-integer values', () => {
+    expect(() => parseCount('1.5')).toThrow(/invalid count/i)
   })
 })
