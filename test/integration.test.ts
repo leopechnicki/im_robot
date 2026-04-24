@@ -270,3 +270,159 @@ describe('Docs: Security Model', () => {
     expect(token.suspicious).toBe(true)
   })
 })
+
+// ── End-to-end: full middleware-protected flow ──────────────────────
+
+import { vi } from 'vitest'
+import { createAgentRouter, requireAgent, createDiscoveryHandler } from '../src/server'
+import type { MiddlewareRequest, MiddlewareResponse } from '../src/server'
+
+describe('End-to-end: discovery → challenge → verify → protected route', () => {
+  const SECRET = 'e2e-secret-at-least-16-chars-long'
+
+  function mockRes() {
+    const res = {
+      statusCode: 0,
+      body: null as any,
+      headers: {} as Record<string, string | number>,
+      status(code: number) {
+        res.statusCode = code
+        return res
+      },
+      setHeader(name: string, value: string | number) {
+        res.headers[name] = value
+      },
+      json(body: any) {
+        res.body = body
+      },
+    }
+    return res
+  }
+
+  it('completes the full agent flow that the README documents', async () => {
+    // ── 0. Agent discovers the protocol via .well-known
+    const discovery = createDiscoveryHandler({
+      challengePath: '/imrobot',
+      name: 'E2E API',
+    })
+    const discoveryRes = mockRes()
+    discovery({ headers: {} } as MiddlewareRequest, discoveryRes as MiddlewareResponse)
+    expect(discoveryRes.statusCode).toBe(200)
+    expect(discoveryRes.body.endpoints.challenge).toBe('/imrobot/challenge')
+    expect(discoveryRes.body.endpoints.proofHeader).toBe('X-Agent-Proof')
+    expect(discoveryRes.headers['Cache-Control']).toBe('public, max-age=3600')
+    expect(discoveryRes.headers['Access-Control-Allow-Origin']).toBe('*')
+
+    // ── 1. Agent calls GET /imrobot/challenge
+    const router = createAgentRouter({
+      secret: SECRET,
+      issuer: 'e2e-test',
+      keyId: 'k-active',
+      previousSecrets: [{ keyId: 'k-old', secret: 'previous-secret-16-chars-here' }],
+      rateLimit: { windowMs: 60_000, maxRequests: 100 },
+    })
+
+    const challengeReq = { headers: {}, method: 'GET', ip: '127.0.0.1' }
+    const challengeRes = mockRes()
+    await router.handler(challengeReq as any, challengeRes as MiddlewareResponse)
+    expect(challengeRes.statusCode).toBe(200)
+    const challenge = challengeRes.body
+    expect(challenge.hmac).toMatch(/^[0-9a-f]{64}$/)
+
+    // ── 2. Agent solves the pipeline
+    const answer = solveChallenge(challenge)
+
+    // ── 3. Agent POSTs /imrobot/verify and receives a proof token
+    const verifyReq = {
+      headers: {},
+      method: 'POST',
+      ip: '127.0.0.1',
+      body: { challenge, answer, agentId: 'e2e-bot-v1' },
+    }
+    const verifyRes = mockRes()
+    await router.handler(verifyReq as any, verifyRes as MiddlewareResponse)
+    expect(verifyRes.statusCode).toBe(200)
+    expect(verifyRes.body.valid).toBe(true)
+    const proofToken = verifyRes.body.proofToken as string
+    expect(proofToken.split('.')).toHaveLength(3)
+
+    // ── 3b. Header inspection: kid present on issued token
+    const headerJson = JSON.parse(
+      Buffer.from(proofToken.split('.')[0], 'base64url').toString('utf-8'),
+    )
+    expect(headerJson.alg).toBe('HS256')
+    expect(headerJson.typ).toBe('JWT')
+    expect(headerJson.kid).toBe('k-active')
+
+    // ── 3c. Payload inspection: time claims in seconds, sub matches agentId
+    const payloadJson = JSON.parse(
+      Buffer.from(proofToken.split('.')[1], 'base64url').toString('utf-8'),
+    )
+    expect(payloadJson.sub).toBe('e2e-bot-v1')
+    expect(payloadJson.iss).toBe('e2e-test')
+    const nowSec = Math.floor(Date.now() / 1000)
+    expect(payloadJson.iat).toBeGreaterThan(nowSec - 5)
+    expect(payloadJson.iat).toBeLessThan(nowSec + 5)
+    expect(payloadJson.exp).toBeGreaterThan(payloadJson.iat)
+    // exp must NOT be in milliseconds — that would put it in year 57935
+    expect(payloadJson.exp).toBeLessThan(2_000_000_000) // < year 2033
+
+    // ── 4. Agent calls a protected route with X-Agent-Proof
+    const guard = requireAgent({
+      secret: SECRET,
+      issuer: 'e2e-test',
+      keyId: 'k-active',
+      previousSecrets: [{ keyId: 'k-old', secret: 'previous-secret-16-chars-here' }],
+    })
+
+    const protectedReq = {
+      headers: { 'x-agent-proof': proofToken },
+      method: 'GET',
+      ip: '127.0.0.1',
+    } as MiddlewareRequest
+    const protectedRes = mockRes()
+    const next = vi.fn()
+    await guard(protectedReq, protectedRes as MiddlewareResponse, next)
+
+    expect(next).toHaveBeenCalled()
+    expect(protectedRes.statusCode).toBe(0)
+    expect(protectedReq.agentVerified).toBe(true)
+    const proof = protectedReq.agentProof as any
+    expect(proof.sub).toBe('e2e-bot-v1')
+    expect(proof.imr.challenge_id).toBe(challenge.id)
+  })
+
+  it('rejects a tampered proof token at the protected route', async () => {
+    const router = createAgentRouter({ secret: SECRET, issuer: 'e2e-test' })
+    const challengeReq = { headers: {}, method: 'GET', ip: '127.0.0.1' }
+    const challengeRes = mockRes()
+    await router.handler(challengeReq as any, challengeRes as MiddlewareResponse)
+    const challenge = challengeRes.body
+    const answer = solveChallenge(challenge)
+
+    const verifyReq = {
+      headers: {},
+      method: 'POST',
+      ip: '127.0.0.1',
+      body: { challenge, answer },
+    }
+    const verifyRes = mockRes()
+    await router.handler(verifyReq as any, verifyRes as MiddlewareResponse)
+    const proofToken = verifyRes.body.proofToken as string
+
+    // Tamper with the payload (flip a character)
+    const [h, p, s] = proofToken.split('.')
+    const tampered = [h, p.slice(0, -1) + (p.endsWith('A') ? 'B' : 'A'), s].join('.')
+
+    const guard = requireAgent({ secret: SECRET, issuer: 'e2e-test' })
+    const next = vi.fn()
+    const res = mockRes()
+    await guard(
+      { headers: { 'x-agent-proof': tampered }, method: 'GET' } as MiddlewareRequest,
+      res as MiddlewareResponse,
+      next,
+    )
+    expect(next).not.toHaveBeenCalled()
+    expect(res.statusCode).toBe(403)
+  })
+})

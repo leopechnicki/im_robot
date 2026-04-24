@@ -20,9 +20,24 @@
 
 Traditional CAPTCHAs prove you're human. But what about the opposite?
 
-As AI agents become first-class web citizens — browsing, booking, purchasing, automating — some systems need to verify their visitors are **legitimate AI agents**, not humans trying to bypass agent-only access. Think agent-facing APIs, AI-only platforms, or multi-agent authentication.
+As AI agents become first-class web citizens — browsing, booking, purchasing, automating — some systems need to gate access to **agent-facing endpoints** without forcing every caller to enroll a key. Think agent-only APIs, AI-only platforms, or multi-agent authentication.
 
 **imrobot** flips the CAPTCHA model: it generates deterministic challenge pipelines that are trivial for any LLM or programmatic agent to solve (< 1 second), but impractical for humans to work through manually.
+
+### What this protocol does and doesn't prove
+
+- ✅ Proves the caller can **execute a deterministic compute pipeline** (string transforms, bytewise ops, hashing) end-to-end without human interaction.
+- ✅ Proves the verification request was **issued by a server holding the same HMAC secret** (no cross-site replay).
+- ✅ Issues a **standards-compliant JWT** (RFC 7519, HS256) that downstream services can verify with any JWT library.
+- ⚠️ Does **not** cryptographically identify a specific bot — anyone who can run JS in a browser console can call `solveChallenge()` and pass.
+- ⚠️ Does **not** replace cryptographic agent identity. For verified-bot identity, layer this with [Cloudflare's Web Bot Auth](https://developers.cloudflare.com/bots/concepts/bot/verified-bots/web-bot-auth/) (HTTP Message Signatures, RFC 9421), mTLS, or per-agent OAuth credentials.
+- ⚠️ The `sha256_hash` operation is **misnamed for historical reasons** — it cascades FNV-1a 8 times into 64 hex characters; it is **not** RFC 6234 SHA-256. Use `fnv1a_cascade` in new code (same wire output).
+
+The library's positioning is "zero-enrollment behavioural gate that survives serialization" — not "cryptographic proof of bot identity." Use the right tool for the job.
+
+### Protocol versioning
+
+The `version` field on the discovery document (`/.well-known/imrobot.json`) is the protocol version, not the package version. The current protocol version is `1.0`. Backwards-incompatible wire-format changes will bump the major.
 
 ## How it works
 
@@ -154,7 +169,32 @@ The server verifier checks in order: HMAC signature validity (challenge and pipe
 
 ### Middleware & Proof-of-Agent tokens
 
-Protect your API endpoints with framework-agnostic middleware. Verified agents receive a JWT-like Proof-of-Agent token (HMAC-SHA256 signed) that they pass via `X-Agent-Proof` header on subsequent requests.
+Protect your API endpoints with framework-agnostic middleware. Verified agents receive a **standards-compliant JWT** (RFC 7519, `alg: HS256`) that they pass via `X-Agent-Proof` header on subsequent requests. The token decodes cleanly with any JWT library (`jose`, `jsonwebtoken`, `jwt-decode`, ...).
+
+Token shape:
+
+```json
+// Header
+{ "alg": "HS256", "typ": "JWT", "kid": "k-2026-04" }
+
+// Payload (claims in seconds-since-epoch per RFC 7519 §4.1.4)
+{
+  "iss": "imrobot",
+  "sub": "agent_123",
+  "iat": 1711540860,
+  "nbf": 1711540860,
+  "exp": 1711544460,
+  "jti": "imr_abcd1234",
+  "imr": {
+    "challenge_id": "ch_abc",
+    "difficulty": "hard",
+    "solve_time_ms": 42,
+    "suspicious": false,
+    "version": 2,
+    "turnstile_verified": true
+  }
+}
+```
 
 ```ts
 import { requireAgent, createAgentRouter } from 'imrobot/server'
@@ -219,7 +259,7 @@ The handler automatically routes based on HTTP method:
 
 ### Rate limiting
 
-Both `createAgentRouter` and `requireAgent` support built-in rate limiting to protect against brute-force attacks and request flooding. The rate limiter is in-memory with zero external dependencies.
+Both `createAgentRouter` and `requireAgent` support built-in **sliding-window** rate limiting to protect against brute-force attacks and request flooding. The rate limiter is in-memory, zero-dependency, and avoids the 2× boundary burst that fixed-window counters allow.
 
 ```ts
 import { createAgentRouter } from 'imrobot/server'
@@ -234,7 +274,7 @@ const router = createAgentRouter({
 })
 ```
 
-When a client exceeds the limit, they receive a `429 Too Many Requests` response with standard headers:
+When a client exceeds the limit, they receive a `429 Too Many Requests` response with standard headers. `X-RateLimit-Reset` is in **seconds since epoch** (matching the GitHub / IETF convention), and `Retry-After` is in seconds (RFC 6585):
 
 ```
 HTTP/1.1 429 Too Many Requests
@@ -279,13 +319,16 @@ import { createAgentRouter } from 'imrobot/server'
 const router = createAgentRouter({
   secret: process.env.IMROBOT_SECRET!,
   turnstile: {
-    // Load from env — never hardcode
+    // Load from env — never hardcode. Must be ≥16 non-whitespace characters.
     secretKey: process.env.TURNSTILE_SECRET_KEY!,
     tokenHeader: 'cf-turnstile-response', // default, matches Cloudflare widget output
     required: false,                       // default — non-breaking, won't block existing clients
+    timeoutMs: 5000,                       // siteverify timeout (default 5s; 0 disables)
   },
 })
 ```
+
+The siteverify call uses an `AbortController` with a configurable `timeoutMs` so a slow Cloudflare response can never hang your verify endpoint. On timeout the result is `{ success: false, errorCodes: ['timeout'] }` and the request is treated like any other Turnstile failure (per your `required` setting).
 
 On the client side, include the Turnstile widget and pass its token as a request header:
 
@@ -335,6 +378,27 @@ const result = await verifyTurnstileToken(secretKey, cfToken, clientIp)
 Set `required: false` initially for a non-breaking rollout — you can enforce it once all clients send the header.
 
 > **Security note:** The secret key must always be loaded from `process.env.TURNSTILE_SECRET_KEY`. Never hardcode it.
+
+### Key rotation (`kid`) and clock skew
+
+Both `requireAgent` and `createAgentRouter` accept a `keyId` (embedded as `kid` in the JWT header) and a `previousSecrets` array so you can rotate signing secrets without invalidating outstanding tokens:
+
+```ts
+const router = createAgentRouter({
+  secret: process.env.IMROBOT_SECRET!,         // active key
+  keyId: 'k-2026-04',                          // identifies the active key
+  previousSecrets: [
+    { keyId: 'k-2026-01', secret: process.env.IMROBOT_SECRET_PREV! },
+  ],
+  clockSkewSec: 5,                             // tolerate ±5s drift on iat/nbf/exp (default 5, max 300)
+})
+```
+
+- New tokens are signed with `secret` and stamped with `kid: keyId`.
+- Verification looks up the secret by the token's `kid`. If `kid` is unknown the request is rejected with `403`.
+- Tokens issued before you started setting `keyId` (no `kid` header) verify against the active `secret`.
+
+Roll a key by deploying with the new `secret`/`keyId` while moving the previous one into `previousSecrets`. Once your max token TTL has elapsed, you can drop the old entry.
 
 ### Invisible verification (zero-UI)
 
@@ -413,6 +477,24 @@ import { buildDiscoveryDocument } from 'imrobot/server'
 
 const doc = buildDiscoveryDocument({ challengePath: '/imrobot' })
 // Serve `doc` as JSON at /.well-known/imrobot.json
+```
+
+`createDiscoveryHandler` sets sensible defaults so third-party agents can fetch the document from any origin and cache it:
+
+```
+Content-Type: application/json; charset=utf-8
+Cache-Control: public, max-age=3600
+Access-Control-Allow-Origin: *
+Vary: Origin
+```
+
+Override either with `cacheControl` / `corsOrigin`. Pass `null` to omit:
+
+```ts
+createDiscoveryHandler({
+  cacheControl: 'no-store',                  // disable caching
+  corsOrigin: 'https://agents.example.com',  // restrict CORS
+})
 ```
 
 ## Screenshot protection
@@ -519,11 +601,14 @@ Every operation has 3–4 distinct phrasings that are randomly selected on each 
 | `slice_alternate()`  | Keep every other character            | `"abcdef"` → `"ace"`            |
 | `fnv1a_hash()`       | FNV-1a hash of the string             | `"test"` → `"bc2c0be9"`         |
 | `length()`           | String length as string               | `"hello"` → `"5"`               |
-| `sha256_hash()`      | SHA-256 hash (sync FNV-based)         | deterministic hex output        |
-| `byte_xor(key[])`    | XOR each byte with key array          | byte-level encryption           |
+| `fnv1a_cascade()`    | Cascaded FNV-1a, 8 rounds → 64 hex chars | deterministic hex output     |
+| `sha256_hash()`      | **Misnomer — alias of `fnv1a_cascade()`.** Kept for wire-format compatibility. NOT real SHA-256. | identical output to `fnv1a_cascade` |
+| `byte_xor(key[])`    | XOR each byte with key array (cycling) | byte-level encryption          |
 | `hash_chain(rounds)` | Iterated FNV-1a hash                  | cascaded hashing                |
 | `nibble_swap()`      | Swap high/low nibbles per byte        | `0xAB` → `0xBA`                 |
 | `bit_rotate(bits)`   | Rotate bits left within byte          | bitwise rotation                |
+
+> **About `sha256_hash`:** The op name is preserved for wire-format compatibility with already-issued challenges, but the implementation has always been FNV-1a cascaded 8 times — not RFC 6234 SHA-256. Use `fnv1a_cascade` in new code; both names produce identical output.
 
 ## Configuration
 
@@ -531,7 +616,7 @@ Every operation has 3–4 distinct phrasings that are randomly selected on each 
 | ------------ | --------------------------------- | -------------- | ---------------------------------------------------------------- |
 | `difficulty` | `'easy' \| 'medium' \| 'hard'`    | `'medium'`     | Number and complexity of operations                              |
 | `theme`      | `'light' \| 'dark'`               | `'light'`      | Color theme                                                      |
-| `size`       | `'compact' \| 'standard'`         | `'standard'`   | Widget size — `compact` for smaller footprint (320px)            |
+| `size`       | `'compact' \| 'standard'`         | `'standard'`   | Widget size — `compact` for smaller footprint (320px). Supported by all four adapters (React, Vue, Svelte, Web Component). |
 | `ttl`        | `number`                          | per-difficulty | Challenge time-to-live in ms (easy: 30s, medium: 20s, hard: 15s) |
 | `onVerified` | `(token) => void`                 | —              | Callback on successful verification                              |
 | `onError`    | `(error) => void`                 | —              | Callback on failed verification                                  |

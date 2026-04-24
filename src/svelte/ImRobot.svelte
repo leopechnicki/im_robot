@@ -1,30 +1,40 @@
 <script>
+  /**
+   * Svelte 5 (runes) adapter for the imrobot widget.
+   *
+   * Uses `$props`, `$state`, `$derived`, and `$effect` so the component
+   * works under Svelte 5's strict runes mode. Falls back to legacy mode
+   * automatically when consumed from a Svelte 4 codebase via `svelte`'s
+   * compatibility layer.
+   */
   import { generateChallenge, verifyAnswer, createToken } from '../core/index'
   import { formatPipeline } from '../core/index'
   import { getStyles, ROBOT_SVG } from '../styles'
   import { setupScreenshotShield } from '../screenshot-shield'
-  import { onMount, onDestroy } from 'svelte'
 
-  export let difficulty = 'medium'
-  export let theme = 'light'
-  export let ttl = 0
-  export let onVerified = (_token) => {}
-  export let onError = (_error) => {}
+  let {
+    difficulty = 'medium',
+    theme = 'light',
+    size = 'standard',
+    ttl = 0,
+    onVerified = (_token) => {},
+    onError = (_error) => {},
+  } = $props()
 
-  let challenge = generateChallenge({ difficulty, ...(ttl > 0 ? { ttl } : {}) })
-  let answer = ''
-  let status = 'idle'
-  let startTime = Date.now()
-  let remainingSeconds = Math.ceil(challenge.ttl / 1000)
-  let countdownTimer = null
-  let shielded = false
+  let challenge = $state(generateChallenge({ difficulty, ...(ttl > 0 ? { ttl } : {}) }))
+  let answer = $state('')
+  let status = $state('idle')
+  let startTime = $state(Date.now())
+  let remainingSeconds = $state(Math.ceil(challenge.ttl / 1000))
+  let countdownTimer = $state(null)
+  let shielded = $state(false)
   let cleanupShield = null
 
-  $: css = getStyles(theme)
-  $: display = formatPipeline(challenge.visibleSeed, challenge.pipeline)
-  $: challengeJson = JSON.stringify(challenge)
-  $: totalSec = challenge.ttl / 1000
-  $: pct = (remainingSeconds / totalSec) * 100
+  let css = $derived(getStyles(theme, size))
+  let display = $derived(formatPipeline(challenge.visibleSeed, challenge.pipeline))
+  let challengeJson = $derived(JSON.stringify(challenge))
+  let totalSec = $derived(challenge.ttl / 1000)
+  let pct = $derived((remainingSeconds / totalSec) * 100)
 
   function refreshChallenge() {
     challenge = generateChallenge({ difficulty, ...(ttl > 0 ? { ttl } : {}) })
@@ -53,13 +63,13 @@
     }
   }
 
-  onMount(() => {
+  $effect(() => {
     startCountdown()
     cleanupShield = setupScreenshotShield((v) => { shielded = v })
-  })
-  onDestroy(() => {
-    stopCountdown()
-    if (cleanupShield) cleanupShield()
+    return () => {
+      stopCountdown()
+      if (cleanupShield) cleanupShield()
+    }
   })
 
   function handleVerify() {

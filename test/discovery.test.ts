@@ -80,6 +80,7 @@ describe('createDiscoveryHandler', () => {
     const res = {
       status: vi.fn().mockReturnThis(),
       json: vi.fn(),
+      setHeader: vi.fn(),
     }
     return res
   }
@@ -115,5 +116,57 @@ describe('createDiscoveryHandler', () => {
     const doc = res.json.mock.calls[0][0] as DiscoveryDocument
     expect(doc.endpoints.challenge).toBe('/auth/agent/challenge')
     expect(doc.endpoints.verify).toBe('/auth/agent/verify')
+  })
+
+  it('sets default Cache-Control, CORS, Content-Type, and Vary headers', () => {
+    const handler = createDiscoveryHandler()
+    const req = { headers: {} }
+    const res = createMockRes()
+
+    handler(req, res)
+
+    const headers = Object.fromEntries(res.setHeader.mock.calls)
+    expect(headers['Content-Type']).toBe('application/json; charset=utf-8')
+    expect(headers['Cache-Control']).toBe('public, max-age=3600')
+    expect(headers['Access-Control-Allow-Origin']).toBe('*')
+    expect(headers['Vary']).toBe('Origin')
+  })
+
+  it('respects custom cacheControl and corsOrigin', () => {
+    const handler = createDiscoveryHandler({
+      cacheControl: 'no-store',
+      corsOrigin: 'https://agents.example.com',
+    })
+    const req = { headers: {} }
+    const res = createMockRes()
+
+    handler(req, res)
+
+    const headers = Object.fromEntries(res.setHeader.mock.calls)
+    expect(headers['Cache-Control']).toBe('no-store')
+    expect(headers['Access-Control-Allow-Origin']).toBe('https://agents.example.com')
+  })
+
+  it('omits Cache-Control when set to null', () => {
+    const handler = createDiscoveryHandler({ cacheControl: null })
+    const req = { headers: {} }
+    const res = createMockRes()
+
+    handler(req, res)
+
+    const headers = Object.fromEntries(res.setHeader.mock.calls)
+    expect(headers['Cache-Control']).toBeUndefined()
+  })
+
+  it('omits CORS headers when set to null', () => {
+    const handler = createDiscoveryHandler({ corsOrigin: null })
+    const req = { headers: {} }
+    const res = createMockRes()
+
+    handler(req, res)
+
+    const headers = Object.fromEntries(res.setHeader.mock.calls)
+    expect(headers['Access-Control-Allow-Origin']).toBeUndefined()
+    expect(headers['Vary']).toBeUndefined()
   })
 })

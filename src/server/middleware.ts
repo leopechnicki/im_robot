@@ -42,6 +42,21 @@ export interface RequireAgentOptions {
   /** Token TTL in ms (default: 1 hour) */
   tokenTTL?: number
   /**
+   * Allowed clock skew in seconds when verifying token `iat`/`nbf`/`exp` claims.
+   * Defaults to 5s. Set to 0 to disable.
+   */
+  clockSkewSec?: number
+  /**
+   * Optional key id (`kid` in JWT header) for the active signing secret.
+   * Required when accepting tokens issued under rotated-out keys via `previousSecrets`.
+   */
+  keyId?: string
+  /**
+   * Additional secrets accepted during verification (graceful key rotation).
+   * Each entry's `keyId` must match the `kid` header on tokens issued under that older secret.
+   */
+  previousSecrets?: Array<{ keyId: string; secret: string }>
+  /**
    * Whether to trust proxy headers (X-Forwarded-For, X-Real-IP) for client IP extraction.
    * When false (default), only req.ip is used — preventing IP spoofing via headers.
    * Set to true only if your app runs behind a trusted reverse proxy (e.g., nginx, Cloudflare).
@@ -129,15 +144,33 @@ function getClientIp(req: MiddlewareRequest, trustProxy = false): string {
     const xff = req.headers['x-forwarded-for']
     if (xff) {
       const ip = (Array.isArray(xff) ? xff[0] : xff).split(',')[0].trim()
-      if (ip) return ip
+      if (ip) return normalizeIp(ip)
     }
     const xri = req.headers['x-real-ip']
     if (xri) {
       const ip = Array.isArray(xri) ? xri[0] : xri
-      if (ip) return ip.trim()
+      if (ip) return normalizeIp(ip.trim())
     }
   }
-  return req.ip ?? 'unknown'
+  return req.ip ? normalizeIp(req.ip) : 'unknown'
+}
+
+/**
+ * Normalize an IP address for use as a rate-limit key.
+ * Collapses IPv4-mapped IPv6 (`::ffff:127.0.0.1` → `127.0.0.1`) and IPv6 loopback.
+ */
+function normalizeIp(ip: string): string {
+  const trimmed = ip.trim()
+  if (trimmed.startsWith('::ffff:')) {
+    return trimmed.slice(7)
+  }
+  if (trimmed === '::1') return '127.0.0.1'
+  return trimmed
+}
+
+/** Helper: convert milliseconds-since-epoch to seconds-since-epoch (RFC convention). */
+function toUnixSeconds(ms: number): number {
+  return Math.ceil(ms / 1000)
 }
 export function requireAgent(options: RequireAgentOptions) {
   const headerName = (options.headerName ?? 'x-agent-proof').toLowerCase()
@@ -145,6 +178,9 @@ export function requireAgent(options: RequireAgentOptions) {
     secret: options.secret,
     issuer: options.issuer,
     tokenTTL: options.tokenTTL,
+    clockSkewSec: options.clockSkewSec,
+    keyId: options.keyId,
+    previousSecrets: options.previousSecrets,
   })
 
   // Initialize rate limiter if configured
@@ -171,7 +207,7 @@ export function requireAgent(options: RequireAgentOptions) {
         // Set standard rate limit headers
         res.setHeader?.('X-RateLimit-Limit', rateLimitMax)
         res.setHeader?.('X-RateLimit-Remaining', status.remaining)
-        res.setHeader?.('X-RateLimit-Reset', status.resetAt)
+        res.setHeader?.('X-RateLimit-Reset', toUnixSeconds(status.resetAt))
         res.setHeader?.('Retry-After', retryAfter)
 
         return res.status(429).json({
@@ -185,7 +221,7 @@ export function requireAgent(options: RequireAgentOptions) {
       const status = rateLimiter.getStatus(key)
       res.setHeader?.('X-RateLimit-Limit', rateLimitMax)
       res.setHeader?.('X-RateLimit-Remaining', status.remaining)
-      res.setHeader?.('X-RateLimit-Reset', status.resetAt)
+      res.setHeader?.('X-RateLimit-Reset', toUnixSeconds(status.resetAt))
     }
 
     // Extract token
@@ -249,6 +285,9 @@ export function createAgentRouter(options: RequireAgentOptions) {
     secret: options.secret,
     issuer: options.issuer,
     tokenTTL: options.tokenTTL,
+    clockSkewSec: options.clockSkewSec,
+    keyId: options.keyId,
+    previousSecrets: options.previousSecrets,
   })
 
   // Initialize rate limiter if configured
@@ -276,7 +315,7 @@ export function createAgentRouter(options: RequireAgentOptions) {
       // Set standard rate limit headers
       res.setHeader?.('X-RateLimit-Limit', options.rateLimit?.maxRequests ?? 30)
       res.setHeader?.('X-RateLimit-Remaining', status.remaining)
-      res.setHeader?.('X-RateLimit-Reset', status.resetAt)
+      res.setHeader?.('X-RateLimit-Reset', toUnixSeconds(status.resetAt))
       res.setHeader?.('Retry-After', retryAfter)
 
       res.status(429).json({
@@ -291,7 +330,7 @@ export function createAgentRouter(options: RequireAgentOptions) {
     const status = rateLimiter.getStatus(key)
     res.setHeader?.('X-RateLimit-Limit', options.rateLimit?.maxRequests ?? 30)
     res.setHeader?.('X-RateLimit-Remaining', status.remaining)
-    res.setHeader?.('X-RateLimit-Reset', status.resetAt)
+    res.setHeader?.('X-RateLimit-Reset', toUnixSeconds(status.resetAt))
     return true
   }
 

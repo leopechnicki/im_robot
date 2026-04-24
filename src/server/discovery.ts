@@ -20,6 +20,18 @@ export interface DiscoveryConfig {
   contact?: string
   /** Additional metadata to include in the discovery response */
   metadata?: Record<string, unknown>
+  /**
+   * `Cache-Control` value to send with the discovery response.
+   * Defaults to `public, max-age=3600` — discovery docs change infrequently.
+   * Pass `null` to omit the header.
+   */
+  cacheControl?: string | null
+  /**
+   * `Access-Control-Allow-Origin` value. Discovery is intended to be fetched
+   * by third-party agents from any origin. Defaults to `*`.
+   * Pass `null` to omit the header.
+   */
+  corsOrigin?: string | null
 }
 
 /**
@@ -122,8 +134,19 @@ export function buildDiscoveryDocument(config: DiscoveryConfig = {}): DiscoveryD
  */
 export function createDiscoveryHandler(config: DiscoveryConfig = {}) {
   const document = buildDiscoveryDocument(config)
+  const cacheControl =
+    config.cacheControl === undefined ? 'public, max-age=3600' : config.cacheControl
+  const corsOrigin = config.corsOrigin === undefined ? '*' : config.corsOrigin
 
   return (_req: MiddlewareRequest, res: MiddlewareResponse) => {
+    res.setHeader?.('Content-Type', 'application/json; charset=utf-8')
+    if (cacheControl) res.setHeader?.('Cache-Control', cacheControl)
+    if (corsOrigin) {
+      res.setHeader?.('Access-Control-Allow-Origin', corsOrigin)
+      // Discovery is a simple GET — no preflight needed for `*` + GET, but
+      // be explicit for proxies that strip implicit values.
+      res.setHeader?.('Vary', 'Origin')
+    }
     return res.status(200).json(document)
   }
 }

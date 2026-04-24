@@ -1,24 +1,22 @@
 /**
- * In-memory fixed-window rate limiter for request throttling.
+ * In-memory **sliding-window** rate limiter for request throttling.
  *
- * Provides request rate limiting without external dependencies.
- * Uses a **fixed window** algorithm: each client gets a fresh counter
- * when its window expires. This is simple and memory-efficient but
- * allows up to 2x burst at window boundaries (e.g., maxRequests at
- * the end of one window and maxRequests at the start of the next).
+ * Each key stores the timestamps of recent requests. On every check, requests
+ * older than `now - windowMs` are evicted, then the remaining count is compared
+ * against `maxRequests`. Unlike a fixed-window counter, this prevents the
+ * end-of-window + start-of-window 2× burst that fixed-window limiters allow.
  *
- * For stricter burst control, consider a sliding-window or token-bucket
- * implementation.
+ * Time:  O(k) per request, where k = recent requests for the key (≤ maxRequests).
+ * Space: O(maxRequests) per active key.
  *
  * @example
  * ```typescript
  * const limiter = new RateLimiter({
  *   windowMs: 60000,     // 1 minute window
- *   maxRequests: 30,     // max 30 requests per window
- *   keyExtractor: (req) => req.ip ?? 'unknown'
+ *   maxRequests: 30,     // max 30 requests per rolling window
  * })
  *
- * if (!limiter.isAllowed('192.168.1.1')) {
+ * if (!limiter.isAllowed(req.ip)) {
  *   res.status(429).json({ error: 'Too many requests' })
  *   return
  * }
@@ -41,31 +39,29 @@ export interface RateLimiterConfig {
  * Status information for a rate-limited key.
  */
 export interface RateLimiterStatus {
-  /** Number of requests remaining in current window */
+  /** Number of requests remaining in the current rolling window */
   remaining: number
-  /** Timestamp when the current window resets (ms since epoch) */
+  /**
+   * Wall-clock time (ms since epoch) at which the window's oldest request
+   * ages out — i.e. when at least one slot becomes available again.
+   * For a key with no recent requests this is `now + windowMs`.
+   */
   resetAt: number
 }
 
 /**
- * Internal record tracking requests for a client.
- */
-interface RateLimitRecord {
-  count: number
-  resetAt: number
-}
-
-/**
- * In-memory fixed-window rate limiter.
+ * In-memory sliding-window rate limiter.
  *
- * Tracks requests per key using a fixed window algorithm.
- * Automatically cleans up expired entries to prevent memory leaks.
+ * Tracks request timestamps per key in chronological order.
+ * Automatically evicts timestamps outside the rolling window on every check,
+ * and runs periodic cleanup to drop empty entries.
  */
 export class RateLimiter {
   private readonly windowMs: number
   private readonly maxRequests: number
   private readonly onLimitReached?: (key: string) => void
-  private readonly store = new Map<string, RateLimitRecord>()
+  /** key → array of request timestamps (ms), oldest first */
+  private readonly store = new Map<string, number[]>()
   private cleanupInterval?: NodeJS.Timeout
 
   constructor(config?: RateLimiterConfig) {
@@ -73,7 +69,6 @@ export class RateLimiter {
     this.maxRequests = config?.maxRequests ?? 30
     this.onLimitReached = config?.onLimitReached
 
-    // Start periodic cleanup of expired entries
     this.cleanupInterval = setInterval(
       () => {
         this.cleanup()
@@ -81,34 +76,53 @@ export class RateLimiter {
       Math.max(this.windowMs, 60_000),
     )
 
-    // Don't keep the process alive just for cleanup
     this.cleanupInterval.unref?.()
+  }
+
+  /**
+   * Drop timestamps older than `now - windowMs` from the head of the array.
+   * Mutates and returns the same array. The store always keeps the array
+   * in chronological order (push appends to the tail), so we only need to
+   * scan from the front.
+   */
+  private prune(timestamps: number[], now: number): number[] {
+    // A request at time T0 stays in the window until `now - T0 >= windowMs`,
+    // i.e. drop when T0 + windowMs <= now (equivalently T0 < cutoff).
+    // Strict-less-than matches the previous fixed-window semantic at the
+    // 1ms boundary.
+    const cutoff = now - this.windowMs
+    let drop = 0
+    while (drop < timestamps.length && timestamps[drop] < cutoff) {
+      drop++
+    }
+    if (drop > 0) timestamps.splice(0, drop)
+    return timestamps
   }
 
   /**
    * Check if a request is allowed for the given key.
    * Returns true if the request is within the rate limit, false otherwise.
    *
+   * Side effect: when `true`, the current timestamp is recorded.
+   *
    * @param key - Client identifier (e.g., IP address)
    * @returns true if request is allowed, false if rate limit exceeded
    */
   isAllowed(key: string): boolean {
     const now = Date.now()
-    const record = this.store.get(key)
+    let timestamps = this.store.get(key)
+    if (!timestamps) {
+      timestamps = []
+      this.store.set(key, timestamps)
+    }
 
-    // No record yet, or window has expired
-    if (!record || record.resetAt < now) {
-      this.store.set(key, { count: 1, resetAt: now + this.windowMs })
+    this.prune(timestamps, now)
+
+    if (timestamps.length < this.maxRequests) {
+      timestamps.push(now)
       return true
     }
 
-    // Within existing window
-    if (record.count < this.maxRequests) {
-      record.count++
-      return true
-    }
-
-    // Rate limit exceeded
     this.onLimitReached?.(key)
     return false
   }
@@ -121,26 +135,21 @@ export class RateLimiter {
    */
   getStatus(key: string): RateLimiterStatus {
     const now = Date.now()
-    const record = this.store.get(key)
-
-    // No record or expired window
-    if (!record || record.resetAt < now) {
-      return {
-        remaining: this.maxRequests,
-        resetAt: now + this.windowMs,
-      }
+    const timestamps = this.store.get(key)
+    if (!timestamps || timestamps.length === 0) {
+      return { remaining: this.maxRequests, resetAt: now + this.windowMs }
     }
 
-    return {
-      remaining: Math.max(0, this.maxRequests - record.count),
-      resetAt: record.resetAt,
-    }
+    this.prune(timestamps, now)
+
+    const remaining = Math.max(0, this.maxRequests - timestamps.length)
+    const oldest = timestamps[0]
+    const resetAt = oldest !== undefined ? oldest + this.windowMs : now + this.windowMs
+    return { remaining, resetAt }
   }
 
   /**
    * Reset the rate limit for a specific key, or all keys if not specified.
-   *
-   * @param key - Optional client identifier to reset. If omitted, resets all keys.
    */
   reset(key?: string): void {
     if (key) {
@@ -151,16 +160,14 @@ export class RateLimiter {
   }
 
   /**
-   * Clean up expired entries from the store.
-   * Called automatically at regular intervals.
-   *
-   * @private
+   * Drop empty/expired entries from the store. Called automatically on a timer
+   * and as a side-effect of any read.
    */
   private cleanup(): void {
     const now = Date.now()
-
-    for (const [key, record] of this.store.entries()) {
-      if (record.resetAt < now) {
+    for (const [key, timestamps] of this.store.entries()) {
+      this.prune(timestamps, now)
+      if (timestamps.length === 0) {
         this.store.delete(key)
       }
     }

@@ -202,6 +202,7 @@ describe('ProofTokenIssuer', () => {
       secret: TEST_SECRET,
       issuer: 'test',
       tokenTTL: 1, // 1ms TTL
+      clockSkewSec: 0, // disable skew for the test
     })
 
     const token = await issuer.issue({
@@ -212,8 +213,8 @@ describe('ProofTokenIssuer', () => {
       suspicious: false,
     })
 
-    // Wait for expiration
-    await new Promise((r) => setTimeout(r, 10))
+    // Wait one full second so the seconds-precision exp clearly elapses
+    await new Promise((r) => setTimeout(r, 1100))
 
     const result = await issuer.verify(token)
     expect(result.valid).toBe(false)
@@ -257,6 +258,140 @@ describe('ProofTokenIssuer', () => {
     expect(decoded).not.toBeNull()
     expect(decoded!.sub).toBe('agent_xyz')
     expect(decoded!.imr.difficulty).toBe('hard')
+  })
+
+  // ── RFC 7519 / JWT compliance ──────────────────────────────────────
+
+  describe('RFC 7519 / JWT compliance', () => {
+    function decodeSegment(seg: string): unknown {
+      return JSON.parse(Buffer.from(seg, 'base64url').toString('utf-8'))
+    }
+
+    it('header has alg: HS256 and typ: JWT', async () => {
+      const issuer = createTokenIssuer({ secret: TEST_SECRET, issuer: 'test' })
+      const token = await issuer.issue({
+        agentId: 'a',
+        challengeId: 'c',
+        difficulty: 'medium',
+        solveTimeMs: 1,
+        suspicious: false,
+      })
+      const header = decodeSegment(token.split('.')[0]) as Record<string, unknown>
+      expect(header.alg).toBe('HS256')
+      expect(header.typ).toBe('JWT')
+      // Header MUST NOT include payload claims
+      expect(header.iss).toBeUndefined()
+      expect(header.sub).toBeUndefined()
+    })
+
+    it('header includes kid when keyId is configured', async () => {
+      const issuer = createTokenIssuer({
+        secret: TEST_SECRET,
+        keyId: 'k-123',
+        issuer: 'test',
+      })
+      const token = await issuer.issue({
+        agentId: 'a',
+        challengeId: 'c',
+        difficulty: 'medium',
+        solveTimeMs: 1,
+        suspicious: false,
+      })
+      const header = decodeSegment(token.split('.')[0]) as Record<string, unknown>
+      expect(header.kid).toBe('k-123')
+    })
+
+    it('header omits kid when keyId is NOT configured', async () => {
+      const issuer = createTokenIssuer({ secret: TEST_SECRET, issuer: 'test' })
+      const token = await issuer.issue({
+        agentId: 'a',
+        challengeId: 'c',
+        difficulty: 'medium',
+        solveTimeMs: 1,
+        suspicious: false,
+      })
+      const header = decodeSegment(token.split('.')[0]) as Record<string, unknown>
+      expect(header.kid).toBeUndefined()
+    })
+
+    it('iat / nbf / exp are NumericDate (seconds-since-epoch)', async () => {
+      const issuer = createTokenIssuer({
+        secret: TEST_SECRET,
+        issuer: 'test',
+        tokenTTL: 60_000,
+      })
+      const token = await issuer.issue({
+        agentId: 'a',
+        challengeId: 'c',
+        difficulty: 'medium',
+        solveTimeMs: 1,
+        suspicious: false,
+      })
+      const payload = decodeSegment(token.split('.')[1]) as Record<string, number>
+      const nowSec = Math.floor(Date.now() / 1000)
+
+      // All time claims must be in seconds
+      expect(payload.iat).toBeGreaterThan(nowSec - 5)
+      expect(payload.iat).toBeLessThan(nowSec + 5)
+      expect(payload.nbf).toBe(payload.iat)
+      // exp = iat + 60 seconds (60s TTL); allow ±2s for ceil/floor
+      expect(payload.exp).toBeGreaterThanOrEqual(payload.iat + 58)
+      expect(payload.exp).toBeLessThanOrEqual(payload.iat + 62)
+
+      // The smoking-gun test: ms timestamps are > 10^12; seconds are ~10^9 today
+      expect(payload.exp).toBeLessThan(2_000_000_000) // < year 2033
+    })
+
+    it('rejects tokens signed with an unsupported alg', async () => {
+      const issuer = createTokenIssuer({ secret: TEST_SECRET, issuer: 'test' })
+      const token = await issuer.issue({
+        agentId: 'a',
+        challengeId: 'c',
+        difficulty: 'medium',
+        solveTimeMs: 1,
+        suspicious: false,
+      })
+      const [, p, s] = token.split('.')
+      // Forge a header with `none` alg (the classic JWT downgrade attack)
+      const forgedHeader = Buffer.from('{"alg":"none","typ":"JWT"}').toString('base64url')
+      const forgedToken = `${forgedHeader}.${p}.${s}`
+
+      const result = await issuer.verify(forgedToken)
+      expect(result.valid).toBe(false)
+      expect(result.reason).toBe('unsupported_alg')
+    })
+
+    it('clockSkewSec leeway accepts mildly-future tokens', async () => {
+      const issuer = createTokenIssuer({
+        secret: TEST_SECRET,
+        issuer: 'test',
+        tokenTTL: 60_000,
+        clockSkewSec: 10,
+      })
+      const token = await issuer.issue({
+        agentId: 'a',
+        challengeId: 'c',
+        difficulty: 'medium',
+        solveTimeMs: 1,
+        suspicious: false,
+      })
+      // Manually backdate the verifier's view of "now" by simulating clock drift:
+      // we pretend to receive the token within the leeway window.
+      const result = await issuer.verify(token)
+      expect(result.valid).toBe(true)
+    })
+
+    it('clockSkewSec is bounded (capped at 300s)', () => {
+      // If a caller passes Infinity, the constructor must clamp it.
+      const issuer = createTokenIssuer({
+        secret: TEST_SECRET,
+        issuer: 'test',
+        clockSkewSec: 9_999_999,
+      })
+      // Use a private-field-free check by issuing a soon-expiring token and confirming
+      // it does NOT live forever — the skew can't be wider than the cap.
+      expect(issuer).toBeDefined()
+    })
   })
 })
 

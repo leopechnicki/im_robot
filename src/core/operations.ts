@@ -104,6 +104,10 @@ export function executeOperation(input: string, op: Operation): string {
     // ---- Crypto-grade operations (v0.4) ----
 
     case 'sha256_hash':
+    case 'fnv1a_cascade':
+      // Both names produce the same output (FNV-1a cascaded 8 times → 64 hex chars).
+      // `fnv1a_cascade` is the accurate name; `sha256_hash` is kept as a deprecated alias
+      // so previously-issued challenges still verify.
       return syncHash256(input)
 
     case 'byte_xor': {
@@ -224,6 +228,8 @@ export function formatOperation(op: Operation): string {
       return 'length()'
     case 'sha256_hash':
       return 'sha256_hash()'
+    case 'fnv1a_cascade':
+      return 'fnv1a_cascade()'
     case 'byte_xor':
       return `byte_xor([${op.key.join(',')}])`
     case 'hash_chain':
@@ -409,11 +415,11 @@ export function formatOperationNL(op: Operation): string {
       ])
 
     case 'sha256_hash':
+    case 'fnv1a_cascade':
       return pick([
-        'Hash the text using SHA-256',
-        'Compute a SHA-256 digest',
-        'Apply the SHA-256 hash function',
-        'Produce a SHA-256 hash of the input',
+        'Hash the text by cascading FNV-1a 8 times into 64 hex characters',
+        'Apply 8 rounds of FNV-1a, concatenating each round into a 64-char hex digest',
+        'Compute the cascaded FNV-1a digest (8 rounds, 64 hex chars)',
       ])
 
     case 'byte_xor':

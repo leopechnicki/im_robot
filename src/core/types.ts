@@ -19,7 +19,13 @@ export type Operation =
   | { op: 'fnv1a_hash' }
   | { op: 'length' }
   // Crypto-grade operations (v0.4)
+  /**
+   * @deprecated Misnomer — this is FNV-1a cascaded 8 times, NOT SHA-256.
+   * Use {@link Operation.fnv1a_cascade} instead. Kept for wire-format compatibility.
+   */
   | { op: 'sha256_hash' }
+  /** Cascaded FNV-1a → 64 hex chars. Synchronous, deterministic. */
+  | { op: 'fnv1a_cascade' }
   | { op: 'byte_xor'; key: number[] }
   | { op: 'hash_chain'; rounds: number }
   | { op: 'nibble_swap' }
@@ -81,20 +87,28 @@ export interface ImRobotConfig {
 }
 
 /**
- * JWT-like Proof-of-Agent token issued after successful verification.
+ * RFC 7519 JWT Proof-of-Agent token issued after successful verification.
  * Designed for cross-service agent authentication via X-Agent-Proof header.
+ *
+ * Header (separate from this payload type) is `{ alg: 'HS256', typ: 'JWT', kid?: string }`.
+ * All time-based claims (`iat`, `nbf`, `exp`) are seconds since epoch (NumericDate, RFC 7519 §4.1.4).
  */
 export interface AgentProofToken {
-  /** Header */
-  alg: 'HMAC-SHA256'
-  typ: 'agent+jwt'
-  /** Payload */
+  /** Issuer identifier (RFC 7519 §4.1.1) */
   iss: string
+  /** Subject — agent id (RFC 7519 §4.1.2) */
   sub: string
+  /** Audience (RFC 7519 §4.1.3) */
   aud?: string
+  /** Issued-at, seconds since epoch (RFC 7519 §4.1.6) */
   iat: number
+  /** Not-before, seconds since epoch (RFC 7519 §4.1.5) */
+  nbf?: number
+  /** Expiration, seconds since epoch (RFC 7519 §4.1.4) */
   exp: number
+  /** JWT ID (RFC 7519 §4.1.7) */
   jti: string
+  /** Namespaced imrobot claim (RFC 7519 §4.3 private claim) */
   imr: {
     challenge_id: string
     difficulty: Difficulty

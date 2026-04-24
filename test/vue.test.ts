@@ -80,4 +80,18 @@ describe('Vue ImRobot Component', () => {
     expect(brand.exists()).toBe(true)
     expect(brand.text()).toBe('imrobot')
   })
+
+  it('respects size="compact" prop', () => {
+    const wrapper = mount(ImRobot, { props: { size: 'compact' } })
+    const style = wrapper.find('style')
+    expect(style.exists()).toBe(true)
+    expect(style.element.textContent).toContain('max-width: 320px')
+  })
+
+  it('defaults to size="standard"', () => {
+    const wrapper = mount(ImRobot)
+    const style = wrapper.find('style')
+    expect(style.element.textContent).toContain('max-width: 420px')
+    expect(style.element.textContent).not.toContain('max-width: 320px')
+  })
 })
