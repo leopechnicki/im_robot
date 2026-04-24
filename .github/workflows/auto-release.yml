@@ -45,6 +45,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
@@ -58,33 +60,62 @@ jobs:
           NEXT_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
           echo "Next dev version: $NEXT_VERSION"
 
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [ -z "$LAST_TAG" ]; then
-            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges -20)
-          else
-            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges "${LAST_TAG}..HEAD")
+          # Guard against tag/release collisions. If the package.json version was
+          # not bumped since the last release (e.g. the previous bump PR was never
+          # merged), skip the release step but still open the bump PR so a future
+          # run can release cleanly.
+          TAG_EXISTS=false
+          if git rev-parse "refs/tags/${RELEASE_VERSION}" >/dev/null 2>&1; then
+            TAG_EXISTS=true
+          elif gh release view "$RELEASE_VERSION" >/dev/null 2>&1; then
+            TAG_EXISTS=true
           fi
 
-          # Tag + release using the current package.json version
-          gh release create "$RELEASE_VERSION" \
-            --title "Release $RELEASE_VERSION" \
-            --notes "## What's Changed
+          if [ "$TAG_EXISTS" = "true" ]; then
+            echo "::warning::Tag/release ${RELEASE_VERSION} already exists — skipping release, opening bump PR only."
+            RELEASE_CREATED=false
+          else
+            LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+            if [ -z "$LAST_TAG" ]; then
+              CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges -20)
+            else
+              CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges "${LAST_TAG}..HEAD")
+            fi
+
+            gh release create "$RELEASE_VERSION" \
+              --title "Release $RELEASE_VERSION" \
+              --notes "## What's Changed
 
           $CHANGELOG
 
           ---
           *Auto-released on $(date -u +%Y-%m-%d)*" \
-            --target main
+              --target main
+            RELEASE_CREATED=true
+          fi
 
-          # Create a PR to bump package.json to the next patch version
+          # Open (or reuse) the version-bump PR. If the branch already exists on
+          # origin from a previous run, don't try to recreate it.
           BRANCH="chore/bump-version-v${NEXT_VERSION}"
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            echo "Bump branch ${BRANCH} already exists on origin — leaving existing PR in place."
+            exit 0
+          fi
+
           git checkout -b "$BRANCH"
           npm version "$NEXT_VERSION" --no-git-tag-version
           git add package.json package-lock.json 2>/dev/null || git add package.json
           git commit -m "chore: bump version to ${NEXT_VERSION} [skip ci]"
           git push origin "$BRANCH"
+
+          if [ "$RELEASE_CREATED" = "true" ]; then
+            PR_BODY="Automated version bump after release ${RELEASE_VERSION}"
+          else
+            PR_BODY="Automated version bump. Release ${RELEASE_VERSION} was skipped because the tag already exists; merging this PR unblocks next Friday's release."
+          fi
+
           gh pr create \
             --title "chore: bump version to ${NEXT_VERSION}" \
-            --body "Automated version bump after release $RELEASE_VERSION" \
+            --body "$PR_BODY" \
             --base main \
             --head "$BRANCH"
