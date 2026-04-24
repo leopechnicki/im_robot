@@ -242,6 +242,142 @@ describe('IP spoofing protection', () => {
   })
 })
 
+// ── IP normalization ─────────────────────────────────────────────────
+
+describe('IP normalization for rate-limit keys', () => {
+  it('treats ::ffff:127.0.0.1 and 127.0.0.1 as the same client', async () => {
+    const issuer = new ProofTokenIssuer({ secret: TEST_SECRET })
+    const token = await issuer.issue({
+      agentId: 'agent',
+      challengeId: 'ch',
+      difficulty: 'easy',
+      solveTimeMs: 1,
+      suspicious: false,
+    })
+
+    const middleware = requireAgent({
+      secret: TEST_SECRET,
+      rateLimit: { windowMs: 60_000, maxRequests: 1 },
+    })
+
+    // First request — IPv4-mapped IPv6
+    await middleware(
+      mockReq({ headers: { 'x-agent-proof': token }, ip: '::ffff:192.168.1.1' }),
+      mockRes(),
+      vi.fn(),
+    )
+
+    // Second request from the *same* logical IP in plain IPv4 form must be limited
+    const res = mockRes()
+    await middleware(
+      mockReq({ headers: { 'x-agent-proof': token }, ip: '192.168.1.1' }),
+      res,
+      vi.fn(),
+    )
+
+    expect(res.statusCode).toBe(429)
+  })
+
+  it('treats ::1 and 127.0.0.1 as the same client', async () => {
+    const issuer = new ProofTokenIssuer({ secret: TEST_SECRET })
+    const token = await issuer.issue({
+      agentId: 'agent',
+      challengeId: 'ch',
+      difficulty: 'easy',
+      solveTimeMs: 1,
+      suspicious: false,
+    })
+
+    const middleware = requireAgent({
+      secret: TEST_SECRET,
+      rateLimit: { windowMs: 60_000, maxRequests: 1 },
+    })
+
+    await middleware(
+      mockReq({ headers: { 'x-agent-proof': token }, ip: '::1' }),
+      mockRes(),
+      vi.fn(),
+    )
+
+    const res = mockRes()
+    await middleware(
+      mockReq({ headers: { 'x-agent-proof': token }, ip: '127.0.0.1' }),
+      res,
+      vi.fn(),
+    )
+
+    expect(res.statusCode).toBe(429)
+  })
+})
+
+// ── Key rotation (kid) ───────────────────────────────────────────────
+
+describe('proof-token key rotation', () => {
+  it('accepts tokens signed with a previous secret if its kid is registered', async () => {
+    const oldSecret = 'old-secret-at-least-16-chars-aaa'
+    const newSecret = 'new-secret-at-least-16-chars-bbb'
+
+    // Token issued under the OLD key
+    const oldIssuer = new ProofTokenIssuer({
+      secret: oldSecret,
+      keyId: 'k-2025-12',
+      issuer: 'imrobot',
+    })
+    const token = await oldIssuer.issue({
+      agentId: 'agent',
+      challengeId: 'ch',
+      difficulty: 'easy',
+      solveTimeMs: 1,
+      suspicious: false,
+    })
+
+    // Middleware on the NEW key, with the old key registered as a previous secret
+    const middleware = requireAgent({
+      secret: newSecret,
+      keyId: 'k-2026-04',
+      previousSecrets: [{ keyId: 'k-2025-12', secret: oldSecret }],
+    })
+
+    const next = vi.fn()
+    const res = mockRes()
+    await middleware(mockReq({ headers: { 'x-agent-proof': token } }), res, next)
+
+    expect(next).toHaveBeenCalled()
+    expect(res.statusCode).toBe(0)
+  })
+
+  it('rejects tokens whose kid is not registered', async () => {
+    const oldSecret = 'old-secret-at-least-16-chars-aaa'
+    const newSecret = 'new-secret-at-least-16-chars-bbb'
+
+    const oldIssuer = new ProofTokenIssuer({
+      secret: oldSecret,
+      keyId: 'k-rogue',
+      issuer: 'imrobot',
+    })
+    const token = await oldIssuer.issue({
+      agentId: 'agent',
+      challengeId: 'ch',
+      difficulty: 'easy',
+      solveTimeMs: 1,
+      suspicious: false,
+    })
+
+    const middleware = requireAgent({
+      secret: newSecret,
+      keyId: 'k-2026-04',
+      // No previousSecrets — k-rogue is unknown
+    })
+
+    const next = vi.fn()
+    const res = mockRes()
+    await middleware(mockReq({ headers: { 'x-agent-proof': token } }), res, next)
+
+    expect(next).not.toHaveBeenCalled()
+    expect(res.statusCode).toBe(403)
+  })
+})
+
 // ── createAgentRouter ────────────────────────────────────────────────
 
 describe('createAgentRouter', () => {
@@ -346,6 +482,43 @@ describe('createAgentRouter', () => {
     const res = mockRes()
     await router.handler(req as any, res)
     expect(res.statusCode).toBe(429)
+  })
+
+  it('emits X-RateLimit-Reset as seconds-since-epoch (RFC convention)', async () => {
+    const router = createAgentRouter({
+      secret: TEST_SECRET,
+      rateLimit: { windowMs: 60_000, maxRequests: 5 },
+    })
+
+    const req = mockReq({ method: 'GET' })
+    const res = mockRes()
+    await router.handler(req as any, res)
+
+    const reset = res.headersSent['X-RateLimit-Reset']
+    expect(typeof reset).toBe('number')
+    const nowSec = Math.floor(Date.now() / 1000)
+    // Must be within (now, now + 70) seconds — proves it's seconds, not ms
+    expect(reset as number).toBeGreaterThan(nowSec)
+    expect(reset as number).toBeLessThan(nowSec + 70)
+  })
+
+  it('emits X-RateLimit-Reset as seconds even on 429', async () => {
+    const router = createAgentRouter({
+      secret: TEST_SECRET,
+      rateLimit: { windowMs: 60_000, maxRequests: 1 },
+    })
+
+    await router.handler(mockReq({ method: 'GET' }) as any, mockRes())
+    const res = mockRes()
+    await router.handler(mockReq({ method: 'GET' }) as any, res)
+
+    expect(res.statusCode).toBe(429)
+    const reset = res.headersSent['X-RateLimit-Reset']
+    expect(typeof reset).toBe('number')
+    const nowSec = Math.floor(Date.now() / 1000)
+    expect(reset as number).toBeGreaterThan(nowSec)
+    expect(reset as number).toBeLessThan(nowSec + 70)
+    expect(res.headersSent['Retry-After']).toBeGreaterThan(0)
   })
 
   it('verify endpoint rejects wrong answer', async () => {

@@ -2,7 +2,7 @@ import { defineComponent, ref, computed, h, onMounted, onUnmounted, type PropTyp
 import type { Challenge, Difficulty } from '../core/types'
 import { generateChallenge, verifyAnswer, createToken } from '../core/challenge'
 import { formatPipeline } from '../core/operations'
-import { getStyles, ROBOT_SVG } from '../styles'
+import { getStyles, ROBOT_SVG, type WidgetSize } from '../styles'
 import { setupScreenshotShield } from '../screenshot-shield'
 
 export const ImRobot = defineComponent({
@@ -15,6 +15,10 @@ export const ImRobot = defineComponent({
     theme: {
       type: String as PropType<'light' | 'dark'>,
       default: 'light',
+    },
+    size: {
+      type: String as PropType<WidgetSize>,
+      default: 'standard',
     },
     ttl: {
       type: Number,
@@ -37,7 +41,7 @@ export const ImRobot = defineComponent({
     let cleanupShield: (() => void) | null = null
     const shielded = ref(false)
 
-    const css = computed(() => getStyles(props.theme))
+    const css = computed(() => getStyles(props.theme, props.size))
     const display = computed(() =>
       formatPipeline(challenge.value.visibleSeed, challenge.value.pipeline),
     )

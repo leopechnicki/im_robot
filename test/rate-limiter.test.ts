@@ -497,6 +497,79 @@ describe('RateLimiter', () => {
     })
   })
 
+  // ── Sliding-window correctness (no 2x boundary burst) ────────────────────
+
+  describe('sliding-window correctness', () => {
+    it('does not allow 2x burst across a window boundary', async () => {
+      const limiter = new RateLimiter({ windowMs: 200, maxRequests: 3 })
+      const key = 'burst-test'
+
+      // Fill the window near its end
+      expect(limiter.isAllowed(key)).toBe(true)
+      expect(limiter.isAllowed(key)).toBe(true)
+      expect(limiter.isAllowed(key)).toBe(true)
+      expect(limiter.isAllowed(key)).toBe(false)
+
+      // Wait less than a full window — fixed-window would let 3 more through
+      // immediately on the next "window". Sliding-window must NOT.
+      await new Promise((r) => setTimeout(r, 100))
+
+      // Still inside the rolling window — no slots have aged out yet.
+      expect(limiter.isAllowed(key)).toBe(false)
+      expect(limiter.isAllowed(key)).toBe(false)
+
+      // After the full windowMs has elapsed, the original three slots age out.
+      await new Promise((r) => setTimeout(r, 150))
+      expect(limiter.isAllowed(key)).toBe(true)
+      expect(limiter.isAllowed(key)).toBe(true)
+      expect(limiter.isAllowed(key)).toBe(true)
+      expect(limiter.isAllowed(key)).toBe(false)
+
+      limiter.destroy()
+    })
+
+    it('resetAt reflects the oldest in-window timestamp', async () => {
+      const limiter = new RateLimiter({ windowMs: 200, maxRequests: 5 })
+      const key = 'reset-test'
+
+      const t0 = Date.now()
+      limiter.isAllowed(key)
+      await new Promise((r) => setTimeout(r, 50))
+      limiter.isAllowed(key)
+
+      const status = limiter.getStatus(key)
+      // Oldest request is roughly t0; resetAt should be ~t0 + 200ms
+      expect(status.resetAt).toBeGreaterThanOrEqual(t0 + 200 - 5)
+      expect(status.resetAt).toBeLessThanOrEqual(t0 + 200 + 50)
+
+      limiter.destroy()
+    })
+
+    it('drops aged timestamps incrementally as the window slides', async () => {
+      const limiter = new RateLimiter({ windowMs: 300, maxRequests: 3 })
+      const key = 'incremental'
+
+      // Two requests at the start of the window.
+      expect(limiter.isAllowed(key)).toBe(true)
+      expect(limiter.isAllowed(key)).toBe(true)
+
+      // 200ms later — well inside the 300ms window — third request fills it.
+      await new Promise((r) => setTimeout(r, 200))
+      expect(limiter.isAllowed(key)).toBe(true)
+      expect(limiter.isAllowed(key)).toBe(false)
+
+      // After another 150ms (total 350ms), only the first two have aged out.
+      // The third (at t≈200) is still inside its 300ms window.
+      // So we should be able to make exactly two more requests.
+      await new Promise((r) => setTimeout(r, 150))
+      expect(limiter.isAllowed(key)).toBe(true)
+      expect(limiter.isAllowed(key)).toBe(true)
+      expect(limiter.isAllowed(key)).toBe(false)
+
+      limiter.destroy()
+    })
+  })
+
   // ── Concurrent request simulation ──────────────────────────────────────────
 
   describe('concurrent-like scenarios', () => {

@@ -2,7 +2,8 @@
  * Cloudflare Turnstile server-side verification.
  *
  * Verifies Turnstile challenge tokens with Cloudflare's siteverify API.
- * Uses native fetch (Node 18+ built-in). Zero external dependencies.
+ * Uses native fetch (Node 18+ built-in) with an AbortController-driven timeout.
+ * Zero external dependencies.
  *
  * @example
  * ```typescript
@@ -11,6 +12,7 @@
  * const verifier = new TurnstileVerifier({
  *   // Never hardcode secrets — set ENV:TURNSTILE_SECRET_KEY in your environment
  *   secretKey: process.env.TURNSTILE_SECRET_KEY!,
+ *   timeoutMs: 5000,
  * })
  *
  * const result = await verifier.verify(token, clientIp)
@@ -21,6 +23,9 @@
  */
 
 const TURNSTILE_SITEVERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify'
+const DEFAULT_TIMEOUT_MS = 5_000
+/** Cloudflare-published min length for production secret keys. */
+const MIN_SECRET_LENGTH = 16
 
 /**
  * Configuration for TurnstileVerifier.
@@ -31,7 +36,9 @@ const TURNSTILE_SITEVERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0
 export interface TurnstileConfig {
   /**
    * Cloudflare Turnstile secret key.
-   * Reference as ENV:TURNSTILE_SECRET_KEY — load from process.env.TURNSTILE_SECRET_KEY
+   * Reference as ENV:TURNSTILE_SECRET_KEY — load from process.env.TURNSTILE_SECRET_KEY.
+   * Must be at least 16 non-whitespace characters (matches the imrobot HMAC secret guard).
+   * Cloudflare's published test keys (e.g. `1x0000000000000000000000000000000AA`) satisfy this.
    */
   secretKey: string
   /**
@@ -39,6 +46,11 @@ export interface TurnstileConfig {
    * If provided, the hostname in Cloudflare's response is compared against this.
    */
   siteUrl?: string
+  /**
+   * Request timeout in milliseconds for the siteverify call.
+   * Defaults to 5000ms. Set to 0 to disable.
+   */
+  timeoutMs?: number
 }
 
 /**
@@ -51,7 +63,11 @@ export interface TurnstileResult {
   hostname?: string
   /** ISO 8601 timestamp of the challenge */
   challenge_ts?: string
-  /** Error codes returned by Cloudflare, if any */
+  /**
+   * Error codes returned by Cloudflare or this client. In addition to
+   * Cloudflare's own codes, this client emits `network-error`,
+   * `invalid-response`, and `timeout`.
+   */
   errorCodes?: string[]
 }
 
@@ -68,18 +84,17 @@ interface CloudflareVerifyResponse {
 /**
  * Cloudflare Turnstile token verifier.
  *
- * Wraps the Cloudflare siteverify API with a clean interface.
+ * Wraps the Cloudflare siteverify API with a clean interface, secret-length
+ * enforcement, and an AbortController-driven request timeout.
  * Uses native fetch (Node 18+). Zero external dependencies.
- *
- * Secret key must come from ENV:TURNSTILE_SECRET_KEY — never hardcoded.
  */
 export class TurnstileVerifier {
   private readonly config: TurnstileConfig
 
   constructor(config: TurnstileConfig) {
-    if (!config.secretKey || config.secretKey.trim().length === 0) {
+    if (!config.secretKey || config.secretKey.trim().length < MIN_SECRET_LENGTH) {
       throw new Error(
-        'TurnstileVerifier: secretKey is required. Set ENV:TURNSTILE_SECRET_KEY in your environment.',
+        `TurnstileVerifier: secretKey must be at least ${MIN_SECRET_LENGTH} non-whitespace characters. Set ENV:TURNSTILE_SECRET_KEY in your environment.`,
       )
     }
     this.config = config
@@ -93,7 +108,9 @@ export class TurnstileVerifier {
    * @returns TurnstileResult with success flag and optional metadata
    */
   async verify(token: string, remoteip?: string): Promise<TurnstileResult> {
-    return verifyTurnstileToken(this.config.secretKey, token, remoteip)
+    return verifyTurnstileToken(this.config.secretKey, token, remoteip, {
+      timeoutMs: this.config.timeoutMs,
+    })
   }
 }
 
@@ -101,27 +118,31 @@ export class TurnstileVerifier {
  * Verify a Cloudflare Turnstile token using the siteverify API.
  *
  * Standalone function — use this when you don't need the class wrapper.
- * Uses native fetch (Node 18+ built-in). Zero external dependencies.
- *
- * Secret key must come from ENV:TURNSTILE_SECRET_KEY — never hardcoded.
+ * Uses native fetch (Node 18+ built-in) and aborts after `timeoutMs`.
  *
  * @param secretKey - Cloudflare Turnstile secret key (ENV:TURNSTILE_SECRET_KEY)
  * @param token     - The cf-turnstile-response token from the client
  * @param remoteip  - Optional: client IP address for Cloudflare risk scoring
+ * @param options   - Optional: { timeoutMs }
  * @returns TurnstileResult with success flag and optional metadata
  */
 export async function verifyTurnstileToken(
   secretKey: string,
   token: string,
   remoteip?: string,
+  options?: { timeoutMs?: number },
 ): Promise<TurnstileResult> {
-  // Build form-encoded body as required by Cloudflare's API
   const params = new URLSearchParams()
   params.set('secret', secretKey)
   params.set('response', token)
   if (remoteip) {
     params.set('remoteip', remoteip)
   }
+
+  const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  const controller = timeoutMs > 0 ? new AbortController() : undefined
+  const timer =
+    timeoutMs > 0 && controller ? setTimeout(() => controller.abort(), timeoutMs) : undefined
 
   let response: Response
   try {
@@ -131,13 +152,18 @@ export async function verifyTurnstileToken(
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: params.toString(),
+      signal: controller?.signal,
     })
-  } catch {
-    // Network-level failure (DNS, TCP, timeout, etc.)
+  } catch (err) {
+    const isAbort =
+      (err instanceof Error && err.name === 'AbortError') ||
+      (typeof err === 'object' && err !== null && (err as { name?: string }).name === 'AbortError')
     return {
       success: false,
-      errorCodes: ['network-error'],
+      errorCodes: [isAbort ? 'timeout' : 'network-error'],
     }
+  } finally {
+    if (timer) clearTimeout(timer)
   }
 
   let data: CloudflareVerifyResponse

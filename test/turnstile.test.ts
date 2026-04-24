@@ -92,7 +92,7 @@ describe('TurnstileVerifier — successful verification', () => {
       'error-codes': [],
     })
 
-    const verifier = new TurnstileVerifier({ secretKey: 'test-secret-key' })
+    const verifier = new TurnstileVerifier({ secretKey: 'test-secret-key-16ch' })
     const result = await verifier.verify('cf-token-abc', '10.0.0.1')
 
     expect(result.success).toBe(true)
@@ -107,7 +107,7 @@ describe('TurnstileVerifier — successful verification', () => {
     })
     vi.stubGlobal('fetch', fetchSpy)
 
-    const verifier = new TurnstileVerifier({ secretKey: 'my-secret' })
+    const verifier = new TurnstileVerifier({ secretKey: 'my-secret-min-16-chars' })
     await verifier.verify('my-token', '1.2.3.4')
 
     expect(fetchSpy).toHaveBeenCalledOnce()
@@ -117,7 +117,7 @@ describe('TurnstileVerifier — successful verification', () => {
     expect(init.headers['Content-Type']).toBe('application/x-www-form-urlencoded')
 
     const body = new URLSearchParams(init.body as string)
-    expect(body.get('secret')).toBe('my-secret')
+    expect(body.get('secret')).toBe('my-secret-min-16-chars')
     expect(body.get('response')).toBe('my-token')
     expect(body.get('remoteip')).toBe('1.2.3.4')
   })
@@ -129,7 +129,7 @@ describe('TurnstileVerifier — successful verification', () => {
     })
     vi.stubGlobal('fetch', fetchSpy)
 
-    const verifier = new TurnstileVerifier({ secretKey: 'my-secret' })
+    const verifier = new TurnstileVerifier({ secretKey: 'my-secret-min-16-chars' })
     await verifier.verify('my-token')
 
     const [, init] = fetchSpy.mock.calls[0]
@@ -139,6 +139,14 @@ describe('TurnstileVerifier — successful verification', () => {
 
   it('throws when secretKey is empty', () => {
     expect(() => new TurnstileVerifier({ secretKey: '' })).toThrow(/secretKey/)
+  })
+
+  it('throws when secretKey is shorter than 16 chars', () => {
+    expect(() => new TurnstileVerifier({ secretKey: 'too-short' })).toThrow(/16/)
+  })
+
+  it('throws when secretKey is whitespace-only', () => {
+    expect(() => new TurnstileVerifier({ secretKey: '                   ' })).toThrow(/16/)
   })
 })
 
@@ -155,7 +163,7 @@ describe('TurnstileVerifier — Cloudflare returns success:false', () => {
       'error-codes': ['invalid-input-response', 'timeout-or-duplicate'],
     })
 
-    const verifier = new TurnstileVerifier({ secretKey: 'test-secret-key' })
+    const verifier = new TurnstileVerifier({ secretKey: 'test-secret-key-16ch' })
     const result = await verifier.verify('bad-token')
 
     expect(result.success).toBe(false)
@@ -173,11 +181,50 @@ describe('TurnstileVerifier — network failure', () => {
   it('returns success:false with network-error code when fetch throws', async () => {
     mockFetchThrows('ECONNREFUSED')
 
-    const verifier = new TurnstileVerifier({ secretKey: 'test-secret-key' })
+    const verifier = new TurnstileVerifier({ secretKey: 'test-secret-key-16ch' })
     const result = await verifier.verify('any-token')
 
     expect(result.success).toBe(false)
     expect(result.errorCodes).toContain('network-error')
+  })
+
+  it('returns success:false with timeout code when the request aborts', async () => {
+    // Hand-rolled fetch mock that respects AbortSignal
+    const fetchSpy = vi.fn(async (_url, init: RequestInit) => {
+      return new Promise<Response>((_resolve, reject) => {
+        const signal = init.signal
+        if (signal) {
+          signal.addEventListener('abort', () => {
+            const err = new Error('aborted')
+            err.name = 'AbortError'
+            reject(err)
+          })
+        }
+        // never resolve unless aborted
+      })
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const verifier = new TurnstileVerifier({
+      secretKey: 'test-secret-key-16ch',
+      timeoutMs: 50,
+    })
+    const result = await verifier.verify('any-token')
+
+    expect(result.success).toBe(false)
+    expect(result.errorCodes).toContain('timeout')
+  })
+
+  it('does not arm a timer when timeoutMs is 0', async () => {
+    mockFetch({ success: true })
+
+    const verifier = new TurnstileVerifier({
+      secretKey: 'test-secret-key-16ch',
+      timeoutMs: 0,
+    })
+    const result = await verifier.verify('tok')
+
+    expect(result.success).toBe(true)
   })
 })
 
@@ -212,7 +259,7 @@ describe('createAgentRouter — turnstile.required:true, missing token', () => {
     const router = createAgentRouter({
       secret: SECRET,
       turnstile: {
-        secretKey: 'ts-secret',
+        secretKey: 'ts-secret-min-16-chars',
         required: true,
       },
     })
@@ -232,7 +279,7 @@ describe('createAgentRouter — turnstile.required:true, missing token', () => {
     const router = createAgentRouter({
       secret: SECRET,
       turnstile: {
-        secretKey: 'ts-secret',
+        secretKey: 'ts-secret-min-16-chars',
         required: true,
       },
     })
@@ -258,7 +305,7 @@ describe('createAgentRouter — turnstile.required:false, missing token', () => 
     const router = createAgentRouter({
       secret: SECRET,
       turnstile: {
-        secretKey: 'ts-secret',
+        secretKey: 'ts-secret-min-16-chars',
         required: false, // default
       },
     })
@@ -284,7 +331,7 @@ describe('createAgentRouter — turnstile.required:false, missing token', () => 
     const router = createAgentRouter({
       secret: SECRET,
       turnstile: {
-        secretKey: 'ts-secret',
+        secretKey: 'ts-secret-min-16-chars',
         required: false,
       },
     })
@@ -322,7 +369,7 @@ describe('createAgentRouter — Turnstile verified, flag in proof token', () => 
     const router = createAgentRouter({
       secret: SECRET,
       turnstile: {
-        secretKey: 'ts-secret',
+        secretKey: 'ts-secret-min-16-chars',
         required: true,
       },
     })

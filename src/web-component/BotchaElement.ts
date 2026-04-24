@@ -1,12 +1,21 @@
 import type { Challenge, ImRobotToken, Difficulty } from '../core/types'
 import { generateChallenge, verifyAnswer, createToken } from '../core/challenge'
 import { formatPipeline } from '../core/operations'
-import { getStyles, ROBOT_SVG } from '../styles'
+import { getStyles, ROBOT_SVG, type WidgetSize } from '../styles'
 import { setupScreenshotShield } from '../screenshot-shield'
 
+/**
+ * Custom element implementing the imrobot widget.
+ *
+ * Internally uses a "render-once + diff" strategy: the skeleton is painted
+ * exactly once on connect, listeners are attached once, and state changes
+ * mutate cached nodes in place. This preserves input focus, lets the input's
+ * value follow the user's typing (no caret-jumping), and avoids the listener
+ * churn of an `innerHTML = ...` approach.
+ */
 export class ImRobotElement extends HTMLElement {
   static get observedAttributes() {
-    return ['difficulty', 'theme', 'ttl']
+    return ['difficulty', 'theme', 'ttl', 'size']
   }
 
   private shadow: ShadowRoot
@@ -18,6 +27,23 @@ export class ImRobotElement extends HTMLElement {
   private remainingSeconds = 0
   private cleanupShield: (() => void) | null = null
   private shielded = false
+
+  /** Cached references to the dynamic nodes painted by `paintSkeleton()`. */
+  private nodes: {
+    style: HTMLStyleElement
+    container: HTMLDivElement
+    challengeArea: HTMLDivElement
+    challengeText: Text
+    timerBlock: HTMLDivElement
+    timerFill: HTMLDivElement
+    timerText: HTMLSpanElement
+    inputRow: HTMLDivElement
+    input: HTMLInputElement
+    submitBtn: HTMLButtonElement
+    statusVerified: HTMLSpanElement
+    statusFailed: HTMLSpanElement
+    retryBtn: HTMLButtonElement
+  } | null = null
 
   constructor() {
     super()
@@ -36,22 +62,24 @@ export class ImRobotElement extends HTMLElement {
     return Number(this.getAttribute('ttl')) || 0 // 0 = use default per-difficulty
   }
 
+  get size(): WidgetSize {
+    const v = this.getAttribute('size') as WidgetSize | null
+    return v === 'compact' ? 'compact' : 'standard'
+  }
+
   connectedCallback() {
     this.challenge = generateChallenge({
       difficulty: this.difficulty,
       ...(this.ttl > 0 ? { ttl: this.ttl } : {}),
     })
     this.startTime = Date.now()
+    this.paintSkeleton()
     this.startCountdown()
-    this.render()
+    this.updateUI()
 
-    // Screenshot shield: blur the challenge area on screenshot attempts
     this.cleanupShield = setupScreenshotShield((shielded) => {
       this.shielded = shielded
-      const el = this.shadow.querySelector('.imrobot-challenge')
-      if (el) {
-        el.classList.toggle('imrobot-challenge--shielded', shielded)
-      }
+      this.nodes?.challengeArea.classList.toggle('imrobot-challenge--shielded', shielded)
     })
   }
 
@@ -61,10 +89,19 @@ export class ImRobotElement extends HTMLElement {
       this.cleanupShield()
       this.cleanupShield = null
     }
+    this.nodes = null
   }
 
-  attributeChangedCallback() {
-    if (this.isConnected) this.render()
+  attributeChangedCallback(name: string) {
+    if (!this.isConnected || !this.nodes) return
+    if (name === 'theme' || name === 'size') {
+      this.nodes.style.textContent = getStyles(this.theme, this.size)
+      return
+    }
+    if (name === 'difficulty' || name === 'ttl') {
+      // A new difficulty/TTL means a fresh challenge; reset state.
+      this.handleRetry()
+    }
   }
 
   private startCountdown() {
@@ -90,7 +127,6 @@ export class ImRobotElement extends HTMLElement {
 
   private handleExpired() {
     this.stopCountdown()
-    // Auto-refresh with a new challenge
     this.challenge = generateChallenge({
       difficulty: this.difficulty,
       ...(this.ttl > 0 ? { ttl: this.ttl } : {}),
@@ -99,23 +135,16 @@ export class ImRobotElement extends HTMLElement {
     this.status = 'idle'
     this.startTime = Date.now()
     this.startCountdown()
-    this.render()
+    this.updateUI()
   }
 
   private updateTimerDisplay() {
-    const fill = this.shadow.querySelector('.imrobot-timer-fill') as HTMLElement
-    const text = this.shadow.querySelector('.imrobot-timer-text') as HTMLElement
-    if (fill && text) {
-      const totalSec = this.challenge.ttl / 1000
-      const pct = (this.remainingSeconds / totalSec) * 100
-      fill.style.width = `${pct}%`
-      text.textContent = `${this.remainingSeconds}s`
-      if (pct <= 25) {
-        fill.classList.add('imrobot-timer-fill--warn')
-      } else {
-        fill.classList.remove('imrobot-timer-fill--warn')
-      }
-    }
+    if (!this.nodes) return
+    const totalSec = this.challenge.ttl / 1000
+    const pct = (this.remainingSeconds / totalSec) * 100
+    this.nodes.timerFill.style.width = `${pct}%`
+    this.nodes.timerText.textContent = `${this.remainingSeconds}s`
+    this.nodes.timerFill.classList.toggle('imrobot-timer-fill--warn', pct <= 25)
   }
 
   private handleVerify() {
@@ -143,7 +172,7 @@ export class ImRobotElement extends HTMLElement {
         }),
       )
     }
-    this.render()
+    this.updateUI()
   }
 
   /**
@@ -152,6 +181,7 @@ export class ImRobotElement extends HTMLElement {
    */
   public submitAnswer(answer: string) {
     this.answer = answer
+    if (this.nodes) this.nodes.input.value = answer
     this.handleVerify()
   }
 
@@ -168,111 +198,166 @@ export class ImRobotElement extends HTMLElement {
     this.answer = ''
     this.status = 'idle'
     this.startTime = Date.now()
+    if (this.nodes) this.nodes.input.value = ''
     this.startCountdown()
-    this.render()
+    this.updateUI()
   }
 
-  private render() {
-    // Display uses visibleSeed (partial) — the full seed includes the hidden nonce
-    const display = formatPipeline(this.challenge.visibleSeed, this.challenge.pipeline)
-    const challengeJson = JSON.stringify(this.challenge)
-    const totalSec = this.challenge.ttl / 1000
-    const pct = (this.remainingSeconds / totalSec) * 100
+  /**
+   * Paint the static DOM scaffold once and cache references to the dynamic
+   * nodes. Subsequent state changes update those nodes in place via
+   * `updateUI()` and `updateTimerDisplay()`.
+   */
+  private paintSkeleton() {
+    this.shadow.innerHTML = ''
 
-    this.shadow.innerHTML = `
-      <style>${getStyles(this.theme)}</style>
-      <div class="imrobot"
-           data-imrobot-challenge='${challengeJson.replace(/'/g, '&#39;')}'
-           role="region"
-           aria-label="ImRobot verification challenge">
-        <div class="imrobot-header">
-          <span class="imrobot-icon">${ROBOT_SVG}</span>
-          <span>Prove you're a robot</span>
-        </div>
-        ${
-          this.status !== 'verified'
-            ? `<div class="imrobot-timer">
-                <span class="imrobot-timer-label">Time</span>
-                <div class="imrobot-timer-bar">
-                  <div class="imrobot-timer-fill${pct <= 25 ? ' imrobot-timer-fill--warn' : ''}"
-                       style="width:${pct}%"></div>
-                </div>
-                <span class="imrobot-timer-text">${this.remainingSeconds}s</span>
-              </div>`
-            : ''
-        }
-        <div class="imrobot-challenge${this.shielded ? ' imrobot-challenge--shielded' : ''}"
-             aria-label="Challenge pipeline"
-             oncontextmenu="return false"
-             ondragstart="return false"><span class="imrobot-shield-notice">Screenshot protected</span>${this.escapeHtml(display)}</div>
-        ${
-          this.status !== 'verified'
-            ? `<div class="imrobot-row">
-                <input class="imrobot-input"
-                       type="text"
-                       value="${this.escapeHtml(this.answer)}"
-                       placeholder="Enter pipeline result..."
-                       aria-label="Challenge answer"
-                       autocomplete="off" />
-                <button class="imrobot-btn" ${!this.answer.trim() ? 'disabled' : ''}>Verify</button>
-               </div>`
-            : ''
-        }
-        <div class="imrobot-footer">
-          <div>
-            ${
-              this.status === 'verified'
-                ? '<span class="imrobot-status imrobot-status--verified">&#10003; Verified: You are a robot</span>'
-                : ''
-            }
-            ${
-              this.status === 'failed'
-                ? '<span class="imrobot-status imrobot-status--failed">&#10007; Failed &mdash; <button class="retry-btn" style="background:none;border:none;color:inherit;text-decoration:underline;cursor:pointer;padding:0;font:inherit;">try again</button></span>'
-                : ''
-            }
-          </div>
-          <span class="imrobot-brand">imrobot</span>
-        </div>
-      </div>
-    `
+    const style = document.createElement('style')
+    style.textContent = getStyles(this.theme, this.size)
+    this.shadow.appendChild(style)
 
-    // Bind events
-    const input = this.shadow.querySelector('.imrobot-input') as HTMLInputElement
-    if (input) {
-      input.addEventListener('input', (e) => {
-        this.answer = (e.target as HTMLInputElement).value
-      })
-      input.addEventListener('keydown', (e) => {
-        if ((e as KeyboardEvent).key === 'Enter') this.handleVerify()
-      })
-    }
+    const container = document.createElement('div')
+    container.className = 'imrobot'
+    container.setAttribute('role', 'region')
+    container.setAttribute('aria-label', 'ImRobot verification challenge')
 
-    const btn = this.shadow.querySelector('.imrobot-btn')
-    if (btn) {
-      btn.addEventListener('click', () => this.handleVerify())
-    }
+    // Header
+    const header = document.createElement('div')
+    header.className = 'imrobot-header'
+    const icon = document.createElement('span')
+    icon.className = 'imrobot-icon'
+    icon.innerHTML = ROBOT_SVG
+    const title = document.createElement('span')
+    title.textContent = "Prove you're a robot"
+    header.append(icon, title)
 
-    const retryBtn = this.shadow.querySelector('.retry-btn')
-    if (retryBtn) {
-      retryBtn.addEventListener('click', () => this.handleRetry())
-    }
+    // Timer
+    const timerBlock = document.createElement('div')
+    timerBlock.className = 'imrobot-timer'
+    const timerLabel = document.createElement('span')
+    timerLabel.className = 'imrobot-timer-label'
+    timerLabel.textContent = 'Time'
+    const timerBar = document.createElement('div')
+    timerBar.className = 'imrobot-timer-bar'
+    const timerFill = document.createElement('div')
+    timerFill.className = 'imrobot-timer-fill'
+    timerBar.appendChild(timerFill)
+    const timerText = document.createElement('span')
+    timerText.className = 'imrobot-timer-text'
+    timerBlock.append(timerLabel, timerBar, timerText)
 
-    // Anti-copy: prevent context menu and drag on challenge area
-    const challengeEl = this.shadow.querySelector('.imrobot-challenge')
-    if (challengeEl) {
-      challengeEl.addEventListener('contextmenu', (e) => e.preventDefault())
-      challengeEl.addEventListener('copy', (e) => e.preventDefault())
-      challengeEl.addEventListener('dragstart', (e) => e.preventDefault())
+    // Challenge area (text node mutated in place)
+    const challengeArea = document.createElement('div')
+    challengeArea.className = 'imrobot-challenge'
+    challengeArea.setAttribute('aria-label', 'Challenge pipeline')
+    const shieldNotice = document.createElement('span')
+    shieldNotice.className = 'imrobot-shield-notice'
+    shieldNotice.textContent = 'Screenshot protected'
+    const challengeText = document.createTextNode('')
+    challengeArea.append(shieldNotice, challengeText)
+
+    // Anti-copy listeners (attach once, never removed)
+    challengeArea.addEventListener('contextmenu', (e) => e.preventDefault())
+    challengeArea.addEventListener('copy', (e) => e.preventDefault())
+    challengeArea.addEventListener('dragstart', (e) => e.preventDefault())
+
+    // Input row
+    const inputRow = document.createElement('div')
+    inputRow.className = 'imrobot-row'
+    const input = document.createElement('input')
+    input.className = 'imrobot-input'
+    input.type = 'text'
+    input.placeholder = 'Enter pipeline result...'
+    input.setAttribute('aria-label', 'Challenge answer')
+    input.autocomplete = 'off'
+    input.addEventListener('input', (e) => {
+      this.answer = (e.target as HTMLInputElement).value
+      this.nodes?.submitBtn.toggleAttribute('disabled', !this.answer.trim())
+    })
+    input.addEventListener('keydown', (e) => {
+      if ((e as KeyboardEvent).key === 'Enter') this.handleVerify()
+    })
+    const submitBtn = document.createElement('button')
+    submitBtn.className = 'imrobot-btn'
+    submitBtn.type = 'button'
+    submitBtn.textContent = 'Verify'
+    submitBtn.disabled = true
+    submitBtn.addEventListener('click', () => this.handleVerify())
+    inputRow.append(input, submitBtn)
+
+    // Footer + status
+    const footer = document.createElement('div')
+    footer.className = 'imrobot-footer'
+    const statusWrap = document.createElement('div')
+    const statusVerified = document.createElement('span')
+    statusVerified.className = 'imrobot-status imrobot-status--verified'
+    statusVerified.innerHTML = '&#10003; Verified: You are a robot'
+    statusVerified.hidden = true
+    const statusFailed = document.createElement('span')
+    statusFailed.className = 'imrobot-status imrobot-status--failed'
+    statusFailed.hidden = true
+    const failedLabel = document.createTextNode('✗ Failed — ')
+    const retryBtn = document.createElement('button')
+    retryBtn.type = 'button'
+    retryBtn.textContent = 'try again'
+    retryBtn.style.cssText =
+      'background:none;border:none;color:inherit;text-decoration:underline;cursor:pointer;padding:0;font:inherit;'
+    retryBtn.addEventListener('click', () => this.handleRetry())
+    statusFailed.append(failedLabel, retryBtn)
+    statusWrap.append(statusVerified, statusFailed)
+
+    const brand = document.createElement('span')
+    brand.className = 'imrobot-brand'
+    brand.textContent = 'imrobot'
+    footer.append(statusWrap, brand)
+
+    container.append(header, timerBlock, challengeArea, inputRow, footer)
+    this.shadow.appendChild(container)
+
+    this.nodes = {
+      style,
+      container,
+      challengeArea,
+      challengeText,
+      timerBlock,
+      timerFill,
+      timerText,
+      inputRow,
+      input,
+      submitBtn,
+      statusVerified,
+      statusFailed,
+      retryBtn,
     }
   }
 
-  private escapeHtml(str: string): string {
-    return str
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;')
+  /**
+   * Push the current `this.challenge` / `this.status` / `this.answer` state
+   * into the cached DOM nodes without re-creating them. Preserves input focus.
+   */
+  private updateUI() {
+    if (!this.nodes) return
+    const n = this.nodes
+
+    // Update challenge text + JSON data attribute
+    n.challengeText.data = formatPipeline(this.challenge.visibleSeed, this.challenge.pipeline)
+    n.container.setAttribute('data-imrobot-challenge', JSON.stringify(this.challenge))
+    n.challengeArea.classList.toggle('imrobot-challenge--shielded', this.shielded)
+
+    // Show/hide timer and input row based on verification state
+    const isVerified = this.status === 'verified'
+    n.timerBlock.hidden = isVerified
+    n.inputRow.hidden = isVerified
+
+    // Status messages
+    n.statusVerified.hidden = this.status !== 'verified'
+    n.statusFailed.hidden = this.status !== 'failed'
+
+    // Sync input value only when state diverges (don't disrupt typing focus)
+    if (n.input.value !== this.answer) n.input.value = this.answer
+    n.submitBtn.disabled = !this.answer.trim()
+
+    // Refresh timer display in case challenge was rotated
+    this.updateTimerDisplay()
   }
 }
 

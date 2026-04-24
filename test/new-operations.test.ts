@@ -150,3 +150,139 @@ describe('hash_chain guard', () => {
     ).not.toThrow()
   })
 })
+
+// ---------------------------------------------------------------------------
+// Crypto-grade operations — full coverage
+// ---------------------------------------------------------------------------
+
+describe('hash_chain', () => {
+  it('is deterministic for the same input + rounds', () => {
+    const a = executeOperation('seed', { op: 'hash_chain', rounds: 3 })
+    const b = executeOperation('seed', { op: 'hash_chain', rounds: 3 })
+    expect(a).toBe(b)
+  })
+
+  it('returns 8 hex chars per round result (FNV-1a 32-bit)', () => {
+    const out = executeOperation('seed', { op: 'hash_chain', rounds: 5 })
+    expect(out).toMatch(/^[0-9a-f]{8}$/)
+  })
+
+  it('produces different output for different round counts', () => {
+    const r1 = executeOperation('seed', { op: 'hash_chain', rounds: 1 })
+    const r2 = executeOperation('seed', { op: 'hash_chain', rounds: 2 })
+    expect(r1).not.toBe(r2)
+  })
+
+  it('handles unicode input safely', () => {
+    expect(() => executeOperation('café👍', { op: 'hash_chain', rounds: 2 })).not.toThrow()
+  })
+})
+
+describe('nibble_swap', () => {
+  it('swaps the high and low nibbles of each byte', () => {
+    // 'A' = 0x41 → 0x14 = control char
+    // We pick chars whose nibbles produce printable swaps for stability
+    const input = String.fromCharCode(0x12, 0x34, 0x56)
+    const expected = String.fromCharCode(0x21, 0x43, 0x65)
+    expect(executeOperation(input, { op: 'nibble_swap' })).toBe(expected)
+  })
+
+  it('is its own inverse', () => {
+    const input = 'Hello, World!'
+    const swapped = executeOperation(input, { op: 'nibble_swap' })
+    const unswapped = executeOperation(swapped, { op: 'nibble_swap' })
+    expect(unswapped).toBe(input)
+  })
+
+  it('preserves length', () => {
+    expect(executeOperation('abc', { op: 'nibble_swap' }).length).toBe(3)
+  })
+
+  it('handles empty string', () => {
+    expect(executeOperation('', { op: 'nibble_swap' })).toBe('')
+  })
+})
+
+describe('bit_rotate', () => {
+  it('left-rotates each byte by N bits within the low byte', () => {
+    // 'A' = 0x41 = 0b01000001, rotate left 1 → 0b10000010 = 0x82
+    const out = executeOperation('A', { op: 'bit_rotate', bits: 1 })
+    expect(out.charCodeAt(0)).toBe(0x82)
+  })
+
+  it('rotation by 0 is identity', () => {
+    const input = 'hello'
+    expect(executeOperation(input, { op: 'bit_rotate', bits: 0 })).toBe(input)
+  })
+
+  it('rotation by 8 is identity (mod 8)', () => {
+    const input = 'hello'
+    expect(executeOperation(input, { op: 'bit_rotate', bits: 8 })).toBe(input)
+  })
+
+  it('handles negative bit counts via mod 8', () => {
+    // Rotating left by -1 should equal rotating left by 7
+    const left7 = executeOperation('A', { op: 'bit_rotate', bits: 7 })
+    const leftNeg1 = executeOperation('A', { op: 'bit_rotate', bits: -1 })
+    expect(leftNeg1).toBe(left7)
+  })
+
+  it('preserves length', () => {
+    expect(executeOperation('abc', { op: 'bit_rotate', bits: 3 }).length).toBe(3)
+  })
+})
+
+describe('byte_xor (cycling key)', () => {
+  it('XORs each byte against the cycling key', () => {
+    // 'AB' = [0x41, 0x42], key [0x01, 0x02] → [0x40, 0x40] = '@@'
+    expect(executeOperation('AB', { op: 'byte_xor', key: [0x01, 0x02] })).toBe('@@')
+  })
+
+  it('cycles the key when shorter than input', () => {
+    const out = executeOperation('AAAA', { op: 'byte_xor', key: [0x01] })
+    expect(out).toBe('@@@@')
+  })
+
+  it('is its own inverse with the same key', () => {
+    const input = 'Hello, World!'
+    const enc = executeOperation(input, { op: 'byte_xor', key: [0x42, 0x37, 0x99] })
+    const dec = executeOperation(enc, { op: 'byte_xor', key: [0x42, 0x37, 0x99] })
+    expect(dec).toBe(input)
+  })
+
+  it('preserves length', () => {
+    expect(executeOperation('abc', { op: 'byte_xor', key: [0x10] }).length).toBe(3)
+  })
+})
+
+describe('fnv1a_cascade and sha256_hash alias', () => {
+  it('produces 64 hex chars', () => {
+    const out = executeOperation('seed', { op: 'fnv1a_cascade' })
+    expect(out).toMatch(/^[0-9a-f]{64}$/)
+  })
+
+  it('is deterministic', () => {
+    const a = executeOperation('seed', { op: 'fnv1a_cascade' })
+    const b = executeOperation('seed', { op: 'fnv1a_cascade' })
+    expect(a).toBe(b)
+  })
+
+  it('sha256_hash and fnv1a_cascade produce IDENTICAL output (alias)', () => {
+    const fromAlias = executeOperation('hello', { op: 'fnv1a_cascade' })
+    const fromLegacy = executeOperation('hello', { op: 'sha256_hash' })
+    expect(fromAlias).toBe(fromLegacy)
+  })
+
+  it('formatOperation uses the canonical name for each variant', () => {
+    expect(formatOperation({ op: 'fnv1a_cascade' })).toBe('fnv1a_cascade()')
+    expect(formatOperation({ op: 'sha256_hash' })).toBe('sha256_hash()')
+  })
+
+  it('formatOperationNL no longer claims SHA-256', () => {
+    for (const op of [{ op: 'fnv1a_cascade' as const }, { op: 'sha256_hash' as const }]) {
+      const nl = formatOperationNL(op)
+      expect(nl).toContain('FNV-1a')
+      expect(nl).not.toContain('SHA-256')
+    }
+  })
+})

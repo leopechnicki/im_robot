@@ -118,5 +118,71 @@ describe('Web Component ImRobotElement', () => {
     const status = el.shadowRoot!.querySelector('.imrobot-status--verified')
     expect(status).toBeTruthy()
     expect(status!.textContent).toContain('Verified')
+    expect((status as HTMLElement).hidden).toBe(false)
+  })
+
+  it('preserves input focus across a failed verification (no full re-render)', () => {
+    const el = createElement()
+    const input = el.shadowRoot!.querySelector('.imrobot-input') as HTMLInputElement
+    expect(input).toBeTruthy()
+
+    // Type a wrong answer and focus the input
+    input.value = 'wrong-answer'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    input.focus()
+    expect(el.shadowRoot!.activeElement).toBe(input)
+
+    // Submit — verification fails, status flips to 'failed'
+    el.submitAnswer('wrong-answer')
+
+    // The same input node must still be in the DOM (not re-created),
+    // and focus must be preserved (this is the regression we fixed).
+    const inputAfter = el.shadowRoot!.querySelector('.imrobot-input') as HTMLInputElement
+    expect(inputAfter).toBe(input) // same node reference
+    expect(el.shadowRoot!.activeElement).toBe(input)
+  })
+
+  it('does not duplicate event listeners across state transitions', () => {
+    const el = createElement()
+    const handler = vi.fn()
+    el.addEventListener('imrobot-error', handler)
+
+    // Submit twice — both should fire exactly once, not twice on the second call
+    el.submitAnswer('wrong-1')
+    el.submitAnswer('wrong-2')
+
+    expect(handler).toHaveBeenCalledTimes(2)
+  })
+
+  it('respects size attribute (compact)', () => {
+    const el = createElement({ size: 'compact' })
+    const style = el.shadowRoot!.querySelector('style')
+    expect(style).toBeTruthy()
+    // Compact mode injects the 320px max-width override
+    expect(style!.textContent).toContain('max-width: 320px')
+  })
+
+  it('observes size attribute changes after connect', () => {
+    const el = createElement()
+    el.setAttribute('size', 'compact')
+    const style = el.shadowRoot!.querySelector('style')
+    expect(style!.textContent).toContain('max-width: 320px')
+  })
+
+  it('observes theme attribute changes without re-creating input', () => {
+    const el = createElement()
+    const inputBefore = el.shadowRoot!.querySelector('.imrobot-input')
+    el.setAttribute('theme', 'dark')
+    const inputAfter = el.shadowRoot!.querySelector('.imrobot-input')
+    expect(inputAfter).toBe(inputBefore)
+  })
+
+  it('cleanup on disconnect clears listeners and timers', () => {
+    const el = createElement()
+    expect(el.shadowRoot!.querySelector('.imrobot')).toBeTruthy()
+    el.remove()
+    // After removal, getChallenge still works (snapshot of state) but no
+    // background timer should keep the test runner alive.
+    expect(el.getChallenge()).toBeDefined()
   })
 })

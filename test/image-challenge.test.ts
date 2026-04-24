@@ -159,5 +159,57 @@ describe('ImageChallengePool', () => {
 
       pool.destroy()
     })
+
+    it('returns null from getChallenge when the pool is empty', async () => {
+      const pool = new ImageChallengePool({
+        provider: { type: 'static', images: [] },
+      })
+      await pool.initialize()
+      expect(pool.size).toBe(0)
+      expect(pool.getChallenge()).toBeNull()
+      pool.destroy()
+    })
+  })
+
+  describe('answer normalization', () => {
+    let pool: ImageChallengePool
+    beforeEach(async () => {
+      pool = new ImageChallengePool({
+        provider: {
+          type: 'static',
+          images: [
+            {
+              type: 'object_count',
+              imageUrl: 'data:image/png;base64,fake',
+              question: 'How many cats?',
+              answer: '3',
+              acceptableAnswers: ['three', '3 cats'],
+            },
+          ],
+        },
+      })
+      await pool.initialize()
+    })
+
+    it('accepts the canonical answer', () => {
+      const c = pool.getChallenge()!
+      expect(pool.verifyAnswer(c.id, '3')).toBe(true)
+    })
+
+    it('accepts whitespace-padded answers', () => {
+      const c = pool.getChallenge()!
+      expect(pool.verifyAnswer(c.id, '   3   ')).toBe(true)
+    })
+
+    it('accepts any of the alternative phrasings', () => {
+      const c = pool.getChallenge()!
+      expect(pool.verifyAnswer(c.id, 'three')).toBe(true)
+      expect(pool.verifyAnswer(c.id, '3 CATS')).toBe(true)
+    })
+
+    it('rejects empty / whitespace-only submissions', () => {
+      const c = pool.getChallenge()!
+      expect(pool.verifyAnswer(c.id, '   ')).toBe(false)
+    })
   })
 })
