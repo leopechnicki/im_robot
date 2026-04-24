@@ -105,7 +105,7 @@ jobs:
           git checkout -b "$BRANCH"
           npm version "$NEXT_VERSION" --no-git-tag-version
           git add package.json package-lock.json 2>/dev/null || git add package.json
-          git commit -m "chore: bump version to ${NEXT_VERSION} [skip ci]"
+          git commit -m "chore: bump version to ${NEXT_VERSION}"
           git push origin "$BRANCH"
 
           if [ "$RELEASE_CREATED" = "true" ]; then
