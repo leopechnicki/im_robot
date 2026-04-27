@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { AdaptiveDifficulty } from '../src/core/adaptive'
 
 describe('AdaptiveDifficulty', () => {
@@ -131,6 +131,98 @@ describe('AdaptiveDifficulty', () => {
       adaptive.recordAttempt('agent2', { success: true, solveTimeMs: 100 })
       adaptive.reset()
       expect(adaptive.size).toBe(0)
+    })
+  })
+
+  describe('maxAgents eviction (LRU)', () => {
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('tracks up to maxAgents without eviction', () => {
+      const a = new AdaptiveDifficulty({ maxAgents: 3 })
+      a.recordAttempt('x', { success: true, solveTimeMs: 10 })
+      a.recordAttempt('y', { success: true, solveTimeMs: 10 })
+      a.recordAttempt('z', { success: true, solveTimeMs: 10 })
+      expect(a.size).toBe(3)
+      expect(a.getProfile('x')).toBeDefined()
+      expect(a.getProfile('y')).toBeDefined()
+      expect(a.getProfile('z')).toBeDefined()
+    })
+
+    it('caps size at maxAgents when new agents arrive', () => {
+      const a = new AdaptiveDifficulty({ maxAgents: 3 })
+      a.recordAttempt('x', { success: true, solveTimeMs: 10 })
+      a.recordAttempt('y', { success: true, solveTimeMs: 10 })
+      a.recordAttempt('z', { success: true, solveTimeMs: 10 })
+      a.recordAttempt('w', { success: true, solveTimeMs: 10 })
+      expect(a.size).toBe(3)
+    })
+
+    it('evicts the least-recently-seen agent when at capacity', () => {
+      vi.useFakeTimers()
+      const a = new AdaptiveDifficulty({ maxAgents: 3 })
+
+      vi.setSystemTime(1_000)
+      a.recordAttempt('agent-a', { success: true, solveTimeMs: 10 })
+      vi.setSystemTime(2_000)
+      a.recordAttempt('agent-b', { success: true, solveTimeMs: 10 })
+      vi.setSystemTime(3_000)
+      a.recordAttempt('agent-c', { success: true, solveTimeMs: 10 })
+      // agent-a is now the LRU (lastSeen = 1000)
+
+      vi.setSystemTime(4_000)
+      a.recordAttempt('agent-d', { success: true, solveTimeMs: 10 })
+
+      expect(a.size).toBe(3)
+      expect(a.getProfile('agent-a')).toBeUndefined()
+      expect(a.getProfile('agent-b')).toBeDefined()
+      expect(a.getProfile('agent-c')).toBeDefined()
+      expect(a.getProfile('agent-d')).toBeDefined()
+    })
+
+    it('updates lastSeen on subsequent recordAttempt calls, promoting agent in LRU order', () => {
+      vi.useFakeTimers()
+      const a = new AdaptiveDifficulty({ maxAgents: 3 })
+
+      vi.setSystemTime(1_000)
+      a.recordAttempt('agent-a', { success: true, solveTimeMs: 10 })
+      vi.setSystemTime(2_000)
+      a.recordAttempt('agent-b', { success: true, solveTimeMs: 10 })
+      vi.setSystemTime(3_000)
+      a.recordAttempt('agent-c', { success: true, solveTimeMs: 10 })
+
+      // Re-access agent-a, making it the most recently seen
+      vi.setSystemTime(4_000)
+      a.recordAttempt('agent-a', { success: true, solveTimeMs: 10 })
+      // agent-b is now the LRU (lastSeen = 2000)
+
+      vi.setSystemTime(5_000)
+      a.recordAttempt('agent-d', { success: true, solveTimeMs: 10 })
+
+      expect(a.size).toBe(3)
+      expect(a.getProfile('agent-b')).toBeUndefined()
+      expect(a.getProfile('agent-a')).toBeDefined()
+      expect(a.getProfile('agent-c')).toBeDefined()
+      expect(a.getProfile('agent-d')).toBeDefined()
+    })
+
+    it('newly added agent is immediately available after eviction', () => {
+      vi.useFakeTimers()
+      const a = new AdaptiveDifficulty({ maxAgents: 2 })
+
+      vi.setSystemTime(1_000)
+      a.recordAttempt('old', { success: true, solveTimeMs: 10 })
+      vi.setSystemTime(2_000)
+      a.recordAttempt('recent', { success: true, solveTimeMs: 10 })
+
+      vi.setSystemTime(3_000)
+      a.recordAttempt('new-agent', { success: false, solveTimeMs: 10 })
+
+      const profile = a.getProfile('new-agent')
+      expect(profile).toBeDefined()
+      expect(profile!.totalAttempts).toBe(1)
+      expect(profile!.totalSuccesses).toBe(0)
     })
   })
 })
