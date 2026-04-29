@@ -204,12 +204,13 @@ export function verifyAnswer(challenge: Challenge, answer: string): boolean {
 }
 
 export function createToken(challenge: Challenge, answer: string, startTime: number): ImRobotToken {
-  const elapsed = Date.now() - startTime
+  const now = Date.now()
+  const elapsed = now - startTime
   const signature = fnv1a(`${challenge.id}:${answer}:${elapsed}`)
   return {
     challengeId: challenge.id,
     answer,
-    timestamp: Date.now(),
+    timestamp: now,
     elapsed,
     suspicious: elapsed > SUSPICIOUS_THRESHOLD_MS,
     signature,
