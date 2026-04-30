@@ -6,14 +6,17 @@ export default defineConfig({
     globals: false,
     setupFiles: ['./test/setup.ts'],
     environmentMatchGlobs: [
-      // Server SDK and integration tests use crypto.subtle which jsdom doesn't expose.
-      // Run them in Node's native environment where Web Crypto is available.
+      // Server SDK and integration tests use crypto.subtle — run in native Node.
       ['test/server.test.ts', 'node'],
       ['test/integration.test.ts', 'node'],
       ['test/core.test.ts', 'node'],
       ['test/v04-features.test.ts', 'node'],
       ['test/security-audit.test.ts', 'node'],
       ['test/middleware.test.ts', 'node'],
+      ['test/adaptive.test.ts', 'node'],
+      ['test/turnstile.test.ts', 'node'],
+      ['test/replay-guard.test.ts', 'node'],
+      ['test/analytics.test.ts', 'node'],
     ],
     coverage: {
       thresholds: {
