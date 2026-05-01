@@ -455,5 +455,14 @@ export function createAgentRouter(options: RequireAgentOptions) {
     })
   }
 
-  return { challenge, verify, handler }
+  /**
+   * Release the internal rate limiter's cleanup interval.
+   * Call this when shutting down the server to ensure clean process exit.
+   * Safe to call multiple times.
+   */
+  const destroy = () => {
+    rateLimiter?.destroy()
+  }
+
+  return { challenge, verify, handler, destroy }
 }
