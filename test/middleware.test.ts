@@ -542,3 +542,54 @@ describe('createAgentRouter', () => {
     expect((verifyRes.body as Record<string, unknown>).valid).toBe(false)
   })
 })
+
+// ── createAgentRouter.destroy() ───────────────────────────────────────
+
+describe('createAgentRouter — destroy', () => {
+  it('returns a destroy function', () => {
+    const router = createAgentRouter({ secret: TEST_SECRET })
+    expect(typeof router.destroy).toBe('function')
+  })
+
+  it('destroy() does not throw when no rate limiter is configured', () => {
+    const router = createAgentRouter({ secret: TEST_SECRET })
+    expect(() => router.destroy()).not.toThrow()
+  })
+
+  it('destroy() does not throw when a rate limiter is configured', () => {
+    const router = createAgentRouter({
+      secret: TEST_SECRET,
+      rateLimit: { windowMs: 60_000, maxRequests: 10 },
+    })
+    expect(() => router.destroy()).not.toThrow()
+  })
+
+  it('destroy() is idempotent — safe to call multiple times', () => {
+    const router = createAgentRouter({
+      secret: TEST_SECRET,
+      rateLimit: { windowMs: 60_000, maxRequests: 10 },
+    })
+    expect(() => {
+      router.destroy()
+      router.destroy()
+      router.destroy()
+    }).not.toThrow()
+  })
+
+  it('destroy() clears the rate limiter cleanup interval', () => {
+    vi.useFakeTimers()
+
+    const router = createAgentRouter({
+      secret: TEST_SECRET,
+      rateLimit: { windowMs: 1_000, maxRequests: 5 },
+    })
+
+    const setIntervalSpy = vi.spyOn(global, 'clearInterval')
+    router.destroy()
+
+    expect(setIntervalSpy).toHaveBeenCalled()
+
+    vi.useRealTimers()
+    setIntervalSpy.mockRestore()
+  })
+})
