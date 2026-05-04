@@ -134,6 +134,35 @@ describe('AdaptiveDifficulty', () => {
     })
   })
 
+  describe('listAgents', () => {
+    it('returns empty array when no agents are tracked', () => {
+      expect(adaptive.listAgents()).toEqual([])
+    })
+
+    it('returns the tracked agent ids', () => {
+      adaptive.recordAttempt('agent-a', { success: true, solveTimeMs: 50 })
+      adaptive.recordAttempt('agent-b', { success: false, solveTimeMs: 200 })
+      const agents = adaptive.listAgents()
+      expect(agents).toHaveLength(2)
+      expect(agents).toContain('agent-a')
+      expect(agents).toContain('agent-b')
+    })
+
+    it('reflects additions and removals', () => {
+      adaptive.recordAttempt('agent1', { success: true, solveTimeMs: 50 })
+      expect(adaptive.listAgents()).toContain('agent1')
+      adaptive.reset('agent1')
+      expect(adaptive.listAgents()).not.toContain('agent1')
+    })
+
+    it('returns a snapshot — mutations to the returned array do not affect internal state', () => {
+      adaptive.recordAttempt('agent1', { success: true, solveTimeMs: 50 })
+      const agents = adaptive.listAgents()
+      agents.push('injected')
+      expect(adaptive.size).toBe(1)
+    })
+  })
+
   describe('maxAgents eviction (LRU)', () => {
     afterEach(() => {
       vi.useRealTimers()
