@@ -185,7 +185,6 @@ export function requireAgent(options: RequireAgentOptions) {
 
   // Initialize rate limiter if configured
   const rateLimiter = options.rateLimit ? new RateLimiter(options.rateLimit) : undefined
-  const rateLimitMax = options.rateLimit?.maxRequests ?? 30
 
   const trustProxy = options.trustProxy ?? false
 
@@ -205,7 +204,7 @@ export function requireAgent(options: RequireAgentOptions) {
         const retryAfter = Math.ceil((status.resetAt - Date.now()) / 1000)
 
         // Set standard rate limit headers
-        res.setHeader?.('X-RateLimit-Limit', rateLimitMax)
+        res.setHeader?.('X-RateLimit-Limit', rateLimiter.maxRequests)
         res.setHeader?.('X-RateLimit-Remaining', status.remaining)
         res.setHeader?.('X-RateLimit-Reset', toUnixSeconds(status.resetAt))
         res.setHeader?.('Retry-After', retryAfter)
@@ -219,7 +218,7 @@ export function requireAgent(options: RequireAgentOptions) {
 
       // Set rate limit headers for allowed requests
       const status = rateLimiter.getStatus(key)
-      res.setHeader?.('X-RateLimit-Limit', rateLimitMax)
+      res.setHeader?.('X-RateLimit-Limit', rateLimiter.maxRequests)
       res.setHeader?.('X-RateLimit-Remaining', status.remaining)
       res.setHeader?.('X-RateLimit-Reset', toUnixSeconds(status.resetAt))
     }
@@ -313,7 +312,7 @@ export function createAgentRouter(options: RequireAgentOptions) {
       const retryAfter = Math.ceil((status.resetAt - Date.now()) / 1000)
 
       // Set standard rate limit headers
-      res.setHeader?.('X-RateLimit-Limit', options.rateLimit?.maxRequests ?? 30)
+      res.setHeader?.('X-RateLimit-Limit', rateLimiter.maxRequests)
       res.setHeader?.('X-RateLimit-Remaining', status.remaining)
       res.setHeader?.('X-RateLimit-Reset', toUnixSeconds(status.resetAt))
       res.setHeader?.('Retry-After', retryAfter)
@@ -328,7 +327,7 @@ export function createAgentRouter(options: RequireAgentOptions) {
 
     // Set rate limit headers for allowed requests
     const status = rateLimiter.getStatus(key)
-    res.setHeader?.('X-RateLimit-Limit', options.rateLimit?.maxRequests ?? 30)
+    res.setHeader?.('X-RateLimit-Limit', rateLimiter.maxRequests)
     res.setHeader?.('X-RateLimit-Remaining', status.remaining)
     res.setHeader?.('X-RateLimit-Reset', toUnixSeconds(status.resetAt))
     return true

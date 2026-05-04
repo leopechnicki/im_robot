@@ -622,4 +622,26 @@ describe('RateLimiter', () => {
       limiter.destroy()
     })
   })
+
+  // ── Public accessors ──────────────────────────────────────────────────────
+
+  describe('maxRequests getter', () => {
+    it('returns 30 for default instance', () => {
+      const limiter = new RateLimiter()
+      expect(limiter.maxRequests).toBe(30)
+      limiter.destroy()
+    })
+
+    it('returns configured value', () => {
+      const limiter = new RateLimiter({ maxRequests: 10 })
+      expect(limiter.maxRequests).toBe(10)
+      limiter.destroy()
+    })
+
+    it('returns custom value when windowMs is set without maxRequests', () => {
+      const limiter = new RateLimiter({ windowMs: 30_000 })
+      expect(limiter.maxRequests).toBe(30)
+      limiter.destroy()
+    })
+  })
 })
