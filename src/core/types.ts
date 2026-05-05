@@ -65,6 +65,9 @@ export interface SignedChallenge extends Challenge {
 
 export type Difficulty = 'easy' | 'medium' | 'hard'
 
+/** All valid difficulty levels as a runtime array — useful for validation and iteration. */
+export const SUPPORTED_DIFFICULTIES = ['easy', 'medium', 'hard'] as const satisfies readonly Difficulty[]
+
 /** Submissions slower than this are flagged as suspicious (possible human relay) */
 export const SUSPICIOUS_THRESHOLD_MS = 5_000
 
