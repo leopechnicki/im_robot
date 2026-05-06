@@ -58,7 +58,7 @@ export interface RateLimiterStatus {
  */
 export class RateLimiter {
   private readonly windowMs: number
-  private readonly maxRequests: number
+  private readonly _maxRequests: number
   private readonly onLimitReached?: (key: string) => void
   /** key → array of request timestamps (ms), oldest first */
   private readonly store = new Map<string, number[]>()
@@ -66,7 +66,7 @@ export class RateLimiter {
 
   constructor(config?: RateLimiterConfig) {
     this.windowMs = config?.windowMs ?? 60_000
-    this.maxRequests = config?.maxRequests ?? 30
+    this._maxRequests = config?.maxRequests ?? 30
     this.onLimitReached = config?.onLimitReached
 
     this.cleanupInterval = setInterval(
@@ -99,6 +99,11 @@ export class RateLimiter {
     return timestamps
   }
 
+  /** The configured maximum requests per window. */
+  get maxRequests(): number {
+    return this._maxRequests
+  }
+
   /**
    * Check if a request is allowed for the given key.
    * Returns true if the request is within the rate limit, false otherwise.
@@ -118,7 +123,7 @@ export class RateLimiter {
 
     this.prune(timestamps, now)
 
-    if (timestamps.length < this.maxRequests) {
+    if (timestamps.length < this._maxRequests) {
       timestamps.push(now)
       return true
     }
@@ -137,12 +142,12 @@ export class RateLimiter {
     const now = Date.now()
     const timestamps = this.store.get(key)
     if (!timestamps || timestamps.length === 0) {
-      return { remaining: this.maxRequests, resetAt: now + this.windowMs }
+      return { remaining: this._maxRequests, resetAt: now + this.windowMs }
     }
 
     this.prune(timestamps, now)
 
-    const remaining = Math.max(0, this.maxRequests - timestamps.length)
+    const remaining = Math.max(0, this._maxRequests - timestamps.length)
     const oldest = timestamps[0]
     const resetAt = oldest !== undefined ? oldest + this.windowMs : now + this.windowMs
     return { remaining, resetAt }
