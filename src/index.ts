@@ -12,7 +12,7 @@ export type {
   SerializedProofToken,
 } from './core/types'
 
-export { SUSPICIOUS_THRESHOLD_MS } from './core/types'
+export { SUSPICIOUS_THRESHOLD_MS, SUPPORTED_DIFFICULTIES } from './core/types'
 
 export {
   executeOperation,
