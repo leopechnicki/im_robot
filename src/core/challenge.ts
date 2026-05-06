@@ -111,7 +111,7 @@ const HARD_OPS: OpFactory[] = [
   () => ({ op: 'xor_encode', key: randomInt(1, 127) }),
   () => ({ op: 'fnv1a_hash' }),
   // Crypto-grade operations (v0.4)
-  () => ({ op: 'sha256_hash' }),
+  () => ({ op: 'fnv1a_cascade' }),
   () => ({
     op: 'byte_xor',
     key: Array.from({ length: randomInt(2, 8) }, () => randomInt(1, 255)),
