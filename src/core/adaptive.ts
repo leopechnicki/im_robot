@@ -263,6 +263,11 @@ export class AdaptiveDifficulty {
     return this.agents.size
   }
 
+  /** Returns the IDs of all currently tracked agents as a snapshot array. */
+  listAgents(): string[] {
+    return [...this.agents.keys()]
+  }
+
   // ---- Private helpers ----
 
   private getOrCreateProfile(agentId: string): AgentProfile {
