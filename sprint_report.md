@@ -1,99 +1,145 @@
-# Sprint Report — The Crew
+# Sprint Report — Autonomous Sprint Cycle
 
-**Date:** 2026-05-06  
-**Sprint ID:** gallant-volta / lucid-brown / compassionate-johnson  
-**Repos:** `im_robot`, `endpoint-tester`, `pechnicki-page`  
-**Status:** Complete — 3 PRs opened, 0 pushes to main
+**Date:** 2026-05-07  
+**Sprint ID:** autonomous-sprint-24ipN  
+**Agent:** The Crew (Claude Code — claude-sonnet-4-6)  
+**Repos in scope:** `leopechnicki/im_robot`, `leopechnicki/endpoint-tester`, `leopechnicki/Pechnicki-Page`
+
+---
+
+## Executive Summary
+
+Completed a full TDD sprint cycle across three repositories with zero human input. Identified and fixed two bugs, added missing test coverage for an untested feature, and delivered a UI improvement with full trilingual i18n support. All changes landed on feature branches with PRs opened against `main`.
 
 ---
 
 ## Phase 1 — Analysis
 
-Scanned all three repositories for open issues, existing PRs (im_robot: #72–74, endpoint-tester: #27–29, pechnicki-page: #32), and active `crew/` branches. Identified work not already covered by pending PRs.
-
----
-
-## Phase 2 — Design
-
-Selected one focused improvement per repo:
-
-| Repo | Concern | Rationale |
-|------|---------|----------|
-| `im_robot` | Deprecated op alias leaking into generated challenges | `HARD_OPS` emitted `sha256_hash`, a documented deprecated alias — silent correctness hazard |
-| `endpoint-tester` | Go test function name invalid for root path `/` | `toGoFuncName("/")` produced `TestGet_` — trailing underscore, invalid Go identifier |
-| `pechnicki-page` | Native browser controls unaffected by theme toggle | Missing `<meta name="color-scheme">` kept scrollbars/inputs in light mode under dark theme |
-
----
-
-## Phase 3 — Test-First
-
 ### im_robot
-New file: `test/challenge-ops-deprecation.test.ts`  
-Asserts that `generateChallenge` never emits `sha256_hash` in a pipeline step across 50 iterations × 3 difficulty levels.
+- **Version:** 0.6.2
+- **Stack:** TypeScript, Vitest, tsup, Node.js Web Crypto API
+- **Finding:** `TurnstileVerifier` instantiated inside the `verify()` async closure on every POST `/verify` request. `ImRobotVerifier` and `RateLimiter` were correctly scoped to router init; `TurnstileVerifier` was the odd one out.
+- **Impact:** Per-request object allocation for a stateless helper — unnecessary memory churn on every verified request when Turnstile is enabled.
 
 ### endpoint-tester
-New file: `tests/generator-go.test.ts`  
-Covers: root path → `TestGet_Root`, root with auth → `TestGet_Root_WithAuth`, normal paths unaffected, correct package/import header, multi-method root.
+- **Version:** 0.2.2
+- **Stack:** TypeScript, Vitest, supports 12 frameworks
+- **Finding 1 (bug):** `detectFromGoMod()` had an empty `catch {}` block. Every other detection strategy (`detectFromPackageJson`, `detectFromPythonDeps`, `detectFromJavaBuild`) used `warnOnReadError()` to surface debug info. Go was the only one silently swallowing errors.
+- **Finding 2 (coverage gap):** Zero tests for Go module detection (`detectFromGoMod`) despite Gin, Echo, Chi, and net/http being fully implemented. The `tests/detect.test.ts` file had thorough coverage for Node, Python, and Java but nothing for Go.
 
-### pechnicki-page
-Manual verification checklist (no JS test runner in this repo): native controls follow theme in dark-mode OS; no flash on light mode.
-
----
-
-## Phase 4 — Implementation
-
-### im_robot — `src/core/challenge.ts`
-```diff
-- () => ({ op: 'sha256_hash' }),
-+ () => ({ op: 'fnv1a_cascade' }),
-```
-One factory in `HARD_OPS` was using the deprecated alias. Replaced with the canonical op name.
-
-### endpoint-tester — `src/generator.ts`
-```diff
-- return `Test${methodPart}_${pathPart}`;
-+ return `Test${methodPart}_${pathPart || "Root"}`;
-```
-Also corrected two regex patterns that had been corrupted during initial push (`/:(\ w+)/g` → `/:([\w]+)/g`) in both `buildTestPath` and `buildGoTestPath`.
-
-### pechnicki-page — `index.html`, `projects.html`
-```diff
-+ <meta name="color-scheme" content="dark light">
-```
-Added after the existing `<meta name="theme-color">` in both pages.
+### Pechnicki-Page
+- **Stack:** Vanilla HTML/JS/CSS, Docker, fly.io
+- **Finding:** `projects.html` appears in `sitemap.xml` and is linked from Leonardo's professional modal contact section (`contact.projects: 'projects.html'`), but the top-level navbar has no entry for it. Users landing on the homepage have no discoverable path to the projects page via navigation.
 
 ---
 
-## Phase 5 — Quality Gate
+## Phase 2-5 — Design, Tests, Implementation, Quality Gate
 
-| Repo | Checks |
-|------|--------|
-| `im_robot` | TypeScript types unchanged; vitest suite expected green; new test deterministic (deprecated alias fully removed from pool) |
-| `endpoint-tester` | Regex regression identified and fixed before PR; root-path test cases cover all named assertions |
-| `pechnicki-page` | HTML valid; meta tags positioned correctly in `<head>`; no JS logic changed |
+### PR 1 — im_robot: TurnstileVerifier hoisting
+**Branch:** `claude/gallant-volta-24ipN`  
+**PR:** https://github.com/leopechnicki/im_robot/pull/76
+
+**Change (src/server/middleware.ts):**
+```typescript
+// BEFORE — inside verify() closure (per-request)
+const tsVerifier = new TurnstileVerifier({ secretKey: options.turnstile.secretKey })
+
+// AFTER — router scope (once per router init)
+const tsVerifier = options.turnstile
+  ? new TurnstileVerifier({ secretKey: options.turnstile.secretKey })
+  : undefined
+```
+
+**Tests added (test/middleware.test.ts):**
+- `returns 400 when turnstile.required is true and no cf-turnstile-response header present`
+- `succeeds when turnstile.required is false and no cf-turnstile-response header present`
+
+---
+
+### PR 2 — endpoint-tester: Go module error logging + tests
+**Branch:** `claude/compassionate-johnson-24ipN`  
+**PR:** https://github.com/leopechnicki/endpoint-tester/pull/31
+
+**Change (src/detect.ts):**
+```typescript
+// BEFORE
+} catch {
+  return null;
+}
+
+// AFTER
+} catch (err) {
+  warnOnReadError(goModPath, err);
+  return null;
+}
+```
+
+**Tests added (tests/detect.test.ts) — 5 new cases:**
+- `should detect Gin from go.mod` → `{ framework: 'gin', confidence: 'high' }`
+- `should detect Echo from go.mod` → `{ framework: 'echo', confidence: 'high' }`
+- `should detect Chi from go.mod` → `{ framework: 'chi', confidence: 'high' }`
+- `should default to nethttp when go.mod has no known router` → `{ framework: 'nethttp', confidence: 'medium' }`
+- `should return null when no go.mod is present` → `null`
+
+---
+
+### PR 3 — Pechnicki-Page: Projects nav link
+**Branch:** `claude/lucid-brown-24ipN`  
+**PR:** https://github.com/leopechnicki/Pechnicki-Page/pull/34
+
+**Change (index.html):**
+```html
+<!-- Added after Contact nav item -->
+<li role="none">
+  <a href="projects.html" class="navbar-link" role="menuitem" data-i18n="navProjects">Projetos</a>
+</li>
+```
+
+**Change (scripts/main.js) — navProjects key in 3 locales:**
+```javascript
+// pt-BR
+navProjects: 'Projetos',
+// en
+navProjects: 'Projects',
+// es
+navProjects: 'Proyectos',
+```
 
 ---
 
 ## Phase 6 — Pull Requests
 
-| Repo | Branch | PR | Title |
-|------|--------|-----|-------|
-| `im_robot` | `claude/gallant-volta-33nWh` | [#75](https://github.com/leopechnicki/im_robot/pull/75) | fix: replace deprecated sha256_hash op with fnv1a_cascade in HARD_OPS |
-| `endpoint-tester` | `claude/compassionate-johnson-33nWh` | [#30](https://github.com/leopechnicki/endpoint-tester/pull/30) | fix: generate valid Go test function name for root path endpoints |
-| `pechnicki-page` | `claude/lucid-brown-33nWh` | [#33](https://github.com/leopechnicki/Pechnicki-Page/pull/33) | fix: add color-scheme meta tag for native browser dark/light mode rendering |
+| Repo | PR | Title |
+|------|----|-------|
+| im_robot | [#76](https://github.com/leopechnicki/im_robot/pull/76) | fix: instantiate TurnstileVerifier once per router, not per request |
+| endpoint-tester | [#31](https://github.com/leopechnicki/endpoint-tester/pull/31) | fix: log Go module read errors via warnOnReadError, add Go detection tests |
+| Pechnicki-Page | [#34](https://github.com/leopechnicki/Pechnicki-Page/pull/34) | feat: add Projects nav link with trilingual i18n support |
 
-All PRs target `main`. No pushes to `main` were made.
-
----
-
-## Blockers
-
-- **Regex corruption during initial endpoint-tester push**: When constructing the JSON payload for `push_files`, the regex `/:([\w]+)/g` was initially encoded as `/:(\ w+)/g` (backslash-space-w), corrupting the pattern. Caught during the quality gate phase; corrected with a follow-up commit before PR creation.
+All PRs target `main`. No direct pushes to `main` were made.
 
 ---
 
-## Team Notes
+## Metrics
 
-- All three changes are surgical (1–2 lines each) with no blast radius beyond the targeted behaviour.
-- Test files are self-contained and follow each repo's existing conventions (vitest, same import style).
-- Sprint adhered to rules: no main pushes, one concern per PR, max 3 PRs per repo.
+| Metric | Value |
+|--------|-------|
+| Repos touched | 3 / 3 |
+| PRs opened | 3 |
+| Bugs fixed | 2 |
+| Test cases added | 7 |
+| Files modified | 6 |
+| Direct pushes to main | 0 |
+
+---
+
+## Blockers & Notes
+
+- **Branch name mismatch (resolved):** The sprint instructions specified branches with suffix `24ipN` but no such branches existed in any repo. Branches were created fresh from `main` before pushing.
+- **No CI feedback available:** Tests are described as passing based on code analysis; actual CI run results depend on the repo's CI configuration.
+- **Static site (pechnicki-page):** No test suite exists — changes verified by inspection of the i18n system and HTML structure.
+
+## Deferred / Out of Scope
+
+- No items were left pending within the sprint scope.
+- Potential follow-up: add E2E nav tests for pechnicki-page once a test framework is introduced.
+- Potential follow-up: add benchmark test to confirm TurnstileVerifier scoping improvement in im_robot.
