@@ -593,3 +593,52 @@ describe('createAgentRouter — destroy', () => {
     setIntervalSpy.mockRestore()
   })
 })
+
+// ── createAgentRouter — Turnstile ────────────────────────────────────
+
+describe('createAgentRouter — Turnstile', () => {
+  it('returns 400 when turnstile.required is true and no cf-turnstile-response header is present', async () => {
+    const router = createAgentRouter({
+      secret: TEST_SECRET,
+      turnstile: { secretKey: 'fake-turnstile-secret-key-minimum-xx', required: true },
+    })
+
+    // Obtain a valid challenge + answer
+    const challengeRes = mockRes()
+    await router.handler(mockReq({ method: 'GET' }) as any, challengeRes)
+    const challenge = challengeRes.body as Record<string, unknown>
+
+    const { solveChallenge } = await import('../src/core/solver')
+    const answer = solveChallenge(challenge as any)
+
+    const verifyReq = { ...mockReq({ method: 'POST' }), body: { challenge, answer } }
+    const verifyRes = mockRes()
+    await router.handler(verifyReq as any, verifyRes)
+
+    expect(verifyRes.statusCode).toBe(400)
+    expect((verifyRes.body as Record<string, string>).code).toBe('TURNSTILE_TOKEN_REQUIRED')
+  })
+
+  it('succeeds when turnstile.required is false and no cf-turnstile-response header is present', async () => {
+    const router = createAgentRouter({
+      secret: TEST_SECRET,
+      turnstile: { secretKey: 'fake-turnstile-secret-key-minimum-xx', required: false },
+    })
+
+    // Obtain a valid challenge + answer
+    const challengeRes = mockRes()
+    await router.handler(mockReq({ method: 'GET' }) as any, challengeRes)
+    const challenge = challengeRes.body as Record<string, unknown>
+
+    const { solveChallenge } = await import('../src/core/solver')
+    const answer = solveChallenge(challenge as any)
+
+    const verifyReq = { ...mockReq({ method: 'POST' }), body: { challenge, answer } }
+    const verifyRes = mockRes()
+    await router.handler(verifyReq as any, verifyRes)
+
+    // Turnstile not required — missing token is tolerated, verification succeeds
+    expect(verifyRes.statusCode).toBe(200)
+    expect((verifyRes.body as Record<string, unknown>).valid).toBe(true)
+  })
+})

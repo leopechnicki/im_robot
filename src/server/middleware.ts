@@ -292,6 +292,11 @@ export function createAgentRouter(options: RequireAgentOptions) {
   // Initialize rate limiter if configured
   const rateLimiter = options.rateLimit ? new RateLimiter(options.rateLimit) : undefined
 
+  // Initialize Turnstile verifier once per router — avoids per-request object allocation
+  const tsVerifier = options.turnstile
+    ? new TurnstileVerifier({ secretKey: options.turnstile.secretKey })
+    : undefined
+
   type VerifyRequest = MiddlewareRequest & {
     body?: { challenge: SignedChallenge; answer: string; agentId?: string }
   }
@@ -387,9 +392,8 @@ export function createAgentRouter(options: RequireAgentOptions) {
         // required: false — proceed without turnstile flag
         turnstileVerified = undefined
       } else {
-        const tsVerifier = new TurnstileVerifier({ secretKey: options.turnstile.secretKey })
         const clientIp = getClientIp(req, trustProxy)
-        const tsResult = await tsVerifier.verify(
+        const tsResult = await tsVerifier!.verify(
           turnstileToken,
           clientIp !== 'unknown' ? clientIp : undefined,
         )
