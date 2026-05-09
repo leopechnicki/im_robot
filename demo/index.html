@@ -311,7 +311,7 @@
       margin-bottom: 16px;
       letter-spacing: -0.02em;
     }
-    section > p {
+    .section-intro {
       font-size: 16px;
       color: var(--text-muted);
       max-width: 600px;
@@ -545,8 +545,21 @@
       border-top: none;
       border-radius: 0 0 10px 10px;
       overflow: hidden;
+      position: relative;
     }
     .code-panel.active { display: block; }
+    /* right-edge fade gradient hints at horizontal scroll */
+    .code-panel.active::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 48px;
+      background: linear-gradient(to right, transparent, var(--bg-alt));
+      pointer-events: none;
+      border-radius: 0 0 10px 0;
+    }
     .code-panel pre {
       padding: 20px;
       overflow-x: auto;
@@ -555,6 +568,13 @@
       line-height: 1.7;
       color: var(--text);
     }
+    /* syntax highlighting — shared between code-panel and qs-code-block */
+    .code-panel pre .kw,
+    .qs-code-block pre .kw { color: var(--accent); }
+    .code-panel pre .str,
+    .qs-code-block pre .str { color: #a78bfa; }
+    .code-panel pre .cmt,
+    .qs-code-block pre .cmt { color: var(--text-muted); }
 
     /* FEATURES */
     .features {
@@ -727,9 +747,6 @@
       color: var(--text);
       margin: 0;
     }
-    .qs-code-block pre .kw { color: var(--accent); }
-    .qs-code-block pre .str { color: #a78bfa; }
-    .qs-code-block pre .cmt { color: var(--text-muted); }
 
     .agent-prompt-content {
       display: none;
@@ -748,10 +765,18 @@
       display: block;
     }
 
+    /* 3-column intermediate breakpoint for features grid */
+    @media (min-width: 750px) and (max-width: 1100px) {
+      .features { grid-template-columns: repeat(3, 1fr); }
+    }
+
     @media (max-width: 900px) {
-      .features { grid-template-columns: repeat(2, 1fr); }
       .steps { grid-template-columns: 1fr; }
       .tabs { flex-wrap: wrap; }
+    }
+
+    @media (max-width: 750px) {
+      .features { grid-template-columns: repeat(2, 1fr); }
     }
 
     /* ── MOBILE NAV ── */
@@ -815,6 +840,15 @@
       .prompt-bar-top { flex-direction: column; text-align: center; }
       .agent-prompt-bar .prompt-label { font-size: 12px; }
     }
+
+    /* suppress hover transforms for users who prefer reduced motion */
+    @media (prefers-reduced-motion: reduce) {
+      .btn-primary:hover,
+      .copy-prompt-btn:hover,
+      .step:hover {
+        transform: none;
+      }
+    }
   </style>
 </head>
 <body>
@@ -834,7 +868,7 @@
         <a href="#features">Features</a>
         <a href="/docs.html">Docs</a>
         <a href="https://github.com/leopechnicki/im_robot" class="gh-link">GitHub</a>
-        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">🌙</button>
+        <button class="theme-toggle" id="theme-toggle" aria-label="Switch to light mode">&#127769;</button>
         <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Open menu" aria-expanded="false">&#9776;</button>
       </div>
     </div>
@@ -869,7 +903,7 @@
     <button class="install-bar" id="install-bar" title="Click to copy" aria-label="Copy install command: npm install imrobot">
       <span>$</span>
       <code>npm install imrobot</code>
-      <span class="copy-icon">📋</span>
+      <span class="copy-icon" aria-hidden="true">&#128203;</span>
     </button>
   </div>
 
@@ -881,7 +915,7 @@
         <button data-diff="easy" aria-label="Set difficulty to easy">Easy</button>
         <button data-diff="medium" class="active" aria-label="Set difficulty to medium">Medium</button>
         <button data-diff="hard" aria-label="Set difficulty to hard">Hard</button>
-        <button class="solve-btn" id="auto-solve">🤖 Auto-Solve</button>
+        <button class="solve-btn" id="auto-solve"><span aria-hidden="true">&#129302;</span> Auto-Solve</button>
       </div>
       <div id="widget-mount"></div>
       <div id="token-display" aria-live="polite" aria-label="Verification result"></div>
@@ -918,7 +952,7 @@
   <section id="how-it-works">
     <div class="section-label">How it works</div>
     <h2>Built for the agent era</h2>
-    <p>
+    <p class="section-intro">
       Traditional CAPTCHAs block bots. imrobot flips the script &mdash;
       only programmatic agents can solve these challenges.
     </p>
@@ -1015,7 +1049,7 @@ app.post(<span class="str">'/api/verify'</span>, <span class="kw">async</span> (
   <section class="code-section" id="code">
     <div class="section-label">Integration</div>
     <h2>One component, every framework</h2>
-    <p>Drop it in with a single import. Works everywhere.</p>
+    <p class="section-intro">Drop it in with a single import. Works everywhere.</p>
 
     <div class="tabs" role="tablist">
       <button class="tab active" data-tab="react" role="tab" aria-selected="true" aria-controls="panel-react" id="tab-react">React</button>
@@ -1031,33 +1065,33 @@ app.post(<span class="str">'/api/verify'</span>, <span class="kw">async</span> (
       <button class="tab" data-tab="cli" role="tab" aria-selected="false" aria-controls="panel-cli" id="tab-cli">CLI</button>
     </div>
     <div class="code-panels">
-      <div class="code-panel active" id="panel-react" role="tabpanel" aria-labelledby="tab-react"><pre><code>import { ImRobot } from 'imrobot/react'
+      <div class="code-panel active" id="panel-react" role="tabpanel" aria-labelledby="tab-react"><pre><code><span class="kw">import</span> { ImRobot } <span class="kw">from</span> <span class="str">'imrobot/react'</span>
 
-function App() {
-  return (
+<span class="kw">function</span> App() {
+  <span class="kw">return</span> (
     &lt;ImRobot
-      difficulty="medium"
-      theme="light"
+      difficulty=<span class="str">"medium"</span>
+      theme=<span class="str">"light"</span>
       onVerified={(token) =&gt; {
-        console.log('Robot verified!', token)
+        console.log(<span class="str">'Robot verified!'</span>, token)
       }}
     /&gt;
   )
 }</code></pre></div>
 
       <div class="code-panel" id="panel-vue" role="tabpanel" aria-labelledby="tab-vue"><pre><code>&lt;script setup&gt;
-import { ImRobot } from 'imrobot/vue'
+<span class="kw">import</span> { ImRobot } <span class="kw">from</span> <span class="str">'imrobot/vue'</span>
 
-function handleVerified(token) {
-  console.log('Robot verified!', token)
+<span class="kw">function</span> handleVerified(token) {
+  console.log(<span class="str">'Robot verified!'</span>, token)
 }
 &lt;/script&gt;
 
 &lt;template&gt;
   &lt;ImRobot
-    difficulty="medium"
-    theme="light"
-    @verified="handleVerified"
+    difficulty=<span class="str">"medium"</span>
+    theme=<span class="str">"light"</span>
+    @verified=<span class="str">"handleVerified"</span>
   /&gt;
 &lt;/template&gt;</code></pre></div>
 
@@ -1090,41 +1124,41 @@ function handleVerified(token) {
     })
 &lt;/script&gt;</code></pre></div>
 
-      <div class="code-panel" id="panel-core" role="tabpanel" aria-labelledby="tab-core"><pre><code>import {
+      <div class="code-panel" id="panel-core" role="tabpanel" aria-labelledby="tab-core"><pre><code><span class="kw">import</span> {
   generateChallenge,
   solveChallenge,
   verifyAnswer,
-} from 'imrobot/core'
+} <span class="kw">from</span> <span class="str">'imrobot/core'</span>
 
-// Generate
-const challenge = generateChallenge({ difficulty: 'medium' })
+<span class="cmt">// Generate</span>
+<span class="kw">const</span> challenge = generateChallenge({ difficulty: <span class="str">'medium'</span> })
 
-// Solve (what an AI agent does)
-const answer = solveChallenge(challenge)
+<span class="cmt">// Solve (what an AI agent does)</span>
+<span class="kw">const</span> answer = solveChallenge(challenge)
 
-// Verify
-const isValid = verifyAnswer(challenge, answer)
-console.log(isValid) // true</code></pre></div>
+<span class="cmt">// Verify</span>
+<span class="kw">const</span> isValid = verifyAnswer(challenge, answer)
+console.log(isValid) <span class="cmt">// true</span></code></pre></div>
 
-      <div class="code-panel" id="panel-server" role="tabpanel" aria-labelledby="tab-server"><pre><code>import { createVerifier } from 'imrobot/server'
+      <div class="code-panel" id="panel-server" role="tabpanel" aria-labelledby="tab-server"><pre><code><span class="kw">import</span> { createVerifier } <span class="kw">from</span> <span class="str">'imrobot/server'</span>
 
-// Create verifier with HMAC secret (server-side only)
-const verifier = createVerifier({
+<span class="cmt">// Create verifier with HMAC secret (server-side only)</span>
+<span class="kw">const</span> verifier = createVerifier({
   secret: process.env.IMROBOT_SECRET!,
-  difficulty: 'medium',
+  difficulty: <span class="str">'medium'</span>,
 })
 
-// Generate a signed challenge (send to client)
-app.get('/api/challenge', async (req, res) =&gt; {
-  const challenge = await verifier.generate()
-  res.json(challenge) // includes HMAC-SHA256 signature
+<span class="cmt">// Generate a signed challenge (send to client)</span>
+app.get(<span class="str">'/api/challenge'</span>, <span class="kw">async</span> (req, res) =&gt; {
+  <span class="kw">const</span> challenge = <span class="kw">await</span> verifier.generate()
+  res.json(challenge) <span class="cmt">// includes HMAC-SHA256 signature</span>
 })
 
-// Verify agent's answer (stateless, no DB needed)
-app.post('/api/verify', async (req, res) =&gt; {
-  const { challenge, answer } = req.body
-  const result = await verifier.verify(challenge, answer)
-  // { valid: true, elapsed: 42, suspicious: false }
+<span class="cmt">// Verify agent's answer (stateless, no DB needed)</span>
+app.post(<span class="str">'/api/verify'</span>, <span class="kw">async</span> (req, res) =&gt; {
+  <span class="kw">const</span> { challenge, answer } = req.body
+  <span class="kw">const</span> result = <span class="kw">await</span> verifier.verify(challenge, answer)
+  <span class="cmt">// { valid: true, elapsed: 42, suspicious: false }</span>
   res.json(result)
 })</code></pre></div>
 
@@ -1251,16 +1285,6 @@ app.post('/api/verify', async (req, res) =&gt; {
 
   // Check risk score (0-1, weighted composite)
   const risk = adaptive.getRiskAssessment(agentId)
-  // {
-  //   score: 0.15,
-  //   level: 'low',          // low | medium | high | critical
-  //   factors: {
-  //     failureRate: 0.1,    // 35% weight
-  //     abnormalTiming: 0.0, // 25% weight
-  //     rapidAttempts: 0.0,  // 25% weight
-  //     inconsistentTiming: 0.3, // 15% weight
-  //   }
-  // }
 
   if (risk.level === 'critical') {
     return res.status(403).json({ error: 'Blocked' })
@@ -1291,60 +1315,60 @@ $ npx imrobot info</code></pre></div>
   <section id="features">
     <div class="section-label">Features</div>
     <h2>Why imrobot?</h2>
-    <p>Purpose-built for the agent-first web.</p>
+    <p class="section-intro">Purpose-built for the agent-first web.</p>
     <div class="features">
       <div class="feature">
-        <div class="feature-icon" aria-hidden="true">🧩</div>
+        <div class="feature-icon" aria-hidden="true">&#129513;</div>
         <h3>Framework agnostic</h3>
         <p>React, Vue, Svelte, Angular, or vanilla JS. One package covers everything via native Web Components.</p>
       </div>
       <div class="feature">
-        <div class="feature-icon" aria-hidden="true">🔒</div>
+        <div class="feature-icon" aria-hidden="true">&#128274;</div>
         <h3>HMAC-SHA256 server SDK</h3>
         <p>Tamper-proof HMAC signing with stateless verification. No database needed. Proof-of-Agent tokens for cross-service auth.</p>
       </div>
       <div class="feature">
-        <div class="feature-icon" aria-hidden="true">⚡</div>
+        <div class="feature-icon" aria-hidden="true">&#9889;</div>
         <h3>Instant for agents</h3>
         <p>Deterministic pipelines are trivially solvable by any programmatic agent. ~12,000 verifications/sec per core.</p>
       </div>
       <div class="feature">
-        <div class="feature-icon" aria-hidden="true">🧠</div>
+        <div class="feature-icon" aria-hidden="true">&#129504;</div>
         <h3>27 operation types</h3>
         <p>String transforms, SHA-256, byte XOR, hash chains, atbash, run-length encoding, vowel counting &mdash; impossible for humans.</p>
       </div>
       <div class="feature">
-        <div class="feature-icon" aria-hidden="true">🛡️</div>
+        <div class="feature-icon" aria-hidden="true">&#128737;&#65039;</div>
         <h3>Middleware &amp; rate limiting</h3>
         <p>Built-in <code>requireAgent()</code> and <code>createAgentRouter()</code> with sliding-window rate limiting. JWT-style proof tokens via <code>X-Agent-Proof</code> header. Standard 429 responses with <code>Retry-After</code> headers.</p>
       </div>
       <div class="feature">
-        <div class="feature-icon" aria-hidden="true">🖼️</div>
+        <div class="feature-icon" aria-hidden="true">&#128444;&#65039;</div>
         <h3>AI image challenges</h3>
         <p>Experimental image-based verification using AI-generated scenes with known ground truth. Pre-generate pools via OpenAI, Stability AI, or custom providers. 6 challenge types.</p>
       </div>
       <div class="feature">
-        <div class="feature-icon" aria-hidden="true">📊</div>
+        <div class="feature-icon" aria-hidden="true">&#128202;</div>
         <h3>Adaptive difficulty</h3>
         <p>Auto-adjusts challenge difficulty per agent based on behavior. Risk scoring with 4 weighted factors. Inspired by reCAPTCHA v3 and Arkose Labs.</p>
       </div>
       <div class="feature">
-        <div class="feature-icon" aria-hidden="true">👻</div>
+        <div class="feature-icon" aria-hidden="true">&#128123;</div>
         <h3>Invisible verification</h3>
         <p>Zero-UI mode: fetch, solve, and submit automatically. Retry with exponential backoff. No user interaction needed.</p>
       </div>
       <div class="feature">
-        <div class="feature-icon" aria-hidden="true">💻</div>
+        <div class="feature-icon" aria-hidden="true">&#128187;</div>
         <h3>CLI tool</h3>
         <p><code>npx imrobot</code> &mdash; generate challenges, solve, verify, and benchmark from the terminal. Great for testing.</p>
       </div>
       <div class="feature">
-        <div class="feature-icon" aria-hidden="true">📦</div>
+        <div class="feature-icon" aria-hidden="true">&#128230;</div>
         <h3>Tiny footprint</h3>
         <p>~14 KB core, zero runtime dependencies. Tree-shakeable ESM and CJS builds with full TypeScript types.</p>
       </div>
       <div class="feature">
-        <div class="feature-icon" aria-hidden="true">🗣️</div>
+        <div class="feature-icon" aria-hidden="true">&#128483;&#65039;</div>
         <h3>Anti-scraping NL format</h3>
         <p>Optional natural-language challenge descriptions with randomised phrasings. Each operation has 3&ndash;4 variants &mdash; defeats regex scraping of display text.</p>
       </div>
@@ -1365,7 +1389,7 @@ $ npx imrobot info</code></pre></div>
 
   <!-- Mobile navigation panel -->
   <div class="mobile-nav-overlay" id="mobile-nav-overlay"></div>
-  <div class="mobile-nav-panel" id="mobile-nav-panel" role="dialog" aria-label="Navigation menu">
+  <div class="mobile-nav-panel" id="mobile-nav-panel" role="dialog" aria-label="Navigation menu" aria-modal="true">
     <button class="mobile-nav-close" id="mobile-nav-close" aria-label="Close menu">&#10005;</button>
     <a href="#how-it-works">How it works</a>
     <a href="#quickstart">Quickstart</a>
@@ -1421,7 +1445,6 @@ $ npx imrobot info</code></pre></div>
     }
 
     function drawBackground() {
-      // Sky gradient
       const isDark = !document.documentElement.getAttribute('data-theme') ||
                      document.documentElement.getAttribute('data-theme') === 'dark' ||
                      (!document.documentElement.getAttribute('data-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)
@@ -1432,10 +1455,8 @@ $ npx imrobot info</code></pre></div>
         grad.addColorStop(0, '#dbeafe'); grad.addColorStop(1, '#f0fdf4')
       }
       ctx.fillStyle = grad; ctx.fillRect(0, 0, canvas.width, canvas.height)
-      // Ground
       ctx.fillStyle = isDark ? '#1e3a1e' : '#bbf7d0'
       ctx.fillRect(0, canvas.height * 0.7, canvas.width, canvas.height * 0.3)
-      // Grid lines
       ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'
       ctx.lineWidth = 1
       for (let i = 0; i < canvas.width; i += 40) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke() }
@@ -1452,7 +1473,6 @@ $ npx imrobot info</code></pre></div>
       const count = rand(2, 6)
       const items = []
 
-      // Place target items
       for (let i = 0; i < count; i++) {
         items.push({
           x: rand(50, canvas.width - 50),
@@ -1463,15 +1483,12 @@ $ npx imrobot info</code></pre></div>
           isTarget: true,
         })
       }
-      // Place distractors
       const distractorCount = rand(2, 4)
       for (let i = 0; i < distractorCount; i++) {
         let dColor = pick(COLOR_NAMES.filter(c => c !== targetColor))
         let dShape = pick(SHAPES.filter(s => s !== targetShape))
-        // Mix it up: sometimes same shape different color, sometimes same color different shape
         if (Math.random() > 0.5) dShape = targetShape
         else dColor = targetColor
-        // Ensure at least one property differs
         if (dColor === targetColor && dShape === targetShape) {
           dColor = pick(COLOR_NAMES.filter(c => c !== targetColor))
         }
@@ -1485,7 +1502,6 @@ $ npx imrobot info</code></pre></div>
         })
       }
 
-      // Resolve overlaps
       for (let i = 0; i < items.length; i++) {
         for (let j = i + 1; j < items.length; j++) {
           const dx = items[i].x - items[j].x, dy = items[i].y - items[j].y
@@ -1517,12 +1533,10 @@ $ npx imrobot info</code></pre></div>
 
     function render() {
       drawBackground()
-      // Shuffle items for visual variety
       const shuffled = [...currentChallenge.items].sort(() => Math.random() - 0.5)
       shuffled.forEach(item => {
         drawShape(item.x, item.y, item.size, item.shape, COLORS[item.color])
       })
-      // Label
       ctx.fillStyle = 'rgba(0,0,0,0.5)'
       ctx.fillRect(0, 0, canvas.width, 24)
       ctx.fillStyle = '#fff'; ctx.font = '11px Inter, system-ui, sans-serif'
@@ -1549,7 +1563,6 @@ $ npx imrobot info</code></pre></div>
     inputEl.addEventListener('keydown', function(e) { if (e.key === 'Enter') verify() })
     refreshBtn.addEventListener('click', generateChallenge)
 
-    // Watch for theme changes to redraw
     const observer = new MutationObserver(function() { if (currentChallenge) render() })
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
 
@@ -1558,22 +1571,32 @@ $ npx imrobot info</code></pre></div>
   </script>
 
   <script>
-  // ── Mobile menu ──
+  // ── Mobile menu with focus trap ──
   ;(function() {
     const btn = document.getElementById('mobile-menu-btn')
     const panel = document.getElementById('mobile-nav-panel')
     const overlay = document.getElementById('mobile-nav-overlay')
     const closeBtn = document.getElementById('mobile-nav-close')
 
+    function getFocusable() {
+      return Array.from(panel.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      )).filter(function(el) { return !el.disabled })
+    }
+
     function openMenu() {
       panel.classList.add('open')
       overlay.classList.add('open')
       btn.setAttribute('aria-expanded', 'true')
+      // focus first focusable element in panel
+      var focusable = getFocusable()
+      if (focusable.length) focusable[0].focus()
     }
     function closeMenu() {
       panel.classList.remove('open')
       overlay.classList.remove('open')
       btn.setAttribute('aria-expanded', 'false')
+      btn.focus()
     }
     btn.addEventListener('click', openMenu)
     closeBtn.addEventListener('click', closeMenu)
@@ -1582,7 +1605,44 @@ $ npx imrobot info</code></pre></div>
       a.addEventListener('click', closeMenu)
     })
     document.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape' && panel.classList.contains('open')) closeMenu()
+      if (!panel.classList.contains('open')) return
+      if (e.key === 'Escape') { closeMenu(); return }
+      if (e.key === 'Tab') {
+        var focusable = getFocusable()
+        var first = focusable[0]
+        var last = focusable[focusable.length - 1]
+        if (e.shiftKey) {
+          if (document.activeElement === first) { e.preventDefault(); last.focus() }
+        } else {
+          if (document.activeElement === last) { e.preventDefault(); first.focus() }
+        }
+      }
+    })
+  })()
+  </script>
+
+  <script>
+  // ── Theme toggle with dynamic aria-label ──
+  ;(function() {
+    var toggleBtn = document.getElementById('theme-toggle')
+    if (!toggleBtn) return
+    function updateToggleLabel(theme) {
+      if (theme === 'light') {
+        toggleBtn.setAttribute('aria-label', 'Switch to dark mode')
+        toggleBtn.innerHTML = '&#9728;'
+      } else {
+        toggleBtn.setAttribute('aria-label', 'Switch to light mode')
+        toggleBtn.innerHTML = '&#127769;'
+      }
+    }
+    // Read initial theme from html attribute or system preference
+    var current = document.documentElement.getAttribute('data-theme') ||
+                  (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+    updateToggleLabel(current)
+    toggleBtn.addEventListener('click', function() {
+      var next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light'
+      document.documentElement.setAttribute('data-theme', next)
+      updateToggleLabel(next)
     })
   })()
   </script>
