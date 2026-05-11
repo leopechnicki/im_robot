@@ -16,13 +16,72 @@ function applyTheme() {
   } else {
     document.documentElement.setAttribute('data-theme', 'light')
   }
-  themeBtn.textContent = dark ? '☀️' : '🌙'
+  themeBtn.innerHTML = `<span aria-hidden="true">${dark ? '☀️' : '🌙'}</span>`
+  themeBtn.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode')
   // Update widget theme
   const widget = document.querySelector('imrobot-widget')
   if (widget) widget.setAttribute('theme', dark ? 'dark' : 'light')
 }
 applyTheme()
 themeBtn.addEventListener('click', () => { dark = !dark; applyTheme() })
+
+// ── Mobile navigation ───────────────────────────────────────────────
+const mobileMenuBtn = document.getElementById('mobile-menu-btn')!
+const mobileNavPanel = document.getElementById('mobile-nav-panel')!
+const mobileNavOverlay = document.getElementById('mobile-nav-overlay')!
+const mobileNavClose = document.getElementById('mobile-nav-close')!
+
+function getFocusableElements(): HTMLElement[] {
+  return Array.from(
+    mobileNavPanel.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )
+  )
+}
+
+function openMobileNav() {
+  mobileNavPanel.classList.add('open')
+  mobileNavOverlay.classList.add('open')
+  mobileMenuBtn.setAttribute('aria-expanded', 'true')
+  mobileNavClose.focus()
+}
+
+function closeMobileNav() {
+  mobileNavPanel.classList.remove('open')
+  mobileNavOverlay.classList.remove('open')
+  mobileMenuBtn.setAttribute('aria-expanded', 'false')
+  mobileMenuBtn.focus()
+}
+
+mobileMenuBtn.addEventListener('click', openMobileNav)
+mobileNavClose.addEventListener('click', closeMobileNav)
+mobileNavOverlay.addEventListener('click', closeMobileNav)
+
+mobileNavPanel.addEventListener('keydown', (e: KeyboardEvent) => {
+  if (e.key === 'Escape') {
+    closeMobileNav()
+    return
+  }
+  if (e.key !== 'Tab') return
+
+  const focusable = getFocusableElements()
+  if (focusable.length === 0) return
+
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+
+  if (e.shiftKey) {
+    if (document.activeElement === first) {
+      e.preventDefault()
+      last.focus()
+    }
+  } else {
+    if (document.activeElement === last) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
+})
 
 // ── Mount widget ────────────────────────────────────────────────────
 const mount = document.getElementById('widget-mount')!
