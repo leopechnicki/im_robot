@@ -77,6 +77,16 @@ export async function invisibleVerify(
       )
 
       if (!challengeResponse.ok) {
+        // 4xx errors are permanent client-side failures that retrying cannot fix.
+        // Only 5xx server errors and network failures are worth retrying.
+        if (challengeResponse.status < 500) {
+          return {
+            success: false,
+            error: `Challenge request failed: ${challengeResponse.status}`,
+            attempts,
+            totalTime: Date.now() - startTime,
+          }
+        }
         throw new Error(`Challenge request failed: ${challengeResponse.status}`)
       }
 

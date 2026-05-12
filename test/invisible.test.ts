@@ -194,6 +194,42 @@ describe('invisibleVerify', () => {
       expect(result.error).toContain('Network error')
       expect(result.attempts).toBe(3)
     })
+
+    it('exits immediately on 4xx client errors without consuming retries', async () => {
+      fetchSpy.mockResolvedValue(createMockErrorResponse(404))
+      const result = await invisibleVerify({
+        challengeUrl: 'https://api.example.com/challenge',
+        verifyUrl: 'https://api.example.com/verify',
+      })
+      expect(result.success).toBe(false)
+      expect(result.attempts).toBe(1)
+      expect(fetchSpy).toHaveBeenCalledTimes(1)
+    })
+
+    it('exits immediately on 401 unauthorized without retrying', async () => {
+      fetchSpy.mockResolvedValue(createMockErrorResponse(401))
+      const result = await invisibleVerify({
+        challengeUrl: 'https://api.example.com/challenge',
+        verifyUrl: 'https://api.example.com/verify',
+      })
+      expect(result.success).toBe(false)
+      expect(result.attempts).toBe(1)
+      expect(fetchSpy).toHaveBeenCalledTimes(1)
+    })
+
+    it('still retries on 500 server errors', async () => {
+      const challenge = createMockChallenge()
+      fetchSpy
+        .mockResolvedValueOnce(createMockErrorResponse(500))
+        .mockResolvedValueOnce(createMockChallengeResponse(challenge))
+        .mockResolvedValueOnce(createMockVerifyResponse(true, 'token_after_retry'))
+      const result = await invisibleVerify({
+        challengeUrl: 'https://api.example.com/challenge',
+        verifyUrl: 'https://api.example.com/verify',
+      })
+      expect(result.success).toBe(true)
+      expect(result.attempts).toBe(2)
+    })
   })
 
   describe('error handling: verify endpoint failures', () => {
