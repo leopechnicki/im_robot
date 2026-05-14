@@ -1096,31 +1096,31 @@ app.post(<span class="str">'/api/verify'</span>, <span class="kw">async</span> (
 &lt;/template&gt;</code></pre></div>
 
       <div class="code-panel" id="panel-svelte" role="tabpanel" aria-labelledby="tab-svelte"><pre><code>&lt;script&gt;
-  import ImRobot from 'imrobot/svelte'
+  <span class="kw">import</span> ImRobot <span class="kw">from</span> <span class="str">'imrobot/svelte'</span>
 &lt;/script&gt;
 
 &lt;ImRobot
-  difficulty="medium"
-  theme="light"
+  difficulty=<span class="str">"medium"</span>
+  theme=<span class="str">"light"</span>
   onVerified={(token) =&gt;
-    console.log('Robot verified!', token)
+    console.log(<span class="str">'Robot verified!'</span>, token)
   }
 /&gt;</code></pre></div>
 
-      <div class="code-panel" id="panel-web" role="tabpanel" aria-labelledby="tab-web"><pre><code>&lt;script type="module"&gt;
-  import { register } from 'imrobot/web-component'
-  register()  // registers &lt;imrobot-widget&gt;
+      <div class="code-panel" id="panel-web" role="tabpanel" aria-labelledby="tab-web"><pre><code>&lt;script <span class="kw">type</span>=<span class="str">"module"</span>&gt;
+  <span class="kw">import</span> { register } <span class="kw">from</span> <span class="str">'imrobot/web-component'</span>
+  register()  <span class="cmt">// registers &lt;imrobot-widget&gt;</span>
 &lt;/script&gt;
 
 &lt;imrobot-widget
-  difficulty="medium"
-  theme="light"&gt;
+  difficulty=<span class="str">"medium"</span>
+  theme=<span class="str">"light"</span>&gt;
 &lt;/imrobot-widget&gt;
 
 &lt;script&gt;
-  document.querySelector('imrobot-widget')
-    .addEventListener('imrobot-verified', (e) =&gt; {
-      console.log('Token:', e.detail)
+  document.querySelector(<span class="str">'imrobot-widget'</span>)
+    .addEventListener(<span class="str">'imrobot-verified'</span>, (e) =&gt; {
+      console.log(<span class="str">'Token:'</span>, e.detail)
     })
 &lt;/script&gt;</code></pre></div>
 
@@ -1162,151 +1162,151 @@ app.post(<span class="str">'/api/verify'</span>, <span class="kw">async</span> (
   res.json(result)
 })</code></pre></div>
 
-      <div class="code-panel" id="panel-middleware" role="tabpanel" aria-labelledby="tab-middleware"><pre><code>import {
+      <div class="code-panel" id="panel-middleware" role="tabpanel" aria-labelledby="tab-middleware"><pre><code><span class="kw">import</span> {
   requireAgent,
   createAgentRouter,
   createTokenIssuer,
-} from 'imrobot/server'
+} <span class="kw">from</span> <span class="str">'imrobot/server'</span>
 
-// Mount challenge/verify endpoints with rate limiting
-const router = createAgentRouter({
+<span class="cmt">// Mount challenge/verify endpoints with rate limiting</span>
+<span class="kw">const</span> router = createAgentRouter({
   secret: process.env.IMROBOT_SECRET!,
   rateLimit: { windowMs: 60_000, maxRequests: 30 },
 })
-app.get('/imrobot/challenge', router.challenge)
-app.post('/imrobot/verify', router.verify)
+app.get(<span class="str">'/imrobot/challenge'</span>, router.challenge)
+app.post(<span class="str">'/imrobot/verify'</span>, router.verify)
 
-// Protect agent-only routes with middleware
-app.use('/api/agent-only', requireAgent({
+<span class="cmt">// Protect agent-only routes with middleware</span>
+app.use(<span class="str">'/api/agent-only'</span>, requireAgent({
   secret: process.env.IMROBOT_SECRET!,
   rateLimit: { windowMs: 60000, maxRequests: 100 },
 }))
 
-// Agent sends: X-Agent-Proof: &lt;proof-token&gt;
-app.get('/api/agent-only/data', (req, res) =&gt; {
-  const agent = req.agentProof // decoded token claims
-  res.json({ message: 'Agent verified!', agent })
+<span class="cmt">// Agent sends: X-Agent-Proof: &lt;proof-token&gt;</span>
+app.get(<span class="str">'/api/agent-only/data'</span>, (req, res) =&gt; {
+  <span class="kw">const</span> agent = req.agentProof <span class="cmt">// decoded token claims</span>
+  res.json({ message: <span class="str">'Agent verified!'</span>, agent })
 })</code></pre></div>
 
-      <div class="code-panel" id="panel-invisible" role="tabpanel" aria-labelledby="tab-invisible"><pre><code>import { invisibleVerify } from 'imrobot/core'
+      <div class="code-panel" id="panel-invisible" role="tabpanel" aria-labelledby="tab-invisible"><pre><code><span class="kw">import</span> { invisibleVerify } <span class="kw">from</span> <span class="str">'imrobot/core'</span>
 
-// Zero-UI: fetch challenge, solve, submit &mdash; all automatic
-const result = await invisibleVerify({
-  challengeUrl: 'https://api.example.com/imrobot/challenge',
-  verifyUrl: 'https://api.example.com/imrobot/verify',
-  agentId: 'my-agent-v1',
+<span class="cmt">// Zero-UI: fetch challenge, solve, submit &mdash; all automatic</span>
+<span class="kw">const</span> result = <span class="kw">await</span> invisibleVerify({
+  challengeUrl: <span class="str">'https://api.example.com/imrobot/challenge'</span>,
+  verifyUrl: <span class="str">'https://api.example.com/imrobot/verify'</span>,
+  agentId: <span class="str">'my-agent-v1'</span>,
   maxRetries: 3,
 })
 
-if (result.success) {
-  // Use the proof token for all subsequent requests
-  const response = await fetch('/api/data', {
-    headers: { 'X-Agent-Proof': result.proofToken! }
+<span class="kw">if</span> (result.success) {
+  <span class="cmt">// Use the proof token for all subsequent requests</span>
+  <span class="kw">const</span> response = <span class="kw">await</span> fetch(<span class="str">'/api/data'</span>, {
+    headers: { <span class="str">'X-Agent-Proof'</span>: result.proofToken! }
   })
-  console.log(`Verified in ${result.totalTime}ms`)
+  console.log(<span class="str">`Verified in ${result.totalTime}ms`</span>)
 }</code></pre></div>
 
-      <div class="code-panel" id="panel-images" role="tabpanel" aria-labelledby="tab-images"><pre><code>import { ImageChallengePool } from 'imrobot/core'
+      <div class="code-panel" id="panel-images" role="tabpanel" aria-labelledby="tab-images"><pre><code><span class="kw">import</span> { ImageChallengePool } <span class="kw">from</span> <span class="str">'imrobot/core'</span>
 
-// Option 1: Static provider &mdash; use pre-generated images
-const pool = new ImageChallengePool({
+<span class="cmt">// Option 1: Static provider &mdash; use pre-generated images</span>
+<span class="kw">const</span> pool = <span class="kw">new</span> ImageChallengePool({
   provider: {
-    type: 'static',
+    type: <span class="str">'static'</span>,
     images: [
       {
-        imageUrl: '/images/kitchen-3-apples.png',
-        type: 'object_count',
-        question: 'How many red apples are in the image?',
-        answer: '3',
-        acceptableAnswers: ['3', 'three'],
+        imageUrl: <span class="str">'/images/kitchen-3-apples.png'</span>,
+        type: <span class="str">'object_count'</span>,
+        question: <span class="str">'How many red apples are in the image?'</span>,
+        answer: <span class="str">'3'</span>,
+        acceptableAnswers: [<span class="str">'3'</span>, <span class="str">'three'</span>],
       },
       {
-        imageUrl: '/images/park-bench.png',
-        type: 'spatial_reasoning',
-        question: 'What is to the left of the bench?',
-        answer: 'tree',
-        acceptableAnswers: ['tree', 'a tree'],
+        imageUrl: <span class="str">'/images/park-bench.png'</span>,
+        type: <span class="str">'spatial_reasoning'</span>,
+        question: <span class="str">'What is to the left of the bench?'</span>,
+        answer: <span class="str">'tree'</span>,
+        acceptableAnswers: [<span class="str">'tree'</span>, <span class="str">'a tree'</span>],
       },
     ],
   },
 })
 
-// Option 2: Custom provider &mdash; bring your own AI generator
-const aiPool = new ImageChallengePool({
+<span class="cmt">// Option 2: Custom provider &mdash; bring your own AI generator</span>
+<span class="kw">const</span> aiPool = <span class="kw">new</span> ImageChallengePool({
   provider: {
-    type: 'custom',
-    generate: async (prompt) =&gt; {
-      // Use DALL-E, Stable Diffusion, or any image API
-      const img = await myImageGenerator(prompt)
-      return { imageUrl: img.url }
+    type: <span class="str">'custom'</span>,
+    generate: <span class="kw">async</span> (prompt) =&gt; {
+      <span class="cmt">// Use DALL-E, Stable Diffusion, or any image API</span>
+      <span class="kw">const</span> img = <span class="kw">await</span> myImageGenerator(prompt)
+      <span class="kw">return</span> { imageUrl: img.url }
     },
   },
-  poolSize: 100,                       // pre-generate 100 images
-  challengeTypes: ['object_count', 'spatial_reasoning'],
-  rotationIntervalMs: 3_600_000,       // refresh pool every hour
+  poolSize: 100,                       <span class="cmt">// pre-generate 100 images</span>
+  challengeTypes: [<span class="str">'object_count'</span>, <span class="str">'spatial_reasoning'</span>],
+  rotationIntervalMs: 3_600_000,       <span class="cmt">// refresh pool every hour</span>
 })
 
-await pool.initialize()
+<span class="kw">await</span> pool.initialize()
 
-// Serve a challenge
-const challenge = pool.getChallenge()
-// { id, type, imageUrl, question, answer, difficulty, ... }
+<span class="cmt">// Serve a challenge</span>
+<span class="kw">const</span> challenge = pool.getChallenge()
+<span class="cmt">// { id, type, imageUrl, question, answer, difficulty, ... }</span>
 
-// Verify agent's answer (case-insensitive, fuzzy matching)
-const correct = pool.verifyAnswer(challenge.id, agentAnswer)</code></pre></div>
+<span class="cmt">// Verify agent's answer (case-insensitive, fuzzy matching)</span>
+<span class="kw">const</span> correct = pool.verifyAnswer(challenge.id, agentAnswer)</code></pre></div>
 
-      <div class="code-panel" id="panel-adaptive" role="tabpanel" aria-labelledby="tab-adaptive"><pre><code>import { AdaptiveDifficulty } from 'imrobot/core'
-import { generateChallenge, solveChallenge } from 'imrobot/core'
+      <div class="code-panel" id="panel-adaptive" role="tabpanel" aria-labelledby="tab-adaptive"><pre><code><span class="kw">import</span> { AdaptiveDifficulty } <span class="kw">from</span> <span class="str">'imrobot/core'</span>
+<span class="kw">import</span> { generateChallenge, solveChallenge } <span class="kw">from</span> <span class="str">'imrobot/core'</span>
 
-// Create engine with tunable thresholds
-const adaptive = new AdaptiveDifficulty({
-  initialDifficulty: 'medium',
-  escalateAfterFailures: 2,   // 2 fails &rarr; harder
-  relaxAfterSuccesses: 5,     // 5 wins &rarr; easier
-  maxAgents: 10_000,          // LRU eviction at capacity
+<span class="cmt">// Create engine with tunable thresholds</span>
+<span class="kw">const</span> adaptive = <span class="kw">new</span> AdaptiveDifficulty({
+  initialDifficulty: <span class="str">'medium'</span>,
+  escalateAfterFailures: 2,   <span class="cmt">// 2 fails &rarr; harder</span>
+  relaxAfterSuccesses: 5,     <span class="cmt">// 5 wins &rarr; easier</span>
+  maxAgents: 10_000,          <span class="cmt">// LRU eviction at capacity</span>
 })
 
-// In your verification endpoint:
-app.post('/api/verify', async (req, res) =&gt; {
-  const { agentId, answer } = req.body
+<span class="cmt">// In your verification endpoint:</span>
+app.post(<span class="str">'/api/verify'</span>, <span class="kw">async</span> (req, res) =&gt; {
+  <span class="kw">const</span> { agentId, answer } = req.body
 
-  // Get recommended difficulty for this agent
-  const difficulty = adaptive.getDifficulty(agentId)
-  const challenge = generateChallenge({ difficulty })
+  <span class="cmt">// Get recommended difficulty for this agent</span>
+  <span class="kw">const</span> difficulty = adaptive.getDifficulty(agentId)
+  <span class="kw">const</span> challenge = generateChallenge({ difficulty })
 
-  // ... verify answer ...
-  const success = solveChallenge(challenge) === answer
+  <span class="cmt">// ... verify answer ...</span>
+  <span class="kw">const</span> success = solveChallenge(challenge) === answer
 
-  // Record the outcome &mdash; engine auto-adjusts
+  <span class="cmt">// Record the outcome &mdash; engine auto-adjusts</span>
   adaptive.recordAttempt(agentId, {
     success,
     solveTimeMs: elapsed,
   })
 
-  // Check risk score (0-1, weighted composite)
-  const risk = adaptive.getRiskAssessment(agentId)
+  <span class="cmt">// Check risk score (0-1, weighted composite)</span>
+  <span class="kw">const</span> risk = adaptive.getRiskAssessment(agentId)
 
-  if (risk.level === 'critical') {
-    return res.status(403).json({ error: 'Blocked' })
+  <span class="kw">if</span> (risk.level === <span class="str">'critical'</span>) {
+    <span class="kw">return</span> res.status(403).json({ error: <span class="str">'Blocked'</span> })
   }
 
   res.json({ success, difficulty, riskLevel: risk.level })
 })</code></pre></div>
 
-      <div class="code-panel" id="panel-cli" role="tabpanel" aria-labelledby="tab-cli"><pre><code># Generate a test challenge
+      <div class="code-panel" id="panel-cli" role="tabpanel" aria-labelledby="tab-cli"><pre><code><span class="cmt"># Generate a test challenge</span>
 $ npx imrobot challenge --difficulty hard
 
-# Solve and verify immediately
+<span class="cmt"># Solve and verify immediately</span>
 $ npx imrobot solve --difficulty medium
 
-# Server-side verification with HMAC
+<span class="cmt"># Server-side verification with HMAC</span>
 $ npx imrobot verify --secret my-secret-at-least-16
 
-# Performance benchmark
+<span class="cmt"># Performance benchmark</span>
 $ npx imrobot benchmark --count 1000 --difficulty hard
-#   Throughput: ~12,351 verifications/sec/core
+<span class="cmt">#   Throughput: ~12,351 verifications/sec/core</span>
 
-# Project info
+<span class="cmt"># Project info</span>
 $ npx imrobot info</code></pre></div>
     </div>
   </section>
