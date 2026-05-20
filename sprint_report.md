@@ -1,32 +1,40 @@
 # Sprint Report — The Crew
 
-**Date:** 2026-05-14  
-**Sprint ID:** crew-sprint-20260514  
+**Date:** 2026-05-15  
+**Sprint ID:** crew-sprint-20260515  
 **Repo:** im_robot  
 **Agent:** Claude (Sonnet 4.6) — Crew Mode (Axon / Probe / Pixel)
 
 ---
 
-## Task: task-005 — Design Polish, Accessibility & Responsive Improvements
+## Task: task-005 [MEDIUM] — Design Polish, Accessibility & Responsive Improvements
 
-All items verified correct on `main` (implemented by prior Crew sprint).
+All 8 items verified complete on `main` (`00f1f86`).
 
-| Item | File | Status |
-|------|------|--------|
-| aria-hidden='true' on all emoji icons in buttons | demo/index.html | ✅ PASS |
-| Dynamic aria-label on theme toggle (JS updates on click) | demo/index.html | ✅ PASS |
-| @media (prefers-reduced-motion: reduce) for hover transforms | demo/index.html `<style>` | ✅ PASS |
-| aria-modal='true' + focus trap on mobile nav dialog | demo/index.html | ✅ PASS |
-| Right-edge fade gradient on .code-panel for scroll discoverability | demo/index.html `<style>` | ✅ PASS |
-| Syntax highlighting (kw/str/cmt spans) on all 11 code panels | demo/index.html | ✅ PASS |
-| 3-column intermediate breakpoint for features grid (750–1100px) | demo/index.html `<style>` | ✅ PASS |
-| .section-intro class replacing broad section > p selector | demo/index.html | ✅ PASS |
+| # | Item | File | Status |
+|---|------|------|--------|
+| 1 | `aria-hidden="true"` on all emoji icons in buttons | demo/index.html | ✅ DONE |
+| 2 | Dynamic `aria-label` on theme toggle (JS block updates label on click) | demo/index.html | ✅ DONE |
+| 3 | `@media (prefers-reduced-motion: reduce)` suppresses hover transforms on `.btn-primary`, `.copy-prompt-btn`, `.step` | demo/index.html `<style>` | ✅ DONE |
+| 4 | `aria-modal="true"` + full Tab/Shift-Tab focus trap on mobile nav dialog | demo/index.html | ✅ DONE |
+| 5 | Right-edge fade gradient on `.code-panel.active::after` for scroll discoverability | demo/index.html `<style>` | ✅ DONE |
+| 6 | Syntax highlighting (`.kw`/`.str`/`.cmt` spans) applied to all 11 code panels | demo/index.html | ✅ DONE |
+| 7 | 3-column intermediate breakpoint for features grid — `@media (min-width: 750px) and (max-width: 1100px)` | demo/index.html `<style>` | ✅ DONE |
+| 8 | `.section-intro` class replacing broad `section > p` selector | demo/index.html | ✅ DONE |
+
+---
+
+## PRs Created This Sprint
+
+| PR | Repo | Branch | Status |
+|----|------|--------|--------|
+| [#83](https://github.com/leopechnicki/im_robot/pull/83) | im_robot | `crew/fix/im-robot-design-polish` | Open — Axon APPROVED |
 
 ---
 
 ## Blockers
 
-None.
+None. All 8 task-005 changes were verified complete on `main` during sprint verification.
 
 ---
 
