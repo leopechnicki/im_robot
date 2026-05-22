@@ -1,6 +1,18 @@
 export { ImRobotVerifier, createVerifier } from './verifier'
 export { TurnstileVerifier, verifyTurnstileToken } from './turnstile'
 export type { TurnstileConfig, TurnstileResult } from './turnstile'
+export {
+  WebBotAuthVerifier,
+  verifyWebBotAuthSignature,
+  parseSignatureInput,
+  buildSignatureBase,
+} from './web-bot-auth'
+export type {
+  WebBotAuthConfig,
+  WebBotAuthResult,
+  WebBotAuthFailReason,
+  SignedHttpRequest,
+} from './web-bot-auth'
 export { ProofTokenIssuer, createTokenIssuer } from './proof-token'
 export { requireAgent, createAgentRouter } from './middleware'
 export { RateLimiter } from './rate-limiter'

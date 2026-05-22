@@ -14,6 +14,7 @@ export default defineConfig({
       ['test/v04-features.test.ts', 'node'],
       ['test/security-audit.test.ts', 'node'],
       ['test/middleware.test.ts', 'node'],
+      ['test/web-bot-auth.test.ts', 'node'],
     ],
     coverage: {
       thresholds: {
