@@ -13,10 +13,22 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
+      # Mint a short-lived GitHub App installation token. The bump branch/PR
+      # MUST be created with a non-GITHUB_TOKEN identity: GitHub does not start
+      # workflow runs for events triggered by the default GITHUB_TOKEN, which
+      # left the required "CI / Node 20|22" checks permanently pending and every
+      # auto-bump PR un-mergeable. See the PR description for one-time App setup.
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Use Node.js 22
         uses: actions/setup-node@v4
@@ -43,7 +55,7 @@ jobs:
       - name: Create release
         if: steps.check.outputs.has_changes == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
 
@@ -105,8 +117,10 @@ jobs:
           git checkout -b "$BRANCH"
           npm version "$NEXT_VERSION" --no-git-tag-version
           git add package.json package-lock.json 2>/dev/null || git add package.json
-          # [skip ci] prevents CI from running on the bot's bump commit
-          git commit -m "chore: bump version to ${NEXT_VERSION} [skip ci]"
+          # No [skip ci]: we WANT the required CI checks to run on the bump PR so
+          # it can satisfy branch protection and merge. The App token (above)
+          # makes the push/PR trigger the workflow.
+          git commit -m "chore: bump version to ${NEXT_VERSION}"
           git push origin "$BRANCH"
 
           if [ "$RELEASE_CREATED" = "true" ]; then
