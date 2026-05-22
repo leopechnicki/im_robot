@@ -124,6 +124,8 @@ export interface AgentProofToken {
     version: number
     /** Present only when Cloudflare Turnstile is configured on the server. */
     turnstile_verified?: boolean
+    /** Present only when Web Bot Auth is configured and a signature was supplied. */
+    web_bot_auth_verified?: boolean
   }
 }
 

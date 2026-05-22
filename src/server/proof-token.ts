@@ -87,6 +87,13 @@ export interface IssueTokenParams {
    * false = Turnstile present but verification failed (required: false mode).
    */
   turnstileVerified?: boolean
+  /**
+   * Whether the request carried a valid Web Bot Auth signature.
+   * undefined = Web Bot Auth not configured or no signature present.
+   * true  = signature verified successfully.
+   * false = signature present but verification failed (required: false mode).
+   */
+  webBotAuthVerified?: boolean
 }
 
 /**
@@ -186,6 +193,9 @@ export class ProofTokenIssuer {
         version: 2,
         ...(params.turnstileVerified !== undefined
           ? { turnstile_verified: params.turnstileVerified }
+          : {}),
+        ...(params.webBotAuthVerified !== undefined
+          ? { web_bot_auth_verified: params.webBotAuthVerified }
           : {}),
       },
     }

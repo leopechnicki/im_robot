@@ -4,6 +4,7 @@ import { ProofTokenIssuer } from './proof-token'
 import { RateLimiter } from './rate-limiter'
 import type { RateLimiterConfig } from './rate-limiter'
 import { TurnstileVerifier } from './turnstile'
+import { WebBotAuthVerifier } from './web-bot-auth'
 
 /**
  * Generic middleware types — framework-agnostic.
@@ -96,6 +97,39 @@ export interface RequireAgentOptions {
      * Whether Turnstile verification is required.
      * When false (default), missing or failed tokens are recorded but do not block.
      * When true, a missing/failed token returns HTTP 400.
+     */
+    required?: boolean
+  }
+  /**
+   * Optional Web Bot Auth configuration. When provided, the verify endpoint
+   * checks for an RFC 9421 HTTP Message Signature (Signature/Signature-Input
+   * headers) and stamps the result into the issued proof token.
+   *
+   * Lets imrobot recognise cryptographically-signed agents (OpenAI Operator,
+   * Cloudflare signed agents, etc.) alongside the challenge flow. Non-breaking.
+   *
+   * @example
+   * ```typescript
+   * createAgentRouter({
+   *   secret: process.env.IMROBOT_SECRET!,
+   *   webBotAuth: {
+   *     directoryUrl: 'https://my-agent.example/.well-known/http-message-signatures-directory',
+   *     required: false, // default — record but don't block
+   *   },
+   * })
+   * ```
+   */
+  webBotAuth?: {
+    /** Agent key directory URL (a JWK Set). */
+    directoryUrl: string
+    /** Max age (seconds) for signatures without an explicit `expires`. Default: 300. */
+    maxAgeSeconds?: number
+    /** Required `tag` parameter (default `'web-bot-auth'`); `null` skips the check. */
+    expectedTag?: string | null
+    /**
+     * Whether a valid Web Bot Auth signature is required.
+     * When false (default), a missing/invalid signature is recorded but does not block.
+     * When true, a missing or invalid signature returns HTTP 400.
      */
     required?: boolean
   }
@@ -297,6 +331,15 @@ export function createAgentRouter(options: RequireAgentOptions) {
     ? new TurnstileVerifier({ secretKey: options.turnstile.secretKey })
     : undefined
 
+  // Initialize Web Bot Auth verifier once per router (instance caches the key directory)
+  const webBotAuthVerifier = options.webBotAuth
+    ? new WebBotAuthVerifier({
+        directoryUrl: options.webBotAuth.directoryUrl,
+        maxAgeSeconds: options.webBotAuth.maxAgeSeconds,
+        expectedTag: options.webBotAuth.expectedTag,
+      })
+    : undefined
+
   type VerifyRequest = MiddlewareRequest & {
     body?: { challenge: SignedChallenge; answer: string; agentId?: string }
   }
@@ -414,6 +457,39 @@ export function createAgentRouter(options: RequireAgentOptions) {
       }
     }
 
+    // Web Bot Auth signature verification (optional)
+    let webBotAuthVerified: boolean | undefined
+    if (options.webBotAuth && webBotAuthVerifier) {
+      const hasSignature =
+        req.headers['signature'] !== undefined && req.headers['signature-input'] !== undefined
+
+      if (!hasSignature) {
+        if (options.webBotAuth.required) {
+          return res.status(400).json({
+            error: 'Missing Web Bot Auth signature. Include Signature and Signature-Input headers.',
+            code: 'WEB_BOT_AUTH_REQUIRED',
+          })
+        }
+        // required: false — proceed without the flag
+        webBotAuthVerified = undefined
+      } else {
+        const wbaResult = await webBotAuthVerifier.verify(req)
+        if (!wbaResult.verified) {
+          if (options.webBotAuth.required) {
+            return res.status(400).json({
+              error: 'Web Bot Auth verification failed.',
+              code: 'WEB_BOT_AUTH_VERIFICATION_FAILED',
+              reason: wbaResult.reason,
+            })
+          }
+          // required: false — mark as not verified but don't block
+          webBotAuthVerified = false
+        } else {
+          webBotAuthVerified = true
+        }
+      }
+    }
+
     // Issue proof token
     const proofToken = await tokenIssuer.issue({
       agentId: body.agentId ?? `agent_${body.challenge.id.slice(0, 8)}`,
@@ -422,6 +498,7 @@ export function createAgentRouter(options: RequireAgentOptions) {
       solveTimeMs: result.elapsed ?? 0,
       suspicious: result.suspicious ?? false,
       turnstileVerified,
+      webBotAuthVerified,
     })
 
     return res.status(200).json({

@@ -400,6 +400,48 @@ const router = createAgentRouter({
 
 Roll a key by deploying with the new `secret`/`keyId` while moving the previous one into `previousSecrets`. Once your max token TTL has elapsed, you can drop the old entry.
 
+### Web Bot Auth (verify cryptographically-signed agents)
+
+The industry is converging on [Web Bot Auth](https://datatracker.ietf.org/doc/draft-meunier-web-bot-auth-architecture/) (an IETF effort backed by Cloudflare, Google, AWS, Vercel, Shopify, and OpenAI) — agents sign their requests with an Ed25519 key ([RFC 9421 HTTP Message Signatures](https://www.rfc-editor.org/rfc/rfc9421)) and publish the public key at a `.well-known/http-message-signatures-directory`. imrobot can verify those signatures directly, so you can recognise a trusted signed agent (OpenAI Operator, Cloudflare signed agents, etc.) instead of challenging it.
+
+```ts
+import { WebBotAuthVerifier } from 'imrobot/server'
+
+const verifier = new WebBotAuthVerifier({
+  directoryUrl: 'https://my-agent.example/.well-known/http-message-signatures-directory',
+})
+
+// `req` only needs { method, url, headers } — Express, Koa, raw Node, etc.
+const result = await verifier.verify(req)
+if (result.verified) {
+  // Trusted signed agent — skip the imrobot challenge entirely
+  console.log('Signed agent verified, keyid:', result.keyid)
+}
+```
+
+The verifier reconstructs the signature base from the covered components (`@method`, `@authority`, `@path`, `@query`, and any header field), fetches the key directory (cached, default 5 min), and verifies the Ed25519 signature with Web Crypto — zero external dependencies. On failure, `result.reason` is one of `no_signature`, `malformed`, `unsupported_alg`, `tag_mismatch`, `not_yet_valid`, `expired`, `unknown_key`, `directory_error`, or `bad_signature`.
+
+A standalone `verifyWebBotAuthSignature(req, config)` is also exported.
+
+#### As a layer on `createAgentRouter`
+
+Web Bot Auth can run alongside the challenge flow. When configured, the `/verify` endpoint checks for a signature and stamps `web_bot_auth_verified` into the issued proof token (mirroring the Turnstile integration):
+
+```ts
+const router = createAgentRouter({
+  secret: process.env.IMROBOT_SECRET!,
+  webBotAuth: {
+    directoryUrl: 'https://my-agent.example/.well-known/http-message-signatures-directory',
+    required: false, // default — record the result but don't block unsigned callers
+  },
+})
+```
+
+| `required` | Signature absent | Signature invalid | Signature valid |
+|---|---|---|---|
+| `false` (default) | token issued, no flag | token issued, `web_bot_auth_verified: false` | token issued, `web_bot_auth_verified: true` |
+| `true` | `400 WEB_BOT_AUTH_REQUIRED` | `400 WEB_BOT_AUTH_VERIFICATION_FAILED` | token issued, `web_bot_auth_verified: true` |
+
 ### Invisible verification (zero-UI)
 
 For agents that need to verify themselves programmatically without any UI:
