@@ -413,6 +413,10 @@
     <a href="#discovery" class="sidebar-link">Agent Discovery</a>
   </div>
   <div class="sidebar-group">
+    <div class="sidebar-label">Verified Agents</div>
+    <a href="#web-bot-auth" class="sidebar-link">Web Bot Auth</a>
+  </div>
+  <div class="sidebar-group">
     <div class="sidebar-label">New in v0.5</div>
     <a href="#adaptive-difficulty" class="sidebar-link">Adaptive Difficulty</a>
     <a href="#image-challenges" class="sidebar-link">AI Image Challenges</a>
@@ -1241,6 +1245,47 @@ import { invisibleVerify, AdaptiveDifficulty, ImageChallengePool } from 'imrobot
 import { ProofTokenIssuer, requireAgent, createAgentRouter } from 'imrobot/server'</code></pre>
 </div>
 
+<!-- ═══ WEB BOT AUTH ══════════════════════════════════════════ -->
+<h2 id="web-bot-auth">Web Bot Auth</h2>
+<p>The industry is converging on <a href="https://datatracker.ietf.org/doc/draft-meunier-web-bot-auth-architecture/" target="_blank" rel="noopener">Web Bot Auth</a> &mdash; an IETF effort backed by Cloudflare, Google, AWS, Vercel, Shopify, and OpenAI. Agents sign their requests with an Ed25519 key (<a href="https://www.rfc-editor.org/rfc/rfc9421" target="_blank" rel="noopener">RFC 9421 HTTP Message Signatures</a>) and publish the public key at a <code>.well-known/http-message-signatures-directory</code>. imrobot can verify those signatures directly, so you can recognise a trusted signed agent (OpenAI Operator, Cloudflare signed agents&hellip;) instead of challenging it.</p>
+
+<div class="code-block">
+  <div class="code-header"><span class="lang">TypeScript</span><button class="copy-btn" aria-live="polite">Copy</button></div>
+  <pre><code>import { WebBotAuthVerifier } from 'imrobot/server'
+
+const verifier = new WebBotAuthVerifier({
+  directoryUrl: 'https://my-agent.example/.well-known/http-message-signatures-directory',
+})
+
+<span class="comment">// `req` only needs { method, url, headers } — Express, Koa, raw Node, etc.</span>
+const result = await verifier.verify(req)
+if (result.verified) {
+  <span class="comment">// Trusted signed agent — skip the imrobot challenge entirely</span>
+  console.log('Signed agent verified, keyid:', result.keyid)
+}</code></pre>
+</div>
+
+<p>The verifier reconstructs the signature base from the covered components (<code>@method</code>, <code>@authority</code>, <code>@path</code>, <code>@query</code>, and any header field), fetches the key directory (cached, default 5&nbsp;min), and verifies the Ed25519 signature with Web Crypto &mdash; zero external dependencies. On failure, <code>result.reason</code> is one of <code>no_signature</code>, <code>malformed</code>, <code>unsupported_alg</code>, <code>tag_mismatch</code>, <code>not_yet_valid</code>, <code>expired</code>, <code>unknown_key</code>, <code>directory_error</code>, or <code>bad_signature</code>. A standalone <code>verifyWebBotAuthSignature(req, config)</code> is also exported.</p>
+
+<h3>As a layer on <code>createAgentRouter</code></h3>
+<p>Web Bot Auth can run alongside the challenge flow. When configured, the <code>/verify</code> endpoint checks for a signature and stamps <code>web_bot_auth_verified</code> into the issued proof token (mirroring the Turnstile integration). Non-breaking and opt-in.</p>
+
+<div class="code-block">
+  <div class="code-header"><span class="lang">TypeScript</span><button class="copy-btn" aria-live="polite">Copy</button></div>
+  <pre><code>const router = createAgentRouter({
+  secret: process.env.IMROBOT_SECRET!,
+  webBotAuth: {
+    directoryUrl: 'https://my-agent.example/.well-known/http-message-signatures-directory',
+    required: false, <span class="comment">// default — record the result but don't block unsigned callers</span>
+  },
+})</code></pre>
+</div>
+
+<div class="callout callout-success">
+  <span class="callout-icon">&#x2705;</span>
+  <p><strong>Ride the standard, don't fight it.</strong> With <code>required: false</code> a missing or invalid signature is recorded but never blocks; with <code>required: true</code> the verify endpoint returns <code>400</code> (<code>WEB_BOT_AUTH_REQUIRED</code> / <code>WEB_BOT_AUTH_VERIFICATION_FAILED</code>) until a valid signature is present.</p>
+</div>
+
 <!-- ═══ ADAPTIVE DIFFICULTY ═══════════════════════════════════ -->
 <h2 id="adaptive-difficulty">Adaptive Difficulty</h2>
 
@@ -1409,6 +1454,7 @@ const correct = pool.verifyAnswer(challenge.id, userAnswer)</code></pre>
   <a href="#proof-tokens">Proof-of-Agent Tokens</a>
   <a href="#invisible">Invisible Verify</a>
   <a href="#cli">CLI Tool</a>
+  <a href="#web-bot-auth">Web Bot Auth</a>
   <a href="#api-reference">API Reference</a>
   <a href="#operations">Operations</a>
   <a href="#configuration">Configuration</a>
