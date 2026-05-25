@@ -1,40 +1,40 @@
-# Sprint Report — The Crew
+# Crew Sprint Report — 2026-05-25
 
-**Date:** 2026-05-15  
-**Sprint ID:** crew-sprint-20260515  
-**Repo:** im_robot  
-**Agent:** Claude (Sonnet 4.6) — Crew Mode (Axon / Probe / Pixel)
+## Sprint Summary
 
----
-
-## Task: task-005 [MEDIUM] — Design Polish, Accessibility & Responsive Improvements
-
-All 8 items verified complete on `main` (`00f1f86`).
-
-| # | Item | File | Status |
-|---|------|------|--------|
-| 1 | `aria-hidden="true"` on all emoji icons in buttons | demo/index.html | ✅ DONE |
-| 2 | Dynamic `aria-label` on theme toggle (JS block updates label on click) | demo/index.html | ✅ DONE |
-| 3 | `@media (prefers-reduced-motion: reduce)` suppresses hover transforms on `.btn-primary`, `.copy-prompt-btn`, `.step` | demo/index.html `<style>` | ✅ DONE |
-| 4 | `aria-modal="true"` + full Tab/Shift-Tab focus trap on mobile nav dialog | demo/index.html | ✅ DONE |
-| 5 | Right-edge fade gradient on `.code-panel.active::after` for scroll discoverability | demo/index.html `<style>` | ✅ DONE |
-| 6 | Syntax highlighting (`.kw`/`.str`/`.cmt` spans) applied to all 11 code panels | demo/index.html | ✅ DONE |
-| 7 | 3-column intermediate breakpoint for features grid — `@media (min-width: 750px) and (max-width: 1100px)` | demo/index.html `<style>` | ✅ DONE |
-| 8 | `.section-intro` class replacing broad `section > p` selector | demo/index.html | ✅ DONE |
+Task-005 (im_robot design polish — accessibility + responsive improvements) was audited and verified **already fully implemented on `main`**. This PR documents the verification.
 
 ---
 
-## PRs Created This Sprint
+## Tasks
 
-| PR | Repo | Branch | Status |
-|----|------|--------|--------|
-| [#83](https://github.com/leopechnicki/im_robot/pull/83) | im_robot | `crew/fix/im-robot-design-polish` | Open — Axon APPROVED |
+### task-005 [MEDIUM] — Design polish: accessibility + responsive improvements
+**Status: ✅ VERIFIED COMPLETE on `main`**
+
+All 8 sub-items audited in `demo/index.html`:
+
+| Item | Requirement | Status |
+|------|-------------|--------|
+| 1 | `aria-hidden='true'` on all emoji icons in buttons | ✅ All SVGs and decorative spans have `aria-hidden="true"` |
+| 2 | Dynamic `aria-label` on theme toggle | ✅ Inline script block updates label on every toggle ("Switch to dark/light mode") |
+| 3 | `@media (prefers-reduced-motion: reduce)` for hover transforms | ✅ Present — suppresses `translateY` on `.btn-primary:hover`, `.copy-prompt-btn:hover`, `.step:hover` |
+| 4 | `aria-modal='true'` + focus trap on mobile nav dialog | ✅ `role="dialog" aria-modal="true"` on panel; full Tab/Shift+Tab focus trap in inline script |
+| 5 | Right-edge fade gradient on `.code-panel` | ✅ `.code-panel.active::after` adds `linear-gradient(to right, transparent, var(--bg-alt))` at 48px wide |
+| 6 | Syntax highlighting in quickstart code blocks | ✅ `.qs-code-block pre .kw/str/cmt` selectors shared with `.code-panel`; spans applied in HTML |
+| 7 | 3-column intermediate breakpoint for features grid (750–1100px) | ✅ `@media (min-width: 750px) and (max-width: 1100px) { .features { grid-template-columns: repeat(3, 1fr) } }` |
+| 8 | Replace broad `section > p` with scoped `.section-intro` | ✅ CSS uses `.section-intro` class; all descriptive paragraphs carry `class="section-intro"` in HTML |
 
 ---
+
+## PRs Created
+
+| Repo | Branch | PR URL |
+|------|--------|--------|
+| im_robot | `crew/fix/im-robot-design-polish` | _this PR_ |
 
 ## Blockers
 
-None. All 8 task-005 changes were verified complete on `main` during sprint verification.
+None. All changes were already shipped to `main` by a prior sprint run. This PR serves as the audit verification artifact.
 
 ---
 
