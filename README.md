@@ -878,6 +878,59 @@ Six challenge types are supported: `object_count`, `spatial_reasoning`, `color_i
 
 > **Warning:** The `openai` and `stability` providers are not yet implemented and will throw at runtime. Use `custom` or `static` providers instead.
 
+## OpenTelemetry metrics
+
+`ChallengeOTelExporter` (exported from `imrobot/server`) bridges the in-memory `ChallengeAnalytics` tracker to any OpenTelemetry-compatible backend — Datadog, Grafana, Prometheus, or any OTLP endpoint.
+
+Install the optional peer dependencies:
+
+```bash
+npm install @opentelemetry/api @opentelemetry/sdk-metrics @opentelemetry/exporter-metrics-otlp-http
+```
+
+```ts
+import { MeterProvider, PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics'
+import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http'
+import { ChallengeAnalytics, ChallengeOTelExporter } from 'imrobot/server'
+
+const analytics = new ChallengeAnalytics()
+
+const meterProvider = new MeterProvider({
+  readers: [
+    new PeriodicExportingMetricReader({
+      exporter: new OTLPMetricExporter({ url: 'http://localhost:4318/v1/metrics' }),
+      exportIntervalMillis: 30_000,
+    }),
+  ],
+})
+
+const otelExporter = new ChallengeOTelExporter(analytics, meterProvider, {
+  scopeName: 'imrobot',
+  exportIntervalMs: 15_000,
+})
+
+otelExporter.start()
+
+// Wire analytics into your verifier
+const verifier = createVerifier({ secret: process.env.IMROBOT_SECRET!, analytics })
+
+// On shutdown
+process.on('SIGTERM', () => otelExporter.stop())
+```
+
+### Exported metrics
+
+| Metric | Type | Attributes | Description |
+|---|---|---|---|
+| `imrobot.challenge.generated` | Counter | `difficulty` | Challenges generated |
+| `imrobot.challenge.solved` | Counter | `difficulty` | Successfully verified challenges |
+| `imrobot.challenge.failed` | Counter | `difficulty` | Failed verification attempts |
+| `imrobot.challenge.solve_time_ms` | Histogram | `difficulty` | P95 solve time in ms |
+| `imrobot.challenge.active` | ObservableGauge | — | Generated minus verified/failed |
+| `imrobot.challenge.verification_rate` | ObservableGauge | — | Verified / total attempts (0.0–1.0) |
+
+`@opentelemetry/api` is an optional peer dependency — the exporter uses the interface types only and does not hard-import the SDK.
+
 ## MCP server (Model Context Protocol)
 
 imrobot ships a native MCP server that lets AI agents auto-discover and complete verification challenges without any custom integration code. Agents call the tools directly; no HTTP endpoints required.

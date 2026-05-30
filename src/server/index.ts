@@ -17,6 +17,17 @@ export { ProofTokenIssuer, createTokenIssuer } from './proof-token'
 export { requireAgent, createAgentRouter } from './middleware'
 export { RateLimiter } from './rate-limiter'
 export { ChallengeAnalytics } from './analytics'
+export { ChallengeOTelExporter } from './otel-exporter'
+export type {
+  OTelMeterProvider,
+  OTelMeter,
+  OTelCounter,
+  OTelHistogram,
+  OTelObservableGauge,
+  OTelObservableResult,
+  OTelMetricOptions,
+  OTelExporterConfig,
+} from './otel-exporter'
 export { ChallengeReplayGuard, MemoryReplayStore } from './replay-guard'
 export { RedisReplayStore } from './redis-replay-guard'
 export type { RedisLike, RedisReplayStoreConfig } from './redis-replay-guard'
