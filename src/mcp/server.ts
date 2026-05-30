@@ -217,10 +217,10 @@ export class IMRobotMCPServer {
    * createMCPServer().start()
    * ```
    */
-  start(): void {
-    const readline = require('readline') as typeof import('readline')
+  async start(): Promise<void> {
+    const { createInterface } = await import('readline')
 
-    const rl = readline.createInterface({
+    const rl = createInterface({
       input: process.stdin,
       output: process.stdout,
       terminal: false,
