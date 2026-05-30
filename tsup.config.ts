@@ -9,6 +9,7 @@ export default defineConfig([
       'vue/index': 'src/vue/index.ts',
       'web-component/index': 'src/web-component/index.ts',
       'server/index': 'src/server/index.ts',
+      'mcp/index': 'src/mcp/index.ts',
     },
     format: ['esm', 'cjs'],
     dts: true,

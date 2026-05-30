@@ -878,6 +878,68 @@ Six challenge types are supported: `object_count`, `spatial_reasoning`, `color_i
 
 > **Warning:** The `openai` and `stability` providers are not yet implemented and will throw at runtime. Use `custom` or `static` providers instead.
 
+## MCP server (Model Context Protocol)
+
+imrobot ships a native MCP server that lets AI agents auto-discover and complete verification challenges without any custom integration code. Agents call the tools directly; no HTTP endpoints required.
+
+```ts
+import { createMCPServer } from 'imrobot/mcp'
+
+// Start a stdio MCP server (use in Claude Desktop, Cursor, etc.)
+createMCPServer({ defaultDifficulty: 'medium' }).start()
+```
+
+Add to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "imrobot": {
+      "command": "node",
+      "args": ["-e", "import('imrobot/mcp').then(m => m.createMCPServer().start())"]
+    }
+  }
+}
+```
+
+### Available MCP tools
+
+| Tool | Description |
+|---|---|
+| `generate-challenge` | Generate a new verification challenge |
+| `solve-challenge` | Auto-solve a challenge (returns answer + proof token) |
+| `verify-answer` | Check if a computed answer is correct |
+| `create-token` | Create a proof token after solving |
+| `get-discovery-document` | Fetch the imrobot discovery document |
+
+### Programmatic usage (no stdio)
+
+```ts
+import { createMCPServer } from 'imrobot/mcp'
+
+const server = createMCPServer()
+
+// Generate + auto-solve in one step
+const challengeResp = await server.handleMessage(JSON.stringify({
+  jsonrpc: '2.0', id: 1, method: 'tools/call',
+  params: { name: 'generate-challenge', arguments: { difficulty: 'easy' } }
+}))
+
+const { result } = JSON.parse(challengeResp)
+const { challenge } = JSON.parse(result.content[0].text)
+
+const solveResp = await server.handleMessage(JSON.stringify({
+  jsonrpc: '2.0', id: 2, method: 'tools/call',
+  params: { name: 'solve-challenge', arguments: { challenge } }
+}))
+
+const { result: solveResult } = JSON.parse(solveResp)
+const { token } = JSON.parse(solveResult.content[0].text)
+// Use token.challengeId + token.signature for X-Agent-Proof header
+```
+
+The MCP server has zero runtime dependencies — it implements JSON-RPC 2.0 directly and calls the same core API that agents use.
+
 ## Contributing
 
 Contributions are welcome! Feel free to open issues for bug reports or feature requests, or submit pull requests.
