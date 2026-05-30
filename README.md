@@ -842,7 +842,7 @@ const isCorrect = pool.verifyAnswer(challenge.id, userAnswer)
 
 Six challenge types are supported: `object_count`, `spatial_reasoning`, `color_identification`, `scene_description`, `text_recognition`, and `odd_one_out`. Each type includes built-in prompt templates that generate prompts with known ground truth.
 
-> **Note:** Direct OpenAI/Stability AI API integration is planned. For now, use the `custom` or `static` provider.
+> **Warning:** The `openai` and `stability` providers are not yet implemented and will throw at runtime. Use `custom` or `static` providers instead.
 
 ## Contributing
 
