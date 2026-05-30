@@ -711,6 +711,40 @@ const verifier = createVerifier({
 
 The replay guard is in-memory with automatic expiry cleanup and `unref()`'d timers, so it won't keep the process alive. Call `replayGuard.destroy()` on shutdown to clear the cleanup interval.
 
+#### Redis replay guard (multi-instance deployments)
+
+For production deployments running multiple server instances, use `RedisReplayStore` instead of the default in-memory guard. It uses Redis `SET NX` with TTL for atomic, race-condition-safe replay detection that persists across restarts and works across all instances.
+
+Install `ioredis` (optional peer dependency):
+
+```bash
+npm install ioredis
+```
+
+```ts
+import Redis from 'ioredis'
+import { createVerifier, RedisReplayStore } from 'imrobot/server'
+
+const redis = new Redis({ host: 'localhost', port: 6379 })
+
+const replayGuard = new RedisReplayStore(redis, {
+  ttlMs: 5 * 60 * 1000,       // how long IDs stay in Redis (5 min)
+  keyPrefix: 'imrobot:replay:', // optional namespace prefix
+})
+
+// Verification is now async — use markUsedAsync directly, or plug in as a
+// custom middleware step before calling verifier.verify()
+const allowed = await replayGuard.markUsedAsync(challengeId)
+if (!allowed) {
+  return res.status(403).json({ error: 'Replay attack detected' })
+}
+
+// Shut down: close the Redis connection (not the store — it holds no resources)
+process.on('SIGTERM', () => redis.quit())
+```
+
+The `RedisReplayStore` exposes async methods (`markUsedAsync`, `isUsedAsync`, `deleteAsync`, `resetAsync`) to match Redis's inherently asynchronous I/O model. `destroy()` is a no-op — lifecycle of the Redis connection is owned by the caller.
+
 ### ChallengeAnalytics
 
 `ChallengeAnalytics` (exported from `imrobot/server`) is a lightweight, in-memory metrics tracker for monitoring challenge activity — generation rates, verification rates, solve-time percentiles, and failure-reason distributions. Zero external dependencies, memory-bounded (sliding window of configurable size).

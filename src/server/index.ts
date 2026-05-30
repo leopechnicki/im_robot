@@ -18,6 +18,8 @@ export { requireAgent, createAgentRouter } from './middleware'
 export { RateLimiter } from './rate-limiter'
 export { ChallengeAnalytics } from './analytics'
 export { ChallengeReplayGuard, MemoryReplayStore } from './replay-guard'
+export { RedisReplayStore } from './redis-replay-guard'
+export type { RedisLike, RedisReplayStoreConfig } from './redis-replay-guard'
 export { buildDiscoveryDocument, createDiscoveryHandler } from './discovery'
 export type { ProofTokenConfig, IssueTokenParams } from './proof-token'
 export type {

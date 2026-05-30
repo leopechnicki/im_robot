@@ -14,7 +14,7 @@ export default defineConfig([
     dts: true,
     splitting: false,
     clean: true,
-    external: ['react', 'react-dom', 'vue', 'svelte'],
+    external: ['react', 'react-dom', 'vue', 'svelte', 'ioredis', '@opentelemetry/api'],
     treeshake: true,
     sourcemap: true,
   },
