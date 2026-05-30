@@ -168,7 +168,7 @@ export class IMRobotMCPServer {
     const args = (params.arguments ?? {}) as Record<string, unknown>
 
     if (!name || typeof name !== 'string') {
-      return err(id, RpcCode.InvalidParams, 'tools/call requires a "name" parameter')
+      return err(id, RpcCode.InvalidParams, 'tools/call requires a "name" parameter') as JsonRpcResponse<MCPToolCallResult>
     }
 
     try {
@@ -181,22 +181,23 @@ export class IMRobotMCPServer {
   }
 
   private callTool(name: string, args: Record<string, unknown>): unknown {
+    const a = args as unknown
     switch (name) {
       case 'generate-challenge':
-        return toolGenerateChallenge(args as Parameters<typeof toolGenerateChallenge>[0], this.config)
+        return toolGenerateChallenge(a as Parameters<typeof toolGenerateChallenge>[0], this.config)
 
       case 'solve-challenge':
-        return toolSolveChallenge(args as Parameters<typeof toolSolveChallenge>[0])
+        return toolSolveChallenge(a as Parameters<typeof toolSolveChallenge>[0])
 
       case 'verify-answer':
-        return toolVerifyAnswer(args as Parameters<typeof toolVerifyAnswer>[0])
+        return toolVerifyAnswer(a as Parameters<typeof toolVerifyAnswer>[0])
 
       case 'create-token':
-        return toolCreateToken(args as Parameters<typeof toolCreateToken>[0])
+        return toolCreateToken(a as Parameters<typeof toolCreateToken>[0])
 
       case 'get-discovery-document':
         return toolGetDiscoveryDocument(
-          args as Parameters<typeof toolGetDiscoveryDocument>[0],
+          a as Parameters<typeof toolGetDiscoveryDocument>[0],
           this.config,
         )
 

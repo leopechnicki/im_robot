@@ -301,9 +301,9 @@ export class ChallengeOTelExporter {
       }
 
       // Update baseline
-      ;(this.baseline as Record<string, number>)[baselineKey as string] = d.generated
-      ;(this.baseline as Record<string, number>)[solvedKey as string] = d.verified
-      ;(this.baseline as Record<string, number>)[failedKey as string] = d.failed
+      ;(this.baseline as unknown as Record<string, number>)[baselineKey as string] = d.generated
+      ;(this.baseline as unknown as Record<string, number>)[solvedKey as string] = d.verified
+      ;(this.baseline as unknown as Record<string, number>)[failedKey as string] = d.failed
     }
 
     // Also track totals

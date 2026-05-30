@@ -6,7 +6,7 @@
  * directly so they can be fully unit-tested without a running MCP server.
  */
 
-import { generateChallenge, solveChallenge, verifyAnswer, createToken } from '../core/challenge'
+import { generateChallenge, verifyAnswer, createToken } from '../core/challenge'
 import { buildDiscoveryDocument } from '../server/discovery'
 import { executePipeline } from '../core/operations'
 import type { Difficulty } from '../core/types'
@@ -39,7 +39,7 @@ export interface GenerateChallengeOutput {
     timestamp: number
     ttl: number
     version: number
-    verification: number
+    verification: string
   }
   instructions: string
 }
@@ -86,7 +86,7 @@ export interface VerifyAnswerInput {
     pipeline: unknown[]
     timestamp: number
     ttl: number
-    verification: number
+    verification: string
     difficulty?: string
     version?: number
     visibleSeed?: string
@@ -108,7 +108,7 @@ export interface VerifyAnswerOutput {
  */
 export function toolVerifyAnswer(input: VerifyAnswerInput): VerifyAnswerOutput {
   try {
-    const challenge = input.challenge as Parameters<typeof verifyAnswer>[0]
+    const challenge = input.challenge as unknown as Parameters<typeof verifyAnswer>[0]
     const valid = verifyAnswer(challenge, input.answer)
     return { valid, ...(valid ? {} : { reason: 'wrong_answer_or_expired' }) }
   } catch (err) {
@@ -127,7 +127,7 @@ export interface CreateTokenInput {
     pipeline: unknown[]
     timestamp: number
     ttl: number
-    verification: number
+    verification: string
     difficulty?: string
     version?: number
     visibleSeed?: string
@@ -144,7 +144,7 @@ export interface CreateTokenOutput {
     timestamp: number
     elapsed: number
     suspicious: boolean
-    signature: number
+    signature: string
   }
   note: string
 }
@@ -156,7 +156,7 @@ export interface CreateTokenOutput {
  * (or whichever header the server expects per the discovery document).
  */
 export function toolCreateToken(input: CreateTokenInput): CreateTokenOutput {
-  const challenge = input.challenge as Parameters<typeof verifyAnswer>[0]
+  const challenge = input.challenge as unknown as Parameters<typeof verifyAnswer>[0]
   const token = createToken(challenge, input.answer, input.startTime)
 
   return {
@@ -181,7 +181,7 @@ export interface SolveChallengeInput {
     pipeline: unknown[]
     timestamp: number
     ttl: number
-    verification: number
+    verification: string
     difficulty?: string
     version?: number
     visibleSeed?: string
@@ -198,7 +198,7 @@ export interface SolveChallengeOutput {
     timestamp: number
     elapsed: number
     suspicious: boolean
-    signature: number
+    signature: string
   }
 }
 
@@ -209,12 +209,15 @@ export interface SolveChallengeOutput {
  * automatically. Combines challenge solving, verification, and token creation.
  */
 export function toolSolveChallenge(input: SolveChallengeInput): SolveChallengeOutput {
-  const challenge = input.challenge as Parameters<typeof solveChallenge>[0]
+  const challenge = input.challenge as unknown as Parameters<typeof verifyAnswer>[0]
   const startTime = Date.now()
 
   let answer: string
   try {
-    answer = executePipeline(challenge.seed, challenge.pipeline as Parameters<typeof executePipeline>[1])
+    answer = executePipeline(
+      challenge.seed,
+      challenge.pipeline as Parameters<typeof executePipeline>[1],
+    )
   } catch (err) {
     throw new Error(
       `Failed to solve challenge pipeline: ${err instanceof Error ? err.message : String(err)}`,
