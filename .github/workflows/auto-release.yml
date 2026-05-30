@@ -40,10 +40,28 @@ jobs:
             fi
           fi
 
+      # Generate a GitHub App token so the release event fires publish.yml.
+      # GITHUB_TOKEN does not trigger downstream workflow events (anti-recursion
+      # policy). A GitHub App token bypasses this restriction.
+      #
+      # Leo: create a GitHub App at github.com/settings/apps with:
+      #   - Contents: Read & write
+      #   - Pull requests: Read & write
+      # Then add to both repos:
+      #   - vars.RELEASE_APP_ID  (the App's numeric ID)
+      #   - secrets.RELEASE_APP_PRIVATE_KEY  (the .pem private key content)
+      - name: Generate GitHub App token
+        id: app-token
+        if: steps.check.outputs.has_changes == 'true'
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
       - name: Create release
         if: steps.check.outputs.has_changes == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
 
@@ -72,7 +90,7 @@ jobs:
           fi
 
           if [ "$TAG_EXISTS" = "true" ]; then
-            echo "::warning::Tag/release ${RELEASE_VERSION} already exists — skipping release, opening bump PR only."
+            echo "::warning::Tag/release ${RELEASE_VERSION} already exists - skipping release, opening bump PR only."
             RELEASE_CREATED=false
           else
             LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
@@ -98,7 +116,7 @@ jobs:
           # origin from a previous run, don't try to recreate it.
           BRANCH="chore/bump-version-v${NEXT_VERSION}"
           if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
-            echo "Bump branch ${BRANCH} already exists on origin — leaving existing PR in place."
+            echo "Bump branch ${BRANCH} already exists on origin - leaving existing PR in place."
             exit 0
           fi
 
@@ -117,7 +135,7 @@ jobs:
 
           # Create the bump PR. Falls back to a workflow notice with the compare
           # URL if the repository's "Allow GitHub Actions to create pull requests"
-          # setting is disabled — the branch is still pushed so a human can open
+          # setting is disabled - the branch is still pushed so a human can open
           # the PR manually.
           if ! gh pr create \
             --title "chore: bump version to ${NEXT_VERSION}" \
