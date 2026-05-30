@@ -44,3 +44,7 @@ export type {
   AgentProofToken,
   SerializedProofToken,
 } from '../core/types'
+export { RedisReplayStore } from './redis-replay-store'
+export type { RedisClient, RedisReplayStoreConfig } from './redis-replay-store'
+export { OtelAnalyticsExporter, createImRobotMetrics, bindAnalyticsToOtel } from './otel-exporter'
+export type { OtelMeter, OtelCounter, OtelHistogram, OtelObservableGauge, OtelObservableResult, ImRobotOtelMetrics } from './otel-exporter'
