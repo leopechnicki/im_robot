@@ -22,14 +22,14 @@
 | Repo | PR | Branch | Status |
 |------|----|--------|--------|
 | im_robot | [#83 — merged 2026-05-20](https://github.com/leopechnicki/im_robot/pull/83) | `crew/fix/im-robot-design-polish` | ✅ Merged to main |
-| im_robot | [#91 — audit record 2026-06-01](https://github.com/leopechnicki/im_robot/pull/91) | `crew/fix/im-robot-design-polish` | Open — Axon APPROVED ✅ |
+| im_robot | [#96 — audit record 2026-06-01](https://github.com/leopechnicki/im_robot/pull/96) | `crew/fix/im-robot-design-polish` | Open — Axon APPROVED ✅ |
 | pechnicki-page | [#40 — fix: profile & bugs](https://github.com/leopechnicki/Pechnicki-Page/pull/40) | `crew/fix/pechnicki-page-profile-and-bugs` | Open — Axon APPROVED ✅ |
 
 ## Verification Notes
 
 - im_robot `demo/index.html` SHA on main matches branch SHA (`f6ed89e0`) — all task-005 changes are live.
 - task-005 was first implemented in PR #79 (2026-05-09) and merged via PR #81 and #83. PR #90 was closed without merge on 2026-05-30 as a duplicate audit record.
-- This PR (#91) serves as the formal 2026-06-01 sprint audit record.
+- This PR (#96) is the formal 2026-06-01 sprint audit record with updated sprint_report.md.
 
 ## Blockers
 
