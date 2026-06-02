@@ -8,6 +8,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  id-token: write
 
 jobs:
   release:
@@ -22,6 +23,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          registry-url: https://registry.npmjs.org
 
       - name: Check for new commits since last tag
         id: check
@@ -42,6 +44,7 @@ jobs:
 
       - name: Create release
         if: steps.check.outputs.has_changes == 'true'
+        id: create_release
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PAT }}
         run: |
@@ -65,9 +68,10 @@ jobs:
             TAG_EXISTS=true
           fi
 
+          RELEASE_CREATED=false
           if [ "$TAG_EXISTS" = "true" ]; then
             echo "::warning::Tag/release ${RELEASE_VERSION} already exists — skipping release, opening bump PR only."
-            RELEASE_CREATED=false
+            echo "release_created=false" >> "$GITHUB_OUTPUT"
           else
             LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
             if [ -z "$LAST_TAG" ]; then
@@ -86,6 +90,7 @@ jobs:
           *Auto-released on $(date -u +%Y-%m-%d)*" \
               --target main
             RELEASE_CREATED=true
+            echo "release_created=true" >> "$GITHUB_OUTPUT"
           fi
 
           BRANCH="chore/bump-version-v${NEXT_VERSION}"
@@ -113,3 +118,35 @@ jobs:
             --head "$BRANCH"; then
             echo "::notice::PR creation skipped (Actions not permitted). Open manually: https://github.com/${GITHUB_REPOSITORY}/compare/main...${BRANCH}"
           fi
+
+      # npm publish runs inline here rather than relying on publish.yml being
+      # triggered by the release event. GitHub Actions does NOT fire workflow
+      # triggers for releases created via a PAT or GITHUB_TOKEN — only releases
+      # created by a real user OAuth session propagate that event to other
+      # workflows. Publishing inline in the same job eliminates this
+      # anti-recursion limitation entirely.
+      - name: Install dependencies
+        if: steps.create_release.outputs.release_created == 'true'
+        run: npm ci
+
+      - name: Typecheck
+        if: steps.create_release.outputs.release_created == 'true'
+        run: npm run typecheck
+
+      - name: Lint
+        if: steps.create_release.outputs.release_created == 'true'
+        run: npm run lint
+
+      - name: Test
+        if: steps.create_release.outputs.release_created == 'true'
+        run: npm test
+
+      - name: Build
+        if: steps.create_release.outputs.release_created == 'true'
+        run: npm run build
+
+      - name: Publish to npm
+        if: steps.create_release.outputs.release_created == 'true'
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
