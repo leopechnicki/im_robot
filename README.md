@@ -60,6 +60,99 @@ The challenge data is embedded in the DOM via `data-imrobot-challenge` attribute
 npm install imrobot
 ```
 
+## Quick Demo
+
+A complete working example: protect an Express.js route so only verified AI agents can access it.
+
+**1. Set up the server**
+
+```typescript
+// server.ts
+import express from 'express'
+import { createAgentRouter, requireAgent } from 'imrobot/server'
+
+const app = express()
+app.use(express.json())
+
+// Mount challenge + verify endpoints under /imrobot
+const agentRouter = createAgentRouter({
+  secret: process.env.IMROBOT_SECRET!, // e.g. "my-32-char-secret-key-goes-here"
+  rateLimit: { windowMs: 60_000, maxRequests: 30 },
+})
+app.get('/imrobot/challenge', agentRouter.challenge)
+app.post('/imrobot/verify', agentRouter.verify)
+
+// Protect a route — only agents with a valid proof token can enter
+const agentOnly = requireAgent({ secret: process.env.IMROBOT_SECRET! })
+
+app.get('/api/agent-data', agentOnly, (req, res) => {
+  res.json({ secret: 'only bots see this', agent: req.agentProof })
+})
+
+app.listen(3000, () => console.log('Server on :3000'))
+```
+
+**2. Agent solves the challenge (copy-paste runnable)**
+
+```typescript
+// agent.ts — run this from any TypeScript/JavaScript environment
+import { solveChallenge } from 'imrobot/core'
+
+const BASE = 'http://localhost:3000'
+
+// Step 1: fetch a signed challenge from the server
+const { challenge } = await fetch(`${BASE}/imrobot/challenge`).then(r => r.json())
+
+// Step 2: solve the pipeline deterministically (< 1ms)
+const answer = solveChallenge(challenge)
+
+// Step 3: submit the answer and receive a proof token (JWT)
+const { token } = await fetch(`${BASE}/imrobot/verify`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ challenge, answer }),
+}).then(r => r.json())
+
+console.log('Got proof token:', token)
+// eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+// Step 4: call the protected endpoint
+const data = await fetch(`${BASE}/api/agent-data`, {
+  headers: { 'X-Agent-Proof': token },
+}).then(r => r.json())
+
+console.log(data)
+// { secret: 'only bots see this', agent: { challengeId: 'ch_...', difficulty: 'medium', ... } }
+```
+
+**What happens end-to-end:**
+
+```
+Agent                          Server
+  |                               |
+  |-- GET /imrobot/challenge ---→ |  generates HMAC-signed challenge
+  |← { challenge }  ------------ |  { id, seed, pipeline, signature, expiresAt }
+  |                               |
+  |  solveChallenge(challenge)    |  (local, < 1ms)
+  |  answer = "3F9A..."           |
+  |                               |
+  |-- POST /imrobot/verify -----→ |  verifies HMAC, answer, expiry, replay guard
+  |← { token: "eyJ..." } ------- |  issues HS256 JWT (X-Agent-Proof)
+  |                               |
+  |-- GET /api/agent-data ------→ |  requireAgent middleware validates JWT
+  |← { secret: "..." } --------- |  route handler runs
+```
+
+**Try it in 30 seconds with the CLI:**
+
+```bash
+npx imrobot solve --difficulty medium
+# Solved in 0.4ms → answer: "3F9A8C..."
+
+npx imrobot benchmark --count 1000
+# 1000 challenges solved, avg 0.31ms, p99 0.8ms
+```
+
 ## Quick start
 
 ### React
@@ -843,6 +936,18 @@ const isCorrect = pool.verifyAnswer(challenge.id, userAnswer)
 Six challenge types are supported: `object_count`, `spatial_reasoning`, `color_identification`, `scene_description`, `text_recognition`, and `odd_one_out`. Each type includes built-in prompt templates that generate prompts with known ground truth.
 
 > **Note:** Direct OpenAI/Stability AI API integration is planned. For now, use the `custom` or `static` provider.
+
+## Ecosystem
+
+imrobot is designed to integrate with the broader AI agent ecosystem:
+
+| Integration | Description |
+|---|---|
+| **Cloudflare Turnstile** | Layer human-verification alongside the proof-of-work challenge. `turnstile_verified` is stamped into the issued JWT. |
+| **Web Bot Auth (IETF)** | Verify Ed25519-signed agents (OpenAI Operator, Cloudflare signed bots) directly. Skip the challenge for trusted known agents. |
+| **Pollinations.ai** *(coming)* | Use the free, no-auth Pollinations.ai image generation API to power the `ImageChallengePool` custom provider — zero API keys, zero cost. Generates on-demand image challenges with deterministic ground truth. |
+| **A2A Agent Card** | `/.well-known/imrobot.json` follows the A2A Agent Card pattern so discovery-enabled agents find your protected endpoints automatically. |
+| **Any JWT library** | Proof tokens are standard HS256 JWTs — verify with `jose`, `jsonwebtoken`, Python `PyJWT`, Go `golang-jwt`, or any RFC 7519-compliant library. |
 
 ## Contributing
 
