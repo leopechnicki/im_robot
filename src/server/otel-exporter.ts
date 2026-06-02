@@ -223,7 +223,8 @@ export class ChallengeOTelExporter {
 
     // Observable gauges — polled by SDK on its schedule
     const activeGauge = this.meter.createObservableGauge('imrobot.challenge.active', {
-      description: 'Estimated number of currently active (generated but not yet verified) challenges',
+      description:
+        'Estimated number of currently active (generated but not yet verified) challenges',
       unit: '{challenge}',
     })
 
@@ -262,7 +263,12 @@ export class ChallengeOTelExporter {
    * Called automatically at exportIntervalMs. Can also be called manually.
    */
   exportSnapshot(): void {
-    if (!this.generatedCounter || !this.solvedCounter || !this.failedCounter || !this.solveTimeHistogram) {
+    if (
+      !this.generatedCounter ||
+      !this.solvedCounter ||
+      !this.failedCounter ||
+      !this.solveTimeHistogram
+    ) {
       return
     }
 
@@ -307,18 +313,9 @@ export class ChallengeOTelExporter {
     }
 
     // Also track totals
-    const deltaGenTotal = Math.max(
-      0,
-      stats.summary.totalGenerated - this.baseline.totalGenerated,
-    )
-    const deltaSolvedTotal = Math.max(
-      0,
-      stats.summary.totalVerified - this.baseline.totalVerified,
-    )
-    const deltaFailedTotal = Math.max(
-      0,
-      stats.summary.totalFailed - this.baseline.totalFailed,
-    )
+    const deltaGenTotal = Math.max(0, stats.summary.totalGenerated - this.baseline.totalGenerated)
+    const deltaSolvedTotal = Math.max(0, stats.summary.totalVerified - this.baseline.totalVerified)
+    const deltaFailedTotal = Math.max(0, stats.summary.totalFailed - this.baseline.totalFailed)
 
     this.baseline.totalGenerated = stats.summary.totalGenerated
     this.baseline.totalVerified = stats.summary.totalVerified

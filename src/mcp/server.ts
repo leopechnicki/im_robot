@@ -168,7 +168,11 @@ export class IMRobotMCPServer {
     const args = (params.arguments ?? {}) as Record<string, unknown>
 
     if (!name || typeof name !== 'string') {
-      return err(id, RpcCode.InvalidParams, 'tools/call requires a "name" parameter') as JsonRpcResponse<MCPToolCallResult>
+      return err(
+        id,
+        RpcCode.InvalidParams,
+        'tools/call requires a "name" parameter',
+      ) as JsonRpcResponse<MCPToolCallResult>
     }
 
     try {

@@ -38,7 +38,13 @@
 /** Minimal Redis interface required by RedisReplayStore (compatible with ioredis) */
 export interface RedisLike {
   /** SET key value EX seconds NX — returns 'OK' on success, null if key exists */
-  set(key: string, value: string, expiryMode: 'EX', time: number, setMode: 'NX'): Promise<'OK' | null>
+  set(
+    key: string,
+    value: string,
+    expiryMode: 'EX',
+    time: number,
+    setMode: 'NX',
+  ): Promise<'OK' | null>
   /** EXISTS key — returns number of existing keys (0 or 1) */
   exists(key: string): Promise<number>
   /** DEL key — returns number of deleted keys */
