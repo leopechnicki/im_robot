@@ -13,10 +13,22 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
+      # Mint a short-lived GitHub App installation token. The bump branch/PR
+      # MUST be created with a non-GITHUB_TOKEN identity: GitHub does not start
+      # workflow runs for events triggered by the default GITHUB_TOKEN, which
+      # left the required "CI / Node 20|22" checks permanently pending and every
+      # auto-bump PR un-mergeable. See PR #89 for one-time App setup instructions.
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.RELEASE_PAT }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Use Node.js 22
         uses: actions/setup-node@v4
@@ -43,21 +55,27 @@ jobs:
       - name: Create release
         if: steps.check.outputs.has_changes == 'true'
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          # Read current version from package.json (source of truth)
           CURRENT=$(node -p "require('./package.json').version")
           RELEASE_VERSION="v${CURRENT}"
           echo "Release version: $RELEASE_VERSION"
 
+          # Compute next dev version for the bump PR
           IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
           NEXT_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
           echo "Next dev version: $NEXT_VERSION"
 
+          # Guard against tag/release collisions. If the package.json version was
+          # not bumped since the last release (e.g. the previous bump PR was never
+          # merged), skip the release step but still open the bump PR so a future
+          # run can release cleanly.
           TAG_EXISTS=false
           if git rev-parse "refs/tags/${RELEASE_VERSION}" >/dev/null 2>&1; then
             TAG_EXISTS=true
@@ -88,6 +106,8 @@ jobs:
             RELEASE_CREATED=true
           fi
 
+          # Open (or reuse) the version-bump PR. If the branch already exists on
+          # origin from a previous run, don't try to recreate it.
           BRANCH="chore/bump-version-v${NEXT_VERSION}"
           if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
             echo "Bump branch ${BRANCH} already exists on origin — leaving existing PR in place."
@@ -97,7 +117,10 @@ jobs:
           git checkout -b "$BRANCH"
           npm version "$NEXT_VERSION" --no-git-tag-version
           git add package.json package-lock.json 2>/dev/null || git add package.json
-          git commit -m "chore: bump version to ${NEXT_VERSION} [skip ci]"
+          # No [skip ci]: we WANT the required CI checks to run on the bump PR so
+          # it can satisfy branch protection and merge. The App token (above)
+          # makes the push/PR trigger the workflow.
+          git commit -m "chore: bump version to ${NEXT_VERSION}"
           git push origin "$BRANCH"
 
           if [ "$RELEASE_CREATED" = "true" ]; then
@@ -106,6 +129,10 @@ jobs:
             PR_BODY="Automated version bump. Release ${RELEASE_VERSION} was skipped because the tag already exists; merging this PR unblocks next Friday's release."
           fi
 
+          # Create the bump PR. Falls back to a workflow notice with the compare
+          # URL if the repository's "Allow GitHub Actions to create pull requests"
+          # setting is disabled — the branch is still pushed so a human can open
+          # the PR manually.
           if ! gh pr create \
             --title "chore: bump version to ${NEXT_VERSION}" \
             --body "$PR_BODY" \

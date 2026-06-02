@@ -711,6 +711,40 @@ const verifier = createVerifier({
 
 The replay guard is in-memory with automatic expiry cleanup and `unref()`'d timers, so it won't keep the process alive. Call `replayGuard.destroy()` on shutdown to clear the cleanup interval.
 
+#### Redis replay guard (multi-instance deployments)
+
+For production deployments running multiple server instances, use `RedisReplayStore` instead of the default in-memory guard. It uses Redis `SET NX` with TTL for atomic, race-condition-safe replay detection that persists across restarts and works across all instances.
+
+Install `ioredis` (optional peer dependency):
+
+```bash
+npm install ioredis
+```
+
+```ts
+import Redis from 'ioredis'
+import { createVerifier, RedisReplayStore } from 'imrobot/server'
+
+const redis = new Redis({ host: 'localhost', port: 6379 })
+
+const replayGuard = new RedisReplayStore(redis, {
+  ttlMs: 5 * 60 * 1000,       // how long IDs stay in Redis (5 min)
+  keyPrefix: 'imrobot:replay:', // optional namespace prefix
+})
+
+// Verification is now async — use markUsedAsync directly, or plug in as a
+// custom middleware step before calling verifier.verify()
+const allowed = await replayGuard.markUsedAsync(challengeId)
+if (!allowed) {
+  return res.status(403).json({ error: 'Replay attack detected' })
+}
+
+// Shut down: close the Redis connection (not the store — it holds no resources)
+process.on('SIGTERM', () => redis.quit())
+```
+
+The `RedisReplayStore` exposes async methods (`markUsedAsync`, `isUsedAsync`, `deleteAsync`, `resetAsync`) to match Redis's inherently asynchronous I/O model. `destroy()` is a no-op — lifecycle of the Redis connection is owned by the caller.
+
 ### ChallengeAnalytics
 
 `ChallengeAnalytics` (exported from `imrobot/server`) is a lightweight, in-memory metrics tracker for monitoring challenge activity — generation rates, verification rates, solve-time percentiles, and failure-reason distributions. Zero external dependencies, memory-bounded (sliding window of configurable size).
@@ -842,7 +876,122 @@ const isCorrect = pool.verifyAnswer(challenge.id, userAnswer)
 
 Six challenge types are supported: `object_count`, `spatial_reasoning`, `color_identification`, `scene_description`, `text_recognition`, and `odd_one_out`. Each type includes built-in prompt templates that generate prompts with known ground truth.
 
-> **Note:** Direct OpenAI/Stability AI API integration is planned. For now, use the `custom` or `static` provider.
+> **Warning:** The `openai` and `stability` providers are not yet implemented and will throw at runtime. Use `custom` or `static` providers instead.
+
+## OpenTelemetry metrics
+
+`ChallengeOTelExporter` (exported from `imrobot/server`) bridges the in-memory `ChallengeAnalytics` tracker to any OpenTelemetry-compatible backend — Datadog, Grafana, Prometheus, or any OTLP endpoint.
+
+Install the optional peer dependencies:
+
+```bash
+npm install @opentelemetry/api @opentelemetry/sdk-metrics @opentelemetry/exporter-metrics-otlp-http
+```
+
+```ts
+import { MeterProvider, PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics'
+import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http'
+import { ChallengeAnalytics, ChallengeOTelExporter } from 'imrobot/server'
+
+const analytics = new ChallengeAnalytics()
+
+const meterProvider = new MeterProvider({
+  readers: [
+    new PeriodicExportingMetricReader({
+      exporter: new OTLPMetricExporter({ url: 'http://localhost:4318/v1/metrics' }),
+      exportIntervalMillis: 30_000,
+    }),
+  ],
+})
+
+const otelExporter = new ChallengeOTelExporter(analytics, meterProvider, {
+  scopeName: 'imrobot',
+  exportIntervalMs: 15_000,
+})
+
+otelExporter.start()
+
+// Wire analytics into your verifier
+const verifier = createVerifier({ secret: process.env.IMROBOT_SECRET!, analytics })
+
+// On shutdown
+process.on('SIGTERM', () => otelExporter.stop())
+```
+
+### Exported metrics
+
+| Metric | Type | Attributes | Description |
+|---|---|---|---|
+| `imrobot.challenge.generated` | Counter | `difficulty` | Challenges generated |
+| `imrobot.challenge.solved` | Counter | `difficulty` | Successfully verified challenges |
+| `imrobot.challenge.failed` | Counter | `difficulty` | Failed verification attempts |
+| `imrobot.challenge.solve_time_ms` | Histogram | `difficulty` | P95 solve time in ms |
+| `imrobot.challenge.active` | ObservableGauge | — | Generated minus verified/failed |
+| `imrobot.challenge.verification_rate` | ObservableGauge | — | Verified / total attempts (0.0–1.0) |
+
+`@opentelemetry/api` is an optional peer dependency — the exporter uses the interface types only and does not hard-import the SDK.
+
+## MCP server (Model Context Protocol)
+
+imrobot ships a native MCP server that lets AI agents auto-discover and complete verification challenges without any custom integration code. Agents call the tools directly; no HTTP endpoints required.
+
+```ts
+import { createMCPServer } from 'imrobot/mcp'
+
+// Start a stdio MCP server (use in Claude Desktop, Cursor, etc.)
+createMCPServer({ defaultDifficulty: 'medium' }).start()
+```
+
+Add to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "imrobot": {
+      "command": "node",
+      "args": ["-e", "import('imrobot/mcp').then(m => m.createMCPServer().start())"]
+    }
+  }
+}
+```
+
+### Available MCP tools
+
+| Tool | Description |
+|---|---|
+| `generate-challenge` | Generate a new verification challenge |
+| `solve-challenge` | Auto-solve a challenge (returns answer + proof token) |
+| `verify-answer` | Check if a computed answer is correct |
+| `create-token` | Create a proof token after solving |
+| `get-discovery-document` | Fetch the imrobot discovery document |
+
+### Programmatic usage (no stdio)
+
+```ts
+import { createMCPServer } from 'imrobot/mcp'
+
+const server = createMCPServer()
+
+// Generate + auto-solve in one step
+const challengeResp = await server.handleMessage(JSON.stringify({
+  jsonrpc: '2.0', id: 1, method: 'tools/call',
+  params: { name: 'generate-challenge', arguments: { difficulty: 'easy' } }
+}))
+
+const { result } = JSON.parse(challengeResp)
+const { challenge } = JSON.parse(result.content[0].text)
+
+const solveResp = await server.handleMessage(JSON.stringify({
+  jsonrpc: '2.0', id: 2, method: 'tools/call',
+  params: { name: 'solve-challenge', arguments: { challenge } }
+}))
+
+const { result: solveResult } = JSON.parse(solveResp)
+const { token } = JSON.parse(solveResult.content[0].text)
+// Use token.challengeId + token.signature for X-Agent-Proof header
+```
+
+The MCP server has zero runtime dependencies — it implements JSON-RPC 2.0 directly and calls the same core API that agents use.
 
 ## Contributing
 
