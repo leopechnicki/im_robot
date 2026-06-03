@@ -1,54 +1,53 @@
-# Sprint Report — The Crew
+# Sprint Report — Crew Agile Dev Team
 
-**Date:** 2026-06-02
-**Sprint ID:** crew-sprint-20260602
-**Repo:** im_robot
-**Agent:** Claude (Sonnet 4.6) — Crew Mode (Axon / Probe / Pixel)
+**Date:** 2026-06-03  
+**Sprint:** Critical bug fixes + design polish
 
 ---
 
-## Task: task-005 [MEDIUM] — Design Polish, Accessibility & Responsive Improvements
+## Tasks Completed
 
-All 8 items verified complete on `main` (SHA: `35a87782`).
+### pechnicki-page repo
 
-| # | Item | File | Status |
-|---|------|------|--------|
-| 1 | `aria-hidden="true"` on all emoji icons in buttons & feature cards | demo/index.html | ✅ DONE |
-| 2 | Dynamic `aria-label` on theme toggle — `updateToggleLabel()` updates label on every click | demo/index.html | ✅ DONE |
-| 3 | `@media (prefers-reduced-motion: reduce)` suppresses `translateY` on `.btn-primary`, `.copy-prompt-btn`, `.step` | demo/index.html `<style>` | ✅ DONE |
-| 4 | `aria-modal="true"` + full Tab/Shift-Tab focus trap on mobile nav dialog | demo/index.html | ✅ DONE |
-| 5 | Right-edge fade gradient on `.code-panel.active::after` (48px, `transparent → var(--bg-alt)`) | demo/index.html `<style>` | ✅ DONE |
-| 6 | Syntax highlighting (`.kw`/`.str`/`.cmt` spans) applied consistently across all 11 code panels + quickstart blocks | demo/index.html | ✅ DONE |
-| 7 | 3-column intermediate breakpoint for features grid — `@media (min-width: 750px) and (max-width: 1100px)` | demo/index.html `<style>` | ✅ DONE |
-| 8 | `.section-intro` class replacing broad `section > p` selector throughout | demo/index.html | ✅ DONE |
+| Task | Status | Notes |
+|------|--------|-------|
+| task-007 | ✅ COMPLETE | Leonardo profile corrected in all locales (PT/EN/ES). School: `Faculdades Integradas do Brasil`; Role: `Java Software Engineer na/at EPAM Systems`; Desc: 8+ years, im_robot, Bitbot; Skills 4–8 added (Java, TypeScript, Spring Boot, Microservices & REST APIs, Docker & CI/CD). `skillKeys` array updated. |
+| task-002 | ✅ COMPLETE | `.modal-professional-photo` gradient border fixed. Replaced `border-image` (incompatible with `border-radius`) with `background: linear-gradient(...) padding-box, linear-gradient(...) border-box; border: 4px solid transparent`. Circular border-radius preserved. |
+| task-003 | ✅ COMPLETE | Mobile menu toggle uses `.mobile-open` CSS class exclusively — no inline style assignments remain. All appearance rules live in `@media (max-width: 768px)` blocks. |
+
+### im_robot repo
+
+| Task | Status | Notes |
+|------|--------|-------|
+| task-005 | ✅ COMPLETE | All 8 accessibility + responsive items verified on `main` (SHA `2a663d5b07fa84fb78774e445ba05e9c3ee92bc7`). See details below. |
+
+#### task-005 item checklist
+
+- [x] `aria-hidden="true"` on all emoji icons in buttons (feature icons, install bar copy icon, auto-solve emoji span)
+- [x] Dynamic `aria-label` on theme toggle — updates to "Switch to dark/light mode" on each click (JS IIFE block in `demo/index.html`)
+- [x] `@media (prefers-reduced-motion: reduce)` block suppresses hover `transform` on `.btn-primary:hover`, `.copy-prompt-btn:hover`, `.step:hover`
+- [x] Mobile nav panel: `role="dialog"`, `aria-label="Navigation menu"`, `aria-modal="true"` + focus-trap JS IIFE (Escape, Tab/Shift-Tab cycling)
+- [x] `.code-panel.active::after` right-edge fade gradient (48px, `linear-gradient(to right, transparent, var(--bg-alt))`) — hints at horizontal scroll
+- [x] Syntax highlighting (`<span class="kw/str/cmt">`) applied consistently across all 11 code panels; shared CSS selector covers both `.code-panel pre` and `.qs-code-block pre`
+- [x] 3-column intermediate breakpoint: `@media (min-width: 750px) and (max-width: 1100px) { .features { grid-template-columns: repeat(3, 1fr) } }`
+- [x] Broad `section > p` selector replaced with scoped `.section-intro` class; CSS rule `.section-intro { font-size: 16px; color: var(--text-muted); max-width: 600px; margin-bottom: 40px }` applied
 
 ---
 
-## PRs
+## PRs Created
 
-| PR | Title | Status | Axon Review |
-|----|-------|--------|-------------|
-| [#96](https://github.com/leopechnicki/im_robot/pull/96) | fix(demo): accessibility + responsive polish — sprint audit 2026-06-01 | Open | ✅ APPROVED (comment, 2026-06-02) |
-| [#83](https://github.com/leopechnicki/im_robot/pull/83) | feat: accessibility + responsive polish — task-005 audit record | Merged | — |
-
-> All task-005 changes were implemented in prior Crew sprints and are live on `main`. PR #96 is the 2026-06-02 re-verification audit record.
+| Repo | PR | Branch | Status |
+|------|----|--------|--------|
+| pechnicki-page | [#40 — fix: Leonardo profile, gradient border, mobile menu](https://github.com/leopechnicki/Pechnicki-Page/pull/40) | `crew/fix/pechnicki-page-profile-and-bugs` | Open — awaiting merge |
+| im_robot | [#101 — docs: task-005 design polish audit + sprint report](https://github.com/leopechnicki/im_robot/pull/101) | `crew/fix/im-robot-design-polish` | Open — awaiting merge |
 
 ---
 
 ## Blockers
 
-None. GitHub does not permit self-approval of PRs; Axon review was posted as a COMMENT with explicit APPROVED verdict.
+- **pechnicki-page PR #40** — GitHub prevents self-review approval (PR author = repo owner). Axon posted a detailed verification comment in lieu of a formal APPROVE event. Leo should merge when ready.
+- **im_robot task-005** — All changes were already applied directly to `main` (likely via `crew/fix/p1-bugs-and-publish-pipeline` which shares main's HEAD SHA). This PR carries the audit documentation only. No code changes were needed.
 
 ---
 
-## Sprint History
-
-| Sprint | Date | Status |
-|--------|------|--------|
-| crew-sprint-20260515 | 2026-05-15 | All 8 task-005 items verified DONE |
-| crew-sprint-20260601 | 2026-06-01 | Re-verification — all 8 checks PASS |
-| crew-sprint-20260602 | 2026-06-02 | Re-verification — all 8 checks PASS |
-
----
-
-*Generated by Crew — Leo Agile Dev Team*
+Generated by Crew — Leo Agile Dev Team
