@@ -1,1 +1,53 @@
-IyBTcHJpbnQgUmVwb3J0IOKAlCBDcmV3IEFnaWxlIERldiBUZWFtCgoqKkRhdGU6KiogMjAyNi0wNi0wNAoqKlNwcmludCBJRDoqKiBjcmV3LXNwcmludC0yMDI2MDYwNAoqKlJlcG86KiogaW1fcm9ib3QKKipBZ2VudDoqKiBDbGF1ZGUgKFNvbm5ldCA0LjYpIOKAlCBDcmV3IE1vZGUgKEF4b24gLyBQcm9iZSAvIFBpeGVsKQoKLS0tCgojIyBUYXNrOiB0YXNrLTAwNSBbTUVESVVNXSDigJQgRGVzaWduIFBvbGlzaCwgQWNjZXNzaWJpbGl0eSAmIFJlc3BvbnNpdmUgSW1wcm92ZW1lbnRzCgpBbGwgOCBpdGVtcyB2ZXJpZmllZCBjb21wbGV0ZSBvbiBgbWFpbmAgKFNIQTogYDJhNjYzZDViMDdmYTg0ZmI3ODc3NGU0NDViYTA1ZTljM2VlOTJiYzdgKS4KCnwgIyB8IEl0ZW0gfCBGaWxlIHwgU3RhdHVzIHwKfC0tLXwtLS0tLXwtLS0tLXwtLS0tLS0tfAp8IDEgfCBgYXJpYS1oaWRkZW49InRydWUiYCBvbiBhbGwgZW1vamkgaWNvbnMgaW4gYnV0dG9ucyAmIGZlYXR1cmUgY2FyZHMgfCBgZGVtby9pbmRleC5odG1sYCB8IOKchSBET05FIHwKfCAyIHwgRHluYW1pYyBgYXJpYS1sYWJlbGAgb24gdGhlbWUgdG9nZ2xlIOKAlCBgdXBkYXRlVG9nZ2xlTGFiZWwoKWAgdXBkYXRlcyBsYWJlbCBvbiBldmVyeSBjbGljayB8IGBkZW1vL2luZGV4Lmh0bWxgIHwg4pyFIERPTkUgfAp8IDMgfCBgQG1lZGlhIChwcmVmZXJzLXJlZHVjZWQtbW90aW9uOiByZWR1Y2UpYCBzdXBwcmVzc2VzIGB0cmFuc2xhdGVZYCBvbiBgLmJ0bi1wcmltYXJ5YCwgYC5jb3B5LXByb21wdC1idG5gLCBgLnN0ZXBgIHwgYGRlbW8vaW5kZXguaHRtbGAgYDxzdHlsZT5gIHwg4pyFIERPTkUgfAp8IDQgfCBgYXJpYS1tb2RhbD0idHJ1ZSJgICsgZnVsbCBUYWIvU2hpZnQtVGFiIGZvY3VzIHRyYXAgb24gbW9iaWxlIG5hdiBkaWFsb2cgfCBgZGVtby9pbmRleC5odG1sYCB8IOKchSBET05FIHwKfCA1IHwgUmlnaHQtZWRnZSBmYWRlIGdyYWRpZW50IG9uIGAuY29kZS1wYW5lbC5hY3RpdmU6OmFmdGVyYCAoNDhweCwgYHRyYW5zcGFyZW50IOKGkiB2YXIoLS1iZy1hbHQpYCkgfCBgZGVtby9pbmRleC5odG1sYCBgPHN0eWxlPmAgfCDinIUgRE9ORSB8CnwgNiB8IFN5bnRheCBoaWdobGlnaHRpbmcgKGAua3dgL2Auc3RyYC9gLmNtdGAgc3BhbnMpIGFwcGxpZWQgY29uc2lzdGVudGx5IGFjcm9zcyBhbGwgMTEgY29kZSBwYW5lbHMgKyBxdWlja3N0YXJ0IGJsb2NrcyB8IGBkZW1vL2luZGV4Lmh0bWxgIHwg4pyFIERPTkUgfAp8IDcgfCAzLWNvbHVtbiBpbnRlcm1lZGlhdGUgYnJlYWtwb2ludCBmb3IgZmVhdHVyZXMgZ3JpZCDigJQgYEBtZWRpYSAobWluLXdpZHRoOiA3NTBweCkgYW5kIChtYXgtd2lkdGg6IDExMDBweCkgeyAuZmVhdHVyZXMgeyBncmlkLXRlbXBsYXRlLWNvbHVtbnM6IHJlcGVhdCgzLCAxZnIpIH0gfWAgfCBgZGVtby9pbmRleC5odG1sYCBgPHN0eWxlPmAgfCDinIUgRE9ORSB8CnwgOCB8IGAuc2VjdGlvbi1pbnRyb2AgY2xhc3MgcmVwbGFjaW5nIGJyb2FkIGBzZWN0aW9uID4gcGAgc2VsZWN0b3IgdGhyb3VnaG91dCB8IGBkZW1vL2luZGV4Lmh0bWxgIHwg4pyFIERPTkUgfAoKLS0tCgojIyBQUnMKCnwgUFIgfCBUaXRsZSB8IEJyYW5jaCB8IFN0YXR1cyB8CnwtLS18LS0tLS18LS0tLS0tLXwtLS0tLS0tfAp8IFsjMTAxXShodHRwczovL2dpdGh1Yi5jb20vbGVvcGVjaG5pa2kvY2kvbGVvcGVjaG5pa2kvaW1fcm9ib3QvcHVsbC8xMDEpIHwgZG9jczogdGFzay0wMDUgZGVzaWduIHBvbGlzaCBhdWRpdCArIHNwcmludCByZXBvcnQgfCBgY3Jldy9maXgvaW0tcm9ib3QtZGVzaWduLXBvbGlzaGAgfCBPcGVuIOKAoiBBeG9uIEFQUFJPVkVEIPCfjIEgfAoKLS0tCgojIyBCbG9ja2VycwoKTm9uZS4gQWxsIDggdGFzay0wMDUgaXRlbXMgYXJlIGltcGxlbWVudGVkIG9uIGBtYWluYC4gUFIgIzEwMSBjYXJyaWVzIHRoZSBhdWRpdCByZWNvcmQgYW5kIGlzIG9wZW4gZm9yIG1lcmdlLgoKLS0tCgoqKlNwcmludCBIaXN0b3J5OioqCgp8IFNwcmludCB8IERhdGUgfCBTdGF0dXMgfAp8LS0tLS0tLXwtLS0tLXwtLS0tLS0tfAp8IGNyZXctc3ByaW50LTIwMjYwNTE1IHwgMjAyNi0wNS0xNSB8IEFsbCA4IHRhc2stMDA1IGl0ZW1zIGltcGxlbWVudGVkIHwKfCBjcmV3LXNwcmludC0yMDI2MDYwMSB8IDIwMjYtMDYtMDEgfCBSZS12ZXJpZmljYXRpb24g4oCUIGFsbCA4IGNoZWNrcyBQQVNTIHwKfCBjcmV3LXNwcmludC0yMDI2MDYwMiB8IDIwMjYtMDYtMDIgfCBSZS12ZXJpZmljYXRpb24g4oCUIGFsbCA4IGNoZWNrcyBQQVNTIHwKfCBjcmV3LXNwcmludC0yMDI2MDYwNCB8IDIwMjYtMDYtMDQgfCBSZS12ZXJpZmljYXRpb24g4oCUIGFsbCA4IGNoZWNrcyBQQVNTIHwKCi0tLQoKKkdlbmVyYXRlZCBieSBDcmV3IOKAlCBMZW8gQWdpbGUgRGV2IFRlYW0q
+# Sprint Report — Crew Agile Dev Team
+
+**Date:** 2026-06-05
+**Sprint ID:** crew-sprint-20260605
+**Repo:** im_robot
+**Agent:** Claude (Sonnet 4.6) — Crew Mode (Axon / Probe / Pixel)
+
+---
+
+## Task: task-005 [MEDIUM] — Design Polish, Accessibility & Responsive Improvements
+
+All 8 items verified complete on `main` (SHA: `2a663d5b07fa84fb78774e445ba05e9c3ee92bc7`).
+
+| # | Item | File | Status |
+|---|------|------|--------|
+| 1 | `aria-hidden="true"` on all emoji icons in buttons & feature cards | `demo/index.html` | ✅ DONE |
+| 2 | Dynamic `aria-label` on theme toggle — `updateToggleLabel()` updates label on every click | `demo/index.html` | ✅ DONE |
+| 3 | `@media (prefers-reduced-motion: reduce)` suppresses `translateY` on `.btn-primary`, `.copy-prompt-btn`, `.step` | `demo/index.html` `<style>` | ✅ DONE |
+| 4 | `aria-modal="true"` + full Tab/Shift-Tab focus trap on mobile nav dialog | `demo/index.html` | ✅ DONE |
+| 5 | Right-edge fade gradient on `.code-panel.active::after` (48px, `transparent → var(--bg-alt)`) | `demo/index.html` `<style>` | ✅ DONE |
+| 6 | Syntax highlighting (`.kw`/`.str`/`.cmt` spans) applied consistently across all 11 code panels + quickstart blocks | `demo/index.html` | ✅ DONE |
+| 7 | 3-column intermediate breakpoint for features grid — `@media (min-width: 750px) and (max-width: 1100px)` | `demo/index.html` `<style>` | ✅ DONE |
+| 8 | `.section-intro` class replacing broad `section > p` selector throughout | `demo/index.html` | ✅ DONE |
+
+---
+
+## PRs
+
+| PR | Title | Branch | Status |
+|----|-------|--------|---------|
+| [#101](https://github.com/leopechnicki/im_robot/pull/101) | docs: task-005 design polish audit + sprint report | `crew/fix/im-robot-design-polish` | Open • Axon APPROVED |
+
+---
+
+## Blockers
+
+None. All 8 task-005 items are implemented on `main`. PR #101 carries the audit record and is open for merge.
+
+---
+
+**Sprint History:**
+
+| Sprint | Date | Status |
+|--------|------|--------|
+| crew-sprint-20260515 | 2026-05-15 | All 8 task-005 items implemented |
+| crew-sprint-20260601 | 2026-06-01 | Re-verification — all 8 checks PASS |
+| crew-sprint-20260602 | 2026-06-02 | Re-verification — all 8 checks PASS |
+| crew-sprint-20260604 | 2026-06-04 | Re-verification — all 8 checks PASS |
+| crew-sprint-20260605 | 2026-06-05 | Re-verification — all 8 checks PASS |
+
+---
+
+*Generated by Crew — Leo Agile Dev Team*
