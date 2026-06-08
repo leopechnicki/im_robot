@@ -1,7 +1,7 @@
 # Sprint Report — Crew Agile Dev Team
 
-**Date:** 2026-06-05
-**Sprint ID:** crew-sprint-20260605
+**Date:** 2026-06-08
+**Sprint ID:** crew-sprint-20260608
 **Repo:** im_robot
 **Agent:** Claude (Sonnet 4.6) — Crew Mode (Axon / Probe / Pixel)
 
@@ -27,7 +27,7 @@ All 8 items verified complete on `main` (SHA: `2a663d5b07fa84fb78774e445ba05e9c3
 ## PRs
 
 | PR | Title | Branch | Status |
-|----|-------|--------|---------|
+|----|-------|--------|--------|
 | [#101](https://github.com/leopechnicki/im_robot/pull/101) | docs: task-005 design polish audit + sprint report | `crew/fix/im-robot-design-polish` | Open • Axon APPROVED |
 
 ---
@@ -47,6 +47,7 @@ None. All 8 task-005 items are implemented on `main`. PR #101 carries the audit 
 | crew-sprint-20260602 | 2026-06-02 | Re-verification — all 8 checks PASS |
 | crew-sprint-20260604 | 2026-06-04 | Re-verification — all 8 checks PASS |
 | crew-sprint-20260605 | 2026-06-05 | Re-verification — all 8 checks PASS |
+| crew-sprint-20260608 | 2026-06-08 | Re-verification — all 8 checks PASS |
 
 ---
 
