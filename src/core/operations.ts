@@ -250,6 +250,8 @@ export function formatOperation(op: Operation): string {
       return 'run_length_encode()'
     case 'atbash':
       return 'atbash()'
+    case 'fnv1a_cascade':
+      return 'fnv1a_cascade()'
   }
 }
 
@@ -488,6 +490,14 @@ export function formatOperationNL(op: Operation): string {
         'Mirror each letter in the alphabet (A to Z, B to Y)',
         'Apply Atbash substitution',
         'Reverse-alphabet cipher each letter',
+      ])
+
+    case 'fnv1a_cascade':
+      return pick([
+        'Apply cascaded FNV-1a hashing (64 hex chars)',
+        'Compute the FNV-1a cascade hash',
+        'Hash the text through multiple FNV-1a rounds into 64 hex characters',
+        'Produce a cascaded FNV-1a digest of the string',
       ])
   }
 }
