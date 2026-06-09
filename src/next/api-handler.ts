@@ -53,10 +53,14 @@ export function createNextApiHandler(config: NextApiHandlerConfig) {
 
     // POST /api/imrobot — verify agent answer, issue proof token
     if (method === 'POST') {
-      const body = req.body as { challenge?: unknown; answer?: string; agentId?: string } | undefined
+      const body = req.body as
+        | { challenge?: unknown; answer?: string; agentId?: string }
+        | undefined
 
       if (!body?.challenge || !body?.answer) {
-        res.status(400).json({ error: 'Missing challenge or answer in request body', code: 'BAD_REQUEST' })
+        res
+          .status(400)
+          .json({ error: 'Missing challenge or answer in request body', code: 'BAD_REQUEST' })
         return
       }
 

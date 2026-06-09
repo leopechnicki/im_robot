@@ -36,7 +36,11 @@ export function createNextMiddleware(config: NextMiddlewareConfig) {
   const proofHeader = (config.proofHeaderName ?? 'x-agent-proof').toLowerCase()
   const protectedPaths = config.protectedPaths ?? []
 
-  const verifier = new ImRobotVerifier({ secret: config.secret, difficulty: config.difficulty, ttl: config.ttl })
+  const verifier = new ImRobotVerifier({
+    secret: config.secret,
+    difficulty: config.difficulty,
+    ttl: config.ttl,
+  })
   const tokenIssuer = new ProofTokenIssuer({ secret: config.secret, tokenTTL: config.tokenTTL })
   const rateLimiter = config.rateLimit ? new RateLimiter(config.rateLimit) : undefined
 
@@ -85,10 +89,10 @@ export function createNextMiddleware(config: NextMiddlewareConfig) {
       try {
         body = (await req.json()) as typeof body
       } catch {
-        return new Response(
-          JSON.stringify({ error: 'Invalid JSON body', code: 'BAD_REQUEST' }),
-          { status: 400, headers: { 'Content-Type': 'application/json' } },
-        )
+        return new Response(JSON.stringify({ error: 'Invalid JSON body', code: 'BAD_REQUEST' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
 
       if (!body?.challenge || !body?.answer) {
@@ -98,12 +102,15 @@ export function createNextMiddleware(config: NextMiddlewareConfig) {
         )
       }
 
-      const result = await verifier.verify(body.challenge as Parameters<typeof verifier.verify>[0], body.answer)
+      const result = await verifier.verify(
+        body.challenge as Parameters<typeof verifier.verify>[0],
+        body.answer,
+      )
       if (!result.valid) {
-        return new Response(
-          JSON.stringify({ valid: false, reason: result.reason }),
-          { status: 403, headers: { 'Content-Type': 'application/json' } },
-        )
+        return new Response(JSON.stringify({ valid: false, reason: result.reason }), {
+          status: 403,
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
 
       const challengeObj = body.challenge as { id: string; difficulty: 'easy' | 'medium' | 'hard' }
@@ -116,15 +123,18 @@ export function createNextMiddleware(config: NextMiddlewareConfig) {
       })
 
       return new Response(
-        JSON.stringify({ valid: true, elapsed: result.elapsed, suspicious: result.suspicious, proofToken }),
+        JSON.stringify({
+          valid: true,
+          elapsed: result.elapsed,
+          suspicious: result.suspicious,
+          proofToken,
+        }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       )
     }
 
     // ── Protected path guard ──────────────────────────────────────────
-    const isProtected = protectedPaths.some(
-      (p) => pathname === p || pathname.startsWith(p + '/'),
-    )
+    const isProtected = protectedPaths.some((p) => pathname === p || pathname.startsWith(p + '/'))
 
     if (isProtected) {
       const token = req.headers.get(proofHeader)
@@ -141,7 +151,10 @@ export function createNextMiddleware(config: NextMiddlewareConfig) {
       const tokenResult = await tokenIssuer.verify(token)
       if (!tokenResult.valid) {
         return new Response(
-          JSON.stringify({ error: `Invalid agent proof: ${tokenResult.reason}`, code: 'AGENT_PROOF_INVALID' }),
+          JSON.stringify({
+            error: `Invalid agent proof: ${tokenResult.reason}`,
+            code: 'AGENT_PROOF_INVALID',
+          }),
           { status: 403, headers: { 'Content-Type': 'application/json' } },
         )
       }
