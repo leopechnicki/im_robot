@@ -64,6 +64,7 @@
     "format:check": "prettier --check 'src/**/*.{ts,tsx}'",
     "prepublishOnly": "npm run build",
     "coverage": "vitest run --coverage",
+    "docs:api": "typedoc",
     "ci": "npm run typecheck && npm run lint && npm run format:check && npm test && npm run build"
   },
   "keywords": [

@@ -1098,6 +1098,43 @@ imrobot is designed to integrate with the broader AI agent ecosystem:
 | **A2A Agent Card** | `/.well-known/imrobot.json` follows the A2A Agent Card pattern so discovery-enabled agents find your protected endpoints automatically. |
 | **Any JWT library** | Proof tokens are standard HS256 JWTs — verify with `jose`, `jsonwebtoken`, Python `PyJWT`, Go `golang-jwt`, or any RFC 7519-compliant library. |
 
+
+## Blog posts & articles
+
+- [Why I built a CAPTCHA that only bots can solve](https://dev.to/leo_pechnicki/why-i-built-a-captcha-that-only-bots-can-solve-30np) — Dev.to article introducing imrobot: the motivation, design decisions, and how it works under the hood
+
+
+## FAQ — How does imrobot compare to Turnstile / ALTCHA / reCAPTCHA?
+
+imrobot solves the **opposite** problem from traditional CAPTCHA systems.
+
+| | imrobot | Cloudflare Turnstile | ALTCHA | reCAPTCHA / hCaptcha | Friendly Captcha |
+|---|---|---|---|---|---|
+| **Goal** | Verify the visitor **is a bot / AI agent** | Verify the visitor is **human** | Verify the visitor is **human** | Verify the visitor is **human** | Verify the visitor is **human** |
+| **Who should pass?** | AI agents, bots, automated scripts | Humans only | Humans only | Humans only | Humans only |
+| **Who should fail?** | Humans (hard to solve manually) | Bots | Bots | Bots | Bots |
+| **Challenge type** | Deterministic pipeline (string transforms, hashing) | Browser fingerprint + JS proof-of-work | Server-side SHA-256 PoW | Image/audio recognition | SHA-256 PoW |
+| **AI-solvable?** | Yes, by design (< 1 second for any LLM) | Not applicable | Yes, unintentionally | Yes (AI vision can solve) | Yes, unintentionally |
+| **Use case** | Agent-only APIs, multi-agent auth, AI platforms | Public web forms | Public web forms | Public web forms | Public web forms |
+| **Privacy** | Zero tracking, no fingerprinting | Privacy-preserving | Open-source, self-hosted | Google/third-party tracking | No tracking |
+| **Self-hosted** | Yes (zero dependencies) | No (Cloudflare CDN) | Yes | No | Yes |
+| **Open source** | Yes (MIT) | No | Yes (MIT) | No | Yes |
+
+### When to use imrobot
+
+Use imrobot when you want to **grant access to AI agents** and **deny access to humans**:
+
+- Agent-only data APIs (price feeds, knowledge graphs, structured data exports)
+- Multi-agent authentication (prove your caller is a legitimate AI client)
+- AI platform gating (only LLM-powered clients may access a route)
+- Testing / CI pipelines that simulate agent access
+
+### When to use Turnstile / reCAPTCHA / ALTCHA
+
+Use those when you want the opposite: protect your service from bots and allow only human users.
+
+> **Can I use both?** Yes — some services authenticate agents via imrobot and gate human-facing forms with Turnstile on the same backend.
+
 ## Contributing
 
 Contributions are welcome! Feel free to open issues for bug reports or feature requests, or submit pull requests.
