@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { executeOperation } from '../src/core/operations'
 import { verifyAnswer, assertServerSideOnly, generateChallenge } from '../src/core/challenge'
+import { solveChallenge } from '../src/core/solver'
 
 // ── sha256_hash deprecation warning ──────────────────────────────────────────
 
@@ -58,7 +59,6 @@ describe('assertServerSideOnly', () => {
 describe('verifyAnswer (client-side correctness)', () => {
   it('returns true for a correct answer', () => {
     const challenge = generateChallenge({ difficulty: 'easy' })
-    const { solveChallenge } = require('../src/core/solver')
     const answer = solveChallenge(challenge)
     expect(verifyAnswer(challenge, answer)).toBe(true)
   })
@@ -72,7 +72,6 @@ describe('verifyAnswer (client-side correctness)', () => {
     const challenge = generateChallenge({ difficulty: 'easy', ttl: 1 })
     // Wait 5ms so it expires
     const expired = { ...challenge, timestamp: Date.now() - 1000 }
-    const { solveChallenge } = require('../src/core/solver')
     const answer = solveChallenge(challenge)
     expect(verifyAnswer(expired, answer)).toBe(false)
   })

@@ -239,9 +239,9 @@ export function assertServerSideOnly(context?: string): void {
   if (isNodeLike) {
     throw new Error(
       `[im_robot] ${context ?? 'verifyAnswer()'} must not be used as a server-side security gate. ` +
-      'It uses FNV-1a (non-cryptographic, collision-prone) and has no HMAC validation. ' +
-      'Use ImRobotVerifier.verify() from imrobot/server instead, which uses HMAC-SHA256 ' +
-      'and re-executes the pipeline. See https://github.com/leopechnicki/im_robot#server-verification',
+        'It uses FNV-1a (non-cryptographic, collision-prone) and has no HMAC validation. ' +
+        'Use ImRobotVerifier.verify() from imrobot/server instead, which uses HMAC-SHA256 ' +
+        'and re-executes the pipeline. See https://github.com/leopechnicki/im_robot#server-verification',
     )
   }
 }

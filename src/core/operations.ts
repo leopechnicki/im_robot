@@ -110,22 +110,28 @@ export function executeOperation(input: string, op: Operation): string {
       if (!_sha256HashDeprecationWarned) {
         _sha256HashDeprecationWarned = true
         console.warn(
-          '[im_robot] The { op: \'sha256_hash\' } operation is deprecated and will be removed in a future major version. ' +
-          'Use { op: \'hash_chain\', rounds: 1 } for single-pass FNV-1a hashing, or { op: \'fnv1a_hash\' } for a fast non-cryptographic hash. ' +
-          'See https://github.com/leopechnicki/im_robot for migration details.',
+          "[im_robot] The { op: 'sha256_hash' } operation is deprecated and will be removed in a future major version. " +
+            "Use { op: 'hash_chain', rounds: 1 } for single-pass FNV-1a hashing, or { op: 'fnv1a_hash' } for a fast non-cryptographic hash. " +
+            'See https://github.com/leopechnicki/im_robot for migration details.',
         )
       }
       return syncHash256(input)
     }
 
+    // fnv1a_cascade is the accurate name for the same operation as sha256_hash
+    case 'fnv1a_cascade':
+      return syncHash256(input)
+
     case 'byte_xor': {
       const keyArr = op.key
+      if (keyArr.length === 0) throw new Error('byte_xor: key must not be empty')
       return Array.from(input)
         .map((c, i) => String.fromCharCode(c.charCodeAt(0) ^ keyArr[i % keyArr.length]))
         .join('')
     }
 
     case 'hash_chain': {
+      if (op.rounds < 1) throw new Error('hash_chain: rounds must be at least 1')
       let val = input
       for (let r = 0; r < op.rounds; r++) {
         val = fnv1a(val + ':' + r)
@@ -420,12 +426,13 @@ export function formatOperationNL(op: Operation): string {
         'Output how many characters the string contains',
       ])
 
+    // sha256_hash is a deprecated alias for fnv1a_cascade — describe it accurately
     case 'sha256_hash':
       return pick([
-        'Hash the text using SHA-256',
-        'Compute a SHA-256 digest',
-        'Apply the SHA-256 hash function',
-        'Produce a SHA-256 hash of the input',
+        'Hash the text using FNV-1a cascade (deprecated sha256_hash alias)',
+        'Compute the FNV-1a cascade hash (sha256_hash alias)',
+        'Apply cascaded FNV-1a hashing (64 hex chars, sha256_hash alias)',
+        'Produce a cascaded FNV-1a digest (sha256_hash alias)',
       ])
 
     case 'byte_xor':
