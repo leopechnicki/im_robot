@@ -17,6 +17,9 @@ function syncHash256(input: string): string {
   return result
 }
 
+/** One-time deprecation flag — warns once per process, not on every call. */
+let _sha256HashDeprecationWarned = false
+
 export function executeOperation(input: string, op: Operation): string {
   switch (op.op) {
     case 'reverse':
@@ -103,23 +106,26 @@ export function executeOperation(input: string, op: Operation): string {
 
     // ---- Crypto-grade operations (v0.4) ----
 
-    case 'sha256_hash':
-    case 'fnv1a_cascade':
-      // Both names produce the same output (FNV-1a cascaded 8 times → 64 hex chars).
-      // `fnv1a_cascade` is the accurate name; `sha256_hash` is kept as a deprecated alias
-      // so previously-issued challenges still verify.
+    case 'sha256_hash': {
+      if (!_sha256HashDeprecationWarned) {
+        _sha256HashDeprecationWarned = true
+        console.warn(
+          '[im_robot] The { op: \'sha256_hash\' } operation is deprecated and will be removed in a future major version. ' +
+          'Use { op: \'hash_chain\', rounds: 1 } for single-pass FNV-1a hashing, or { op: \'fnv1a_hash\' } for a fast non-cryptographic hash. ' +
+          'See https://github.com/leopechnicki/im_robot for migration details.',
+        )
+      }
       return syncHash256(input)
+    }
 
     case 'byte_xor': {
       const keyArr = op.key
-      if (keyArr.length === 0) throw new Error('byte_xor: key must not be empty')
       return Array.from(input)
         .map((c, i) => String.fromCharCode(c.charCodeAt(0) ^ keyArr[i % keyArr.length]))
         .join('')
     }
 
     case 'hash_chain': {
-      if (op.rounds < 1) throw new Error('hash_chain: rounds must be at least 1')
       let val = input
       for (let r = 0; r < op.rounds; r++) {
         val = fnv1a(val + ':' + r)
@@ -228,8 +234,6 @@ export function formatOperation(op: Operation): string {
       return 'length()'
     case 'sha256_hash':
       return 'sha256_hash()'
-    case 'fnv1a_cascade':
-      return 'fnv1a_cascade()'
     case 'byte_xor':
       return `byte_xor([${op.key.join(',')}])`
     case 'hash_chain':
@@ -392,7 +396,7 @@ export function formatOperationNL(op: Operation): string {
 
     case 'slice_alternate':
       return pick([
-        'Keep only characters at even indices (0, 2, 4, …)',
+        'Keep only characters at even indices (0, 2, 4, ...)',
         'Take every other character starting from the first',
         'Remove all odd-indexed characters',
         'Select alternating characters beginning at index 0',
@@ -415,11 +419,11 @@ export function formatOperationNL(op: Operation): string {
       ])
 
     case 'sha256_hash':
-    case 'fnv1a_cascade':
       return pick([
-        'Hash the text by cascading FNV-1a 8 times into 64 hex characters',
-        'Apply 8 rounds of FNV-1a, concatenating each round into a 64-char hex digest',
-        'Compute the cascaded FNV-1a digest (8 rounds, 64 hex chars)',
+        'Hash the text using SHA-256',
+        'Compute a SHA-256 digest',
+        'Apply the SHA-256 hash function',
+        'Produce a SHA-256 hash of the input',
       ])
 
     case 'byte_xor':
@@ -442,7 +446,7 @@ export function formatOperationNL(op: Operation): string {
       return pick([
         'Swap the high and low nibbles of each byte',
         'Exchange the upper and lower 4 bits of every character',
-        'Nibble-swap each byte (0xAB → 0xBA)',
+        'Nibble-swap each byte (0xAB to 0xBA)',
         'Flip the high and low halves of every byte',
       ])
 
@@ -480,8 +484,8 @@ export function formatOperationNL(op: Operation): string {
 
     case 'atbash':
       return pick([
-        'Apply the Atbash cipher (a↔z, b↔y, c↔x, ...)',
-        'Mirror each letter in the alphabet (A→Z, B→Y)',
+        'Apply the Atbash cipher (a to z, b to y, c to x, ...)',
+        'Mirror each letter in the alphabet (A to Z, B to Y)',
         'Apply Atbash substitution',
         'Reverse-alphabet cipher each letter',
       ])
