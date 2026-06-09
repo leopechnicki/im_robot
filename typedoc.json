@@ -1,0 +1,30 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": [
+    "src/index.ts",
+    "src/core/index.ts",
+    "src/server/index.ts",
+    "src/react/index.ts",
+    "src/vue/index.ts",
+    "src/web-component/index.ts",
+    "src/next/index.ts"
+  ],
+  "entryPointStrategy": "expand",
+  "out": "docs/api",
+  "name": "imrobot",
+  "readme": "README.md",
+  "includeVersion": true,
+  "categorizeByGroup": true,
+  "navigationLinks": {
+    "npm": "https://www.npmjs.com/package/imrobot",
+    "GitHub": "https://github.com/leopechnicki/im_robot",
+    "Demo": "https://imrobot.vercel.app"
+  },
+  "exclude": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/test/**",
+    "**/*.test.ts",
+    "**/*.test.tsx"
+  ]
+}
