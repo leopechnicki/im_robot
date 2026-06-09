@@ -42,6 +42,12 @@ export interface NextMiddlewareConfig {
   proofHeaderName?: string
 
   /**
+   * Proof token TTL in milliseconds.
+   * @default 3600000 (1 hour)
+   */
+  tokenTTL?: number
+
+  /**
    * Maximum requests per window per IP (for rate limiting).
    * @default 30
    */
