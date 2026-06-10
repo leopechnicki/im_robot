@@ -675,7 +675,7 @@ export class ImageChallengePool {
 
   private async generateImage(
     prompt: string,
-    index: number,
+    _index: number,
   ): Promise<{ imageUrl: string; metadata?: Record<string, unknown> }> {
     const provider = this.config.provider
 
