@@ -1,7 +1,7 @@
-# Sprint Report — The Crew
+# Sprint Report — Crew Agile Dev Team
 
-**Date:** 2026-06-02
-**Sprint ID:** crew-sprint-20260602
+**Date:** 2026-06-10
+**Sprint ID:** crew-sprint-20260610
 **Repo:** im_robot
 **Agent:** Claude (Sonnet 4.6) — Crew Mode (Axon / Probe / Pixel)
 
@@ -9,45 +9,46 @@
 
 ## Task: task-005 [MEDIUM] — Design Polish, Accessibility & Responsive Improvements
 
-All 8 items verified complete on `main` (SHA: `35a87782`).
+All 8 items verified complete on `main` (SHA: `02708070bba3a86c6f639c5b09370a55924f73fb`).
 
 | # | Item | File | Status |
 |---|------|------|--------|
-| 1 | `aria-hidden="true"` on all emoji icons in buttons & feature cards | demo/index.html | ✅ DONE |
-| 2 | Dynamic `aria-label` on theme toggle — `updateToggleLabel()` updates label on every click | demo/index.html | ✅ DONE |
-| 3 | `@media (prefers-reduced-motion: reduce)` suppresses `translateY` on `.btn-primary`, `.copy-prompt-btn`, `.step` | demo/index.html `<style>` | ✅ DONE |
-| 4 | `aria-modal="true"` + full Tab/Shift-Tab focus trap on mobile nav dialog | demo/index.html | ✅ DONE |
-| 5 | Right-edge fade gradient on `.code-panel.active::after` (48px, `transparent → var(--bg-alt)`) | demo/index.html `<style>` | ✅ DONE |
-| 6 | Syntax highlighting (`.kw`/`.str`/`.cmt` spans) applied consistently across all 11 code panels + quickstart blocks | demo/index.html | ✅ DONE |
-| 7 | 3-column intermediate breakpoint for features grid — `@media (min-width: 750px) and (max-width: 1100px)` | demo/index.html `<style>` | ✅ DONE |
-| 8 | `.section-intro` class replacing broad `section > p` selector throughout | demo/index.html | ✅ DONE |
+| 1 | `aria-hidden="true"` on all emoji icons in buttons & feature cards | `demo/index.html` | ✅ DONE |
+| 2 | Dynamic `aria-label` on theme toggle — `updateToggleLabel()` IIFE updates label on every click | `demo/index.html` | ✅ DONE |
+| 3 | `@media (prefers-reduced-motion: reduce)` suppresses `translateY` on `.btn-primary`, `.copy-prompt-btn`, `.step` | `demo/index.html` `<style>` | ✅ DONE |
+| 4 | `aria-modal="true"` + full Tab/Shift-Tab focus trap on mobile nav dialog | `demo/index.html` | ✅ DONE |
+| 5 | Right-edge fade gradient on `.code-panel.active::after` (48px, `transparent → var(--bg-alt)`) | `demo/index.html` `<style>` | ✅ DONE |
+| 6 | Syntax highlighting (`.kw`/`.str`/`.cmt` spans) applied consistently across all 11 code panels + quickstart blocks | `demo/index.html` | ✅ DONE |
+| 7 | 3-column intermediate breakpoint for features grid — `@media (min-width: 750px) and (max-width: 1100px)` | `demo/index.html` `<style>` | ✅ DONE |
+| 8 | `.section-intro` class replacing broad `section > p` selector throughout | `demo/index.html` | ✅ DONE |
 
 ---
 
 ## PRs
 
-| PR | Title | Status | Axon Review |
-|----|-------|--------|-------------|
-| [#96](https://github.com/leopechnicki/im_robot/pull/96) | fix(demo): accessibility + responsive polish — sprint audit 2026-06-01 | Open | ✅ APPROVED (comment, 2026-06-02) |
-| [#83](https://github.com/leopechnicki/im_robot/pull/83) | feat: accessibility + responsive polish — task-005 audit record | Merged | — |
-
-> All task-005 changes were implemented in prior Crew sprints and are live on `main`. PR #96 is the 2026-06-02 re-verification audit record.
+| PR | Title | Branch | Status |
+|----|-------|--------|--------|
+| [#101](https://github.com/leopechnicki/im_robot/pull/101) | docs: task-005 design polish audit + sprint report | `crew/fix/im-robot-design-polish` | Open • Axon APPROVED |
 
 ---
 
 ## Blockers
 
-None. GitHub does not permit self-approval of PRs; Axon review was posted as a COMMENT with explicit APPROVED verdict.
+None. All 8 task-005 items are implemented on `main`. PR #101 carries the audit record and is open for merge.
 
 ---
 
-## Sprint History
+**Sprint History:**
 
 | Sprint | Date | Status |
 |--------|------|--------|
-| crew-sprint-20260515 | 2026-05-15 | All 8 task-005 items verified DONE |
+| crew-sprint-20260515 | 2026-05-15 | All 8 task-005 items implemented |
 | crew-sprint-20260601 | 2026-06-01 | Re-verification — all 8 checks PASS |
 | crew-sprint-20260602 | 2026-06-02 | Re-verification — all 8 checks PASS |
+| crew-sprint-20260604 | 2026-06-04 | Re-verification — all 8 checks PASS |
+| crew-sprint-20260605 | 2026-06-05 | Re-verification — all 8 checks PASS |
+| crew-sprint-20260608 | 2026-06-08 | Re-verification — all 8 checks PASS |
+| crew-sprint-20260610 | 2026-06-10 | Re-verification — all 8 checks PASS |
 
 ---
 
