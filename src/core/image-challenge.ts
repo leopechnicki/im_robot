@@ -684,7 +684,7 @@ export class ImageChallengePool {
         return generatePollinations(prompt, provider)
 
       case 'picsum': {
-        const result = generatePicsum(prompt, provider, this.picsumSequentialIndex + index)
+        const result = generatePicsum(prompt, provider, this.picsumSequentialIndex)
         this.picsumSequentialIndex++
         return result
       }
