@@ -110,13 +110,12 @@ const HARD_OPS: OpFactory[] = [
   // XOR and hash operations
   () => ({ op: 'xor_encode', key: randomInt(1, 127) }),
   () => ({ op: 'fnv1a_hash' }),
-  // Crypto-grade operations (v0.4)
-  () => ({ op: 'fnv1a_cascade' }),
+  // Crypto-grade operations (v0.4) — hash_chain replaces sha256_hash for new challenges
+  () => ({ op: 'hash_chain', rounds: randomInt(2, 5) }),
   () => ({
     op: 'byte_xor',
     key: Array.from({ length: randomInt(2, 8) }, () => randomInt(1, 255)),
   }),
-  () => ({ op: 'hash_chain', rounds: randomInt(2, 5) }),
   () => ({ op: 'nibble_swap' }),
   () => ({ op: 'bit_rotate', bits: randomInt(1, 7) }),
 ]
@@ -197,20 +196,63 @@ export function generateChallenge(config?: Partial<ImRobotConfig>, _depth = 0): 
  * This function is intended only for client-side UX feedback (instant pass/fail).
  * All security-critical verification MUST go through the server-side
  * `ImRobotVerifier.verify()` which uses HMAC-SHA256 + pipeline re-execution.
+ *
+ * **Configuration guard**: This function performs client-side-only verification.
+ * For production, always pair it with server-side `ImRobotVerifier.verify()` which
+ * requires a properly configured HMAC secret. Using this function as the sole
+ * verification gate is a security misconfiguration.
  */
 export function verifyAnswer(challenge: Challenge, answer: string): boolean {
   if (Date.now() - challenge.timestamp > challenge.ttl) return false
   return fnv1a(answer + ':' + challenge.id) === challenge.verification
 }
 
+/**
+ * Guard that throws if `verifyAnswer` is called in a context where the
+ * caller appears to be relying on it as the sole security gate (i.e.,
+ * when running in a Node.js / server-side environment without a registered
+ * server-side HMAC verifier).
+ *
+ * Usage: call this at the top of any server-side route that should use
+ * `ImRobotVerifier.verify()` instead of the client-side `verifyAnswer()`.
+ *
+ * @throws {Error} If invoked in an environment where `verifyAnswer` should
+ *   not be used as a security gate.
+ *
+ * @example
+ * ```typescript
+ * // In an Express route handler:
+ * import { assertServerSideOnly } from 'imrobot/core'
+ *
+ * app.post('/api/verify', (req, res) => {
+ *   assertServerSideOnly() // throws if misconfigured
+ *   // ... rest of handler should use ImRobotVerifier, not verifyAnswer
+ * })
+ * ```
+ */
+export function assertServerSideOnly(context?: string): void {
+  const isNodeLike =
+    typeof process !== 'undefined' &&
+    typeof process.versions !== 'undefined' &&
+    typeof process.versions.node !== 'undefined'
+
+  if (isNodeLike) {
+    throw new Error(
+      `[im_robot] ${context ?? 'verifyAnswer()'} must not be used as a server-side security gate. ` +
+        'It uses FNV-1a (non-cryptographic, collision-prone) and has no HMAC validation. ' +
+        'Use ImRobotVerifier.verify() from imrobot/server instead, which uses HMAC-SHA256 ' +
+        'and re-executes the pipeline. See https://github.com/leopechnicki/im_robot#server-verification',
+    )
+  }
+}
+
 export function createToken(challenge: Challenge, answer: string, startTime: number): ImRobotToken {
-  const now = Date.now()
-  const elapsed = now - startTime
+  const elapsed = Date.now() - startTime
   const signature = fnv1a(`${challenge.id}:${answer}:${elapsed}`)
   return {
     challengeId: challenge.id,
     answer,
-    timestamp: now,
+    timestamp: Date.now(),
     elapsed,
     suspicious: elapsed > SUSPICIOUS_THRESHOLD_MS,
     signature,
