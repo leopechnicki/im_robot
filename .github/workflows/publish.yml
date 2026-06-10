@@ -3,6 +3,19 @@ name: Publish to npm
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Git tag to publish (e.g. v0.6.4). Defaults to HEAD if not set.'
+        required: false
+        default: ''
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Git tag to publish'
+        required: false
+        type: string
+        default: ''
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
@@ -17,7 +30,19 @@ jobs:
       id-token: write
 
     steps:
+      - name: Resolve ref
+        id: ref
+        run: |
+          TAG="${{ inputs.tag }}"
+          if [ -n "$TAG" ]; then
+            echo "ref=$TAG" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${{ github.ref }}" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ref.outputs.ref }}
 
       - name: Use Node.js 22
         uses: actions/setup-node@v4

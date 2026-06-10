@@ -13,6 +13,9 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.create_release.outputs.release_created }}
+      release_tag: ${{ steps.create_release.outputs.release_tag }}
     steps:
       # Mint a short-lived GitHub App installation token. The bump branch/PR
       # MUST be created with a non-GITHUB_TOKEN identity: GitHub does not start
@@ -75,10 +78,7 @@ jobs:
           NEXT_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
           echo "Next dev version: $NEXT_VERSION"
 
-          # Guard against tag/release collisions. If the package.json version was
-          # not bumped since the last release (e.g. the previous bump PR was never
-          # merged), skip the release step but still open the bump PR so a future
-          # run can release cleanly.
+          # Guard against tag/release collisions.
           TAG_EXISTS=false
           if git rev-parse "refs/tags/${RELEASE_VERSION}" >/dev/null 2>&1; then
             TAG_EXISTS=true
@@ -88,8 +88,9 @@ jobs:
 
           RELEASE_CREATED=false
           if [ "$TAG_EXISTS" = "true" ]; then
-            echo "::warning::Tag/release ${RELEASE_VERSION} already exists — skipping release, opening bump PR only."
+            echo "::warning::Tag/release ${RELEASE_VERSION} already exists â€” skipping release, opening bump PR only."
             echo "release_created=false" >> "$GITHUB_OUTPUT"
+            echo "release_tag=" >> "$GITHUB_OUTPUT"
           else
             LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
             if [ -z "$LAST_TAG" ]; then
@@ -109,22 +110,19 @@ jobs:
               --target main
             RELEASE_CREATED=true
             echo "release_created=true" >> "$GITHUB_OUTPUT"
+            echo "release_tag=${RELEASE_VERSION}" >> "$GITHUB_OUTPUT"
           fi
 
-          # Open (or reuse) the version-bump PR. If the branch already exists on
-          # origin from a previous run, don't try to recreate it.
+          # Open (or reuse) the version-bump PR.
           BRANCH="chore/bump-version-v${NEXT_VERSION}"
           if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
-            echo "Bump branch ${BRANCH} already exists on origin — leaving existing PR in place."
+            echo "Bump branch ${BRANCH} already exists on origin â€” leaving existing PR in place."
             exit 0
           fi
 
           git checkout -b "$BRANCH"
           npm version "$NEXT_VERSION" --no-git-tag-version
           git add package.json package-lock.json 2>/dev/null || git add package.json
-          # No [skip ci]: we WANT the required CI checks to run on the bump PR so
-          # it can satisfy branch protection and merge. The App token (above)
-          # makes the push/PR trigger the workflow.
           git commit -m "chore: bump version to ${NEXT_VERSION}"
           git push origin "$BRANCH"
 
@@ -134,10 +132,6 @@ jobs:
             PR_BODY="Automated version bump. Release ${RELEASE_VERSION} was skipped because the tag already exists; merging this PR unblocks next Friday's release."
           fi
 
-          # Create the bump PR. Falls back to a workflow notice with the compare
-          # URL if the repository's "Allow GitHub Actions to create pull requests"
-          # setting is disabled — the branch is still pushed so a human can open
-          # the PR manually.
           if ! gh pr create \
             --title "chore: bump version to ${NEXT_VERSION}" \
             --body "$PR_BODY" \
@@ -146,34 +140,14 @@ jobs:
             echo "::notice::PR creation skipped (Actions not permitted). Open manually: https://github.com/${GITHUB_REPOSITORY}/compare/main...${BRANCH}"
           fi
 
-      # npm publish runs inline here rather than relying on publish.yml being
-      # triggered by the release event. GitHub Actions does NOT fire workflow
-      # triggers for releases created via a PAT or GITHUB_TOKEN — only releases
-      # created by a real user OAuth session propagate that event to other
-      # workflows. Publishing inline in the same job eliminates this
-      # anti-recursion limitation entirely.
-      - name: Install dependencies
-        if: steps.create_release.outputs.release_created == 'true'
-        run: npm ci
-
-      - name: Typecheck
-        if: steps.create_release.outputs.release_created == 'true'
-        run: npm run typecheck
-
-      - name: Lint
-        if: steps.create_release.outputs.release_created == 'true'
-        run: npm run lint
-
-      - name: Test
-        if: steps.create_release.outputs.release_created == 'true'
-        run: npm test
-
-      - name: Build
-        if: steps.create_release.outputs.release_created == 'true'
-        run: npm run build
-
-      - name: Publish to npm
-        if: steps.create_release.outputs.release_created == 'true'
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+  # Directly call publish.yml after the release is created.
+  # This bypasses the release:published event trigger entirely â€” GitHub Actions
+  # does NOT fire that event for releases created via GITHUB_TOKEN or PAT
+  # (anti-recursion protection). workflow_call is not subject to this restriction.
+  publish:
+    needs: release
+    if: needs.release.outputs.release_created == 'true'
+    uses: ./.github/workflows/publish.yml
+    with:
+      tag: ${{ needs.release.outputs.release_tag }}
+    secrets: inherit
