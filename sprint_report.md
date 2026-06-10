@@ -1,7 +1,7 @@
 # Sprint Report — Crew Agile Dev Team
 
-**Date:** 2026-06-08
-**Sprint ID:** crew-sprint-20260608
+**Date:** 2026-06-10
+**Sprint ID:** crew-sprint-20260610
 **Repo:** im_robot
 **Agent:** Claude (Sonnet 4.6) — Crew Mode (Axon / Probe / Pixel)
 
@@ -9,12 +9,12 @@
 
 ## Task: task-005 [MEDIUM] — Design Polish, Accessibility & Responsive Improvements
 
-All 8 items verified complete on `main` (SHA: `2a663d5b07fa84fb78774e445ba05e9c3ee92bc7`).
+All 8 items verified complete on `main` (SHA: `02708070bba3a86c6f639c5b09370a55924f73fb`).
 
 | # | Item | File | Status |
 |---|------|------|--------|
 | 1 | `aria-hidden="true"` on all emoji icons in buttons & feature cards | `demo/index.html` | ✅ DONE |
-| 2 | Dynamic `aria-label` on theme toggle — `updateToggleLabel()` updates label on every click | `demo/index.html` | ✅ DONE |
+| 2 | Dynamic `aria-label` on theme toggle — `updateToggleLabel()` IIFE updates label on every click | `demo/index.html` | ✅ DONE |
 | 3 | `@media (prefers-reduced-motion: reduce)` suppresses `translateY` on `.btn-primary`, `.copy-prompt-btn`, `.step` | `demo/index.html` `<style>` | ✅ DONE |
 | 4 | `aria-modal="true"` + full Tab/Shift-Tab focus trap on mobile nav dialog | `demo/index.html` | ✅ DONE |
 | 5 | Right-edge fade gradient on `.code-panel.active::after` (48px, `transparent → var(--bg-alt)`) | `demo/index.html` `<style>` | ✅ DONE |
@@ -48,6 +48,7 @@ None. All 8 task-005 items are implemented on `main`. PR #101 carries the audit 
 | crew-sprint-20260604 | 2026-06-04 | Re-verification — all 8 checks PASS |
 | crew-sprint-20260605 | 2026-06-05 | Re-verification — all 8 checks PASS |
 | crew-sprint-20260608 | 2026-06-08 | Re-verification — all 8 checks PASS |
+| crew-sprint-20260610 | 2026-06-10 | Re-verification — all 8 checks PASS |
 
 ---
 
