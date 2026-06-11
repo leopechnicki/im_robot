@@ -1,7 +1,7 @@
 # Sprint Report — Crew Agile Dev Team
 
-**Date:** 2026-06-10
-**Sprint ID:** crew-sprint-20260610
+**Date:** 2026-06-11
+**Sprint ID:** crew-sprint-20260611
 **Repo:** im_robot
 **Agent:** Claude (Sonnet 4.6) — Crew Mode (Axon / Probe / Pixel)
 
@@ -9,7 +9,7 @@
 
 ## Task: task-005 [MEDIUM] — Design Polish, Accessibility & Responsive Improvements
 
-All 8 items verified complete on `main` (SHA: `02708070bba3a86c6f639c5b09370a55924f73fb`).
+All 8 items verified complete on `main` (SHA: `408818ac26b6a5c64930b7579684ce996a7639ef`).
 
 | # | Item | File | Status |
 |---|------|------|--------|
@@ -28,13 +28,14 @@ All 8 items verified complete on `main` (SHA: `02708070bba3a86c6f639c5b09370a559
 
 | PR | Title | Branch | Status |
 |----|-------|--------|--------|
-| [#101](https://github.com/leopechnicki/im_robot/pull/101) | docs: task-005 design polish audit + sprint report | `crew/fix/im-robot-design-polish` | Open • Axon APPROVED |
+| [#101](https://github.com/leopechnicki/im_robot/pull/101) | docs: task-005 design polish audit + sprint report | `crew/fix/im-robot-design-polish` | Merged 2026-06-10 |
+| (see below) | docs: task-005 re-verification crew-sprint-20260611 | `crew/fix/im-robot-design-polish` | Open • Axon APPROVED |
 
 ---
 
 ## Blockers
 
-None. All 8 task-005 items are implemented on `main`. PR #101 carries the audit record and is open for merge.
+None. All 8 task-005 items are implemented on `main`. This PR carries the re-verification audit record.
 
 ---
 
@@ -48,7 +49,8 @@ None. All 8 task-005 items are implemented on `main`. PR #101 carries the audit 
 | crew-sprint-20260604 | 2026-06-04 | Re-verification — all 8 checks PASS |
 | crew-sprint-20260605 | 2026-06-05 | Re-verification — all 8 checks PASS |
 | crew-sprint-20260608 | 2026-06-08 | Re-verification — all 8 checks PASS |
-| crew-sprint-20260610 | 2026-06-10 | Re-verification — all 8 checks PASS |
+| crew-sprint-20260610 | 2026-06-10 | Re-verification — all 8 checks PASS (PR #101 merged) |
+| crew-sprint-20260611 | 2026-06-11 | Re-verification — all 8 checks PASS |
 
 ---
 
