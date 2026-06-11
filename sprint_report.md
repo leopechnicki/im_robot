@@ -29,13 +29,13 @@ All 8 items verified complete on `main` (SHA: `408818ac26b6a5c64930b7579684ce996
 | PR | Title | Branch | Status |
 |----|-------|--------|--------|
 | [#101](https://github.com/leopechnicki/im_robot/pull/101) | docs: task-005 design polish audit + sprint report | `crew/fix/im-robot-design-polish` | Merged 2026-06-10 |
-| (see below) | docs: task-005 re-verification crew-sprint-20260611 | `crew/fix/im-robot-design-polish` | Open • Axon APPROVED |
+| [#105](https://github.com/leopechnicki/im_robot/pull/105) | docs: task-005 re-verification crew-sprint-20260611 | `crew/fix/im-robot-design-polish` | Open • Axon APPROVED |
 
 ---
 
 ## Blockers
 
-None. All 8 task-005 items are implemented on `main`. This PR carries the re-verification audit record.
+None. All 8 task-005 items are implemented on `main`. PR #105 carries the re-verification audit record.
 
 ---
 
@@ -50,7 +50,7 @@ None. All 8 task-005 items are implemented on `main`. This PR carries the re-ver
 | crew-sprint-20260605 | 2026-06-05 | Re-verification — all 8 checks PASS |
 | crew-sprint-20260608 | 2026-06-08 | Re-verification — all 8 checks PASS |
 | crew-sprint-20260610 | 2026-06-10 | Re-verification — all 8 checks PASS (PR #101 merged) |
-| crew-sprint-20260611 | 2026-06-11 | Re-verification — all 8 checks PASS |
+| crew-sprint-20260611 | 2026-06-11 | Re-verification — all 8 checks PASS (PR #105 open) |
 
 ---
 
