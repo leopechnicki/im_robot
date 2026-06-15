@@ -1,7 +1,7 @@
 # Sprint Report — Crew Agile Dev Team
 
-**Date:** 2026-06-12
-**Sprint ID:** crew-sprint-20260612
+**Date:** 2026-06-15
+**Sprint ID:** crew-sprint-20260615
 **Repo:** im_robot
 **Agent:** Claude (Sonnet 4.6) — Crew Mode (Axon / Probe / Pixel)
 
@@ -35,7 +35,9 @@ All 8 items verified complete on `main` (SHA: `408818ac26b6a5c64930b7579684ce996
 
 ## Blockers
 
-None. All 8 task-005 items are implemented on `main`. PR #105 carries the re-verification audit record.
+None. All 8 task-005 items are implemented on `main`. PR #105 carries the ongoing audit record.
+
+> **Action required:** PR #105 has been open since 2026-06-11. Please merge to clean up the branch.
 
 ---
 
@@ -52,6 +54,7 @@ None. All 8 task-005 items are implemented on `main`. PR #105 carries the re-ver
 | crew-sprint-20260610 | 2026-06-10 | Re-verification — all 8 checks PASS (PR #101 merged) |
 | crew-sprint-20260611 | 2026-06-11 | Re-verification — all 8 checks PASS (PR #105 open) |
 | crew-sprint-20260612 | 2026-06-12 | Re-verification — all 8 checks PASS |
+| crew-sprint-20260615 | 2026-06-15 | Re-verification — all 8 checks PASS |
 
 ---
 
