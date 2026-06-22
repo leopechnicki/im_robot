@@ -1,7 +1,7 @@
 # Sprint Report — Crew Agile Dev Team
 
-**Date:** 2026-06-19
-**Sprint ID:** crew-sprint-20260619
+**Date:** 2026-06-22
+**Sprint ID:** crew-sprint-20260622
 **Repo:** im_robot
 **Agent:** Claude (Sonnet 4.6) — Crew Mode (Axon / Probe / Pixel)
 
@@ -11,11 +11,9 @@
 
 All 8 items complete on branch `crew/fix/im-robot-design-polish`.
 
-**New this sprint:** item 1 received an explicit implementation — button emoji icons now have `<span aria-hidden="true">` wrappers in addition to the button-level `aria-label`. Previous sprints marked item 1 done because `aria-label` on buttons suppresses emoji for screen readers; this sprint makes it explicit per stricter WCAG guidance.
-
 | # | Item | File | Status |
 |---|------|------|--------|
-| 1 | `aria-hidden="true"` on all emoji icons in buttons & feature cards | `demo/index.html` | ✅ DONE — spans added to theme-toggle (HTML + JS), mobile-menu-btn, mobile-nav-close, .chevron this sprint |
+| 1 | `aria-hidden="true"` on all emoji icons in buttons & feature cards | `demo/index.html` | ✅ DONE |
 | 2 | Dynamic `aria-label` on theme toggle — `updateToggleLabel()` IIFE updates label on every click | `demo/index.html` | ✅ DONE |
 | 3 | `@media (prefers-reduced-motion: reduce)` suppresses `translateY` on `.btn-primary`, `.copy-prompt-btn`, `.step` | `demo/index.html` `<style>` | ✅ DONE |
 | 4 | `aria-modal="true"` + full Tab/Shift-Tab focus trap on mobile nav dialog | `demo/index.html` | ✅ DONE |
@@ -23,28 +21,6 @@ All 8 items complete on branch `crew/fix/im-robot-design-polish`.
 | 6 | Syntax highlighting (`.kw`/`.str`/`.cmt` spans) applied consistently across all 11 code panels + quickstart blocks | `demo/index.html` | ✅ DONE |
 | 7 | 3-column intermediate breakpoint for features grid — `@media (min-width: 750px) and (max-width: 1100px)` | `demo/index.html` `<style>` | ✅ DONE |
 | 8 | `.section-intro` class replacing broad `section > p` selector throughout | `demo/index.html` | ✅ DONE |
-
-### Changes pushed this sprint (`demo/index.html`)
-
-```diff
-- <button class="theme-toggle" id="theme-toggle" aria-label="Switch to light mode">&#127769;</button>
-+ <button class="theme-toggle" id="theme-toggle" aria-label="Switch to light mode"><span aria-hidden="true">&#127769;</span></button>
-
-- <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Open menu" aria-expanded="false">&#9776;</button>
-+ <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Open menu" aria-expanded="false"><span aria-hidden="true">&#9776;</span></button>
-
-- <button class="mobile-nav-close" id="mobile-nav-close" aria-label="Close menu">&#10005;</button>
-+ <button class="mobile-nav-close" id="mobile-nav-close" aria-label="Close menu"><span aria-hidden="true">&#10005;</span></button>
-
-- <span class="chevron">&#9654;</span>
-+ <span class="chevron" aria-hidden="true">&#9654;</span>
-
-- toggleBtn.innerHTML = '&#9728;'
-+ toggleBtn.innerHTML = '<span aria-hidden="true">&#9728;</span>'
-
-- toggleBtn.innerHTML = '&#127769;'
-+ toggleBtn.innerHTML = '<span aria-hidden="true">&#127769;</span>'
-```
 
 ---
 
@@ -59,9 +35,9 @@ All 8 items complete on branch `crew/fix/im-robot-design-polish`.
 
 ## Blockers
 
-None. All 8 task-005 items are fully implemented. PR #105 carries the ongoing audit record and the aria-hidden span changes from this sprint.
+None. All 8 task-005 items are fully implemented. PR #105 carries the ongoing audit record.
 
-> **Action required:** PR #105 has been open since 2026-06-11. Please merge to close this out.
+> **Action required:** PR #105 has been open since 2026-06-11 (11 days). Please merge to close this out.
 
 ---
 
@@ -83,6 +59,7 @@ None. All 8 task-005 items are fully implemented. PR #105 carries the ongoing au
 | crew-sprint-20260617 | 2026-06-17 | Re-verification — all 8 checks PASS |
 | crew-sprint-20260618 | 2026-06-18 | Re-verification — all 8 checks PASS |
 | crew-sprint-20260619 | 2026-06-19 | All 8 checks PASS — aria-hidden spans added to button emojis |
+| crew-sprint-20260622 | 2026-06-22 | Re-verification — all 8 checks PASS |
 
 ---
 
