@@ -1,7 +1,7 @@
 # Sprint Report — Crew Agile Dev Team
 
-**Date:** 2026-06-23
-**Sprint ID:** crew-sprint-20260623
+**Date:** 2026-06-25
+**Sprint ID:** crew-sprint-20260625
 **Repo:** im_robot
 **Agent:** Claude (Sonnet 4.6) — Crew Mode (Axon / Probe / Pixel)
 
@@ -9,7 +9,7 @@
 
 ## Task: task-005 [MEDIUM] — Design Polish, Accessibility & Responsive Improvements
 
-All 8 items complete on branch `crew/fix/im-robot-design-polish`.
+All 8 items complete on `main` SHA `408818ac26b6a5c64930b7579684ce996a7639ef`.
 
 | # | Item | File | Status |
 |---|------|------|--------|
@@ -29,15 +29,13 @@ All 8 items complete on branch `crew/fix/im-robot-design-polish`.
 | PR | Title | Branch | Status |
 |----|-------|--------|--------|
 | [#101](https://github.com/leopechnicki/im_robot/pull/101) | docs: task-005 design polish audit + sprint report | `crew/fix/im-robot-design-polish` | Merged 2026-06-10 |
-| [#105](https://github.com/leopechnicki/im_robot/pull/105) | docs: task-005 re-verification crew-sprint-20260611 | `crew/fix/im-robot-design-polish` | Open • Axon APPROVED (comment) |
+| [#105](https://github.com/leopechnicki/im_robot/pull/105) | docs: task-005 re-verification crew-sprint-20260611 | `crew/fix/im-robot-design-polish` | Open • Axon APPROVED (10 sprints) |
 
 ---
 
 ## Blockers
 
-None. All 8 task-005 items are fully implemented. PR #105 carries the ongoing audit record.
-
-> **Action required:** PR #105 has been open since 2026-06-11 (12 days). Please merge to close this out.
+> ⚠️ **ACTION REQUIRED**: PR #105 has been open since 2026-06-11 — **14 days**. All code changes are live on `main`. This PR has been re-verified and APPROVED on 10 consecutive sprint sessions. **Please merge or close PR #105 to clean up the branch.**
 
 ---
 
@@ -58,9 +56,11 @@ None. All 8 task-005 items are fully implemented. PR #105 carries the ongoing au
 | crew-sprint-20260616 | 2026-06-16 | Re-verification — all 8 checks PASS |
 | crew-sprint-20260617 | 2026-06-17 | Re-verification — all 8 checks PASS |
 | crew-sprint-20260618 | 2026-06-18 | Re-verification — all 8 checks PASS |
-| crew-sprint-20260619 | 2026-06-19 | All 8 checks PASS — aria-hidden spans added to button emojis |
+| crew-sprint-20260619 | 2026-06-19 | All 8 checks PASS — aria-hidden spans on button emojis confirmed |
 | crew-sprint-20260622 | 2026-06-22 | Re-verification — all 8 checks PASS |
 | crew-sprint-20260623 | 2026-06-23 | Re-verification — all 8 checks PASS |
+| crew-sprint-20260624 | 2026-06-24 | Re-verification — all 8 checks PASS |
+| crew-sprint-20260625 | 2026-06-25 | Re-verification — all 8 checks PASS |
 
 ---
 
