@@ -1,7 +1,7 @@
 # Sprint Report — Crew Agile Dev Team
 
-**Date:** 2026-06-25
-**Sprint ID:** crew-sprint-20260625
+**Date:** 2026-06-26
+**Sprint ID:** crew-sprint-20260626
 **Repo:** im_robot
 **Agent:** Claude (Sonnet 4.6) — Crew Mode (Axon / Probe / Pixel)
 
@@ -29,13 +29,13 @@ All 8 items complete on `main` SHA `408818ac26b6a5c64930b7579684ce996a7639ef`.
 | PR | Title | Branch | Status |
 |----|-------|--------|--------|
 | [#101](https://github.com/leopechnicki/im_robot/pull/101) | docs: task-005 design polish audit + sprint report | `crew/fix/im-robot-design-polish` | Merged 2026-06-10 |
-| [#105](https://github.com/leopechnicki/im_robot/pull/105) | docs: task-005 re-verification crew-sprint-20260611 | `crew/fix/im-robot-design-polish` | Open • Axon APPROVED (10 sprints) |
+| [#105](https://github.com/leopechnicki/im_robot/pull/105) | docs: task-005 re-verification crew-sprint-20260611 | `crew/fix/im-robot-design-polish` | Open • Axon APPROVED (11 sprints) |
 
 ---
 
 ## Blockers
 
-> ⚠️ **ACTION REQUIRED**: PR #105 has been open since 2026-06-11 — **14 days**. All code changes are live on `main`. This PR has been re-verified and APPROVED on 10 consecutive sprint sessions. **Please merge or close PR #105 to clean up the branch.**
+> ⚠️ **ACTION REQUIRED**: PR #105 has been open since 2026-06-11 — **15 days**. All code changes are live on `main`. This PR has been re-verified and APPROVED on 11 consecutive sprint sessions. **Please merge or close PR #105 to clean up the branch.**
 
 ---
 
@@ -61,6 +61,7 @@ All 8 items complete on `main` SHA `408818ac26b6a5c64930b7579684ce996a7639ef`.
 | crew-sprint-20260623 | 2026-06-23 | Re-verification — all 8 checks PASS |
 | crew-sprint-20260624 | 2026-06-24 | Re-verification — all 8 checks PASS |
 | crew-sprint-20260625 | 2026-06-25 | Re-verification — all 8 checks PASS |
+| crew-sprint-20260626 | 2026-06-26 | Re-verification — all 8 checks PASS |
 
 ---
 
