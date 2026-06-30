@@ -275,7 +275,11 @@ describe('fnv1a_cascade and sha256_hash alias', () => {
 
   it('formatOperation uses the canonical name for each variant', () => {
     expect(formatOperation({ op: 'fnv1a_cascade' })).toBe('fnv1a_cascade()')
-    expect(formatOperation({ op: 'sha256_hash' })).toBe('sha256_hash()')
+    // sha256_hash is a deprecated alias — formatOperation now surfaces the accurate
+    // implementation name (fnv1a_cascade) so callers can see what the op actually does.
+    const sha256Formatted = formatOperation({ op: 'sha256_hash' })
+    expect(sha256Formatted).toContain('fnv1a_cascade()')
+    expect(sha256Formatted).toContain('sha256_hash')
   })
 
   it('formatOperationNL no longer claims SHA-256', () => {

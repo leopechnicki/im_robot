@@ -108,8 +108,12 @@ describe('bit_rotate operation', () => {
 })
 
 describe('formatOperation for new ops', () => {
-  it('formats sha256_hash', () => {
-    expect(formatOperation({ op: 'sha256_hash' })).toBe('sha256_hash()')
+  it('formats sha256_hash with deprecation hint in display output', () => {
+    // sha256_hash is a deprecated alias for fnv1a_cascade. The format string now makes
+    // the accurate implementation name visible so callers understand what the op actually does.
+    const formatted = formatOperation({ op: 'sha256_hash' })
+    expect(formatted).toContain('fnv1a_cascade()')
+    expect(formatted).toContain('sha256_hash')
   })
   it('formats byte_xor', () => {
     expect(formatOperation({ op: 'byte_xor', key: [1, 2, 3] })).toBe('byte_xor([1,2,3])')

@@ -10,7 +10,13 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-100%25-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://github.com/leopechnicki/im_robot)
 [![zero dependencies](https://img.shields.io/badge/dependencies-0-22c55e?style=flat-square)](https://www.npmjs.com/package/imrobot)
 
-[Live Demo](https://imrobot.vercel.app) · [npm](https://www.npmjs.com/package/imrobot) · [Dev.to Article](https://dev.to/leo_pechnicki/why-i-built-a-captcha-that-only-bots-can-solve-30np)
+### [Try the Live Playground →](https://imrobot.vercel.app)
+
+See it solve a challenge in real time. No install needed.
+
+---
+
+[npm](https://www.npmjs.com/package/imrobot) · [Dev.to Article](https://dev.to/leo_pechnicki/why-i-built-a-captcha-that-only-bots-can-solve-30np) · [Changelog](./CHANGELOG.md)
 
 </div>
 
@@ -1134,6 +1140,28 @@ Use imrobot when you want to **grant access to AI agents** and **deny access to 
 Use those when you want the opposite: protect your service from bots and allow only human users.
 
 > **Can I use both?** Yes — some services authenticate agents via imrobot and gate human-facing forms with Turnstile on the same backend.
+
+## FAQ — How does imrobot compare to HATCHA (Monday.com)?
+
+[HATCHA](https://hatcha.monday.com) is Monday.com's reverse-CAPTCHA — the closest direct competitor to imrobot. Both solve the same problem (proving a caller is a bot, not a human) but take different approaches.
+
+| | imrobot | HATCHA (Monday.com) |
+|---|---|---|
+| **Framework support** | React, Vue, Svelte, Web Component, headless core | Web Component only |
+| **Token format** | Standards-compliant JWT (RFC 7519, HS256) — verify with any JWT library | Proprietary token format |
+| **Challenge type** | Deterministic compute pipeline (string transforms, hashing, bitwise ops) | Reverse image recognition |
+| **Image challenges** | Optional AI image layer (`ImageChallengePool`) | Always-on |
+| **Zero dependencies** | Yes — 0 runtime deps | No |
+| **Self-hosted** | Yes — deploy anywhere, no CDN lock-in | No — requires Monday.com CDN |
+| **Open source** | Yes (MIT) | No |
+| **Replay protection** | Built-in `ChallengeReplayGuard` (in-memory) + `RedisReplayStore` (multi-instance) | Unknown |
+| **Adaptive difficulty** | Yes — per-agent risk scoring with 4 weighted factors | Unknown |
+| **CLI tool** | Yes — `npx imrobot challenge\|solve\|verify\|benchmark` | No |
+| **MCP integration** | Yes — `imrobot/mcp` for AI agent tooling | No |
+| **Rate limiting** | Built-in sliding window rate limiter, per-IP, standard headers | Unknown |
+| **Discovery endpoint** | Yes — `/.well-known/imrobot.json` (A2A-inspired Agent Card) | No |
+
+**Key difference:** imrobot is framework-agnostic, self-hostable, and issues standard JWTs. HATCHA is a managed SaaS product with a single web-component integration. If you need zero CDN dependencies, multi-framework support, or JWT tokens that any downstream service can verify without calling Monday.com's servers, imrobot is the right choice.
 
 ## Contributing
 

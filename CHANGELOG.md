@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- `formatOperation({ op: 'sha256_hash' })` now returns `fnv1a_cascade() /* was: sha256_hash — deprecated alias */` instead of `sha256_hash()`, making the naming mistake visible at the display layer. The wire format (`op: 'sha256_hash'`) is unchanged for backwards compatibility.
+- README: live playground link promoted above the fold — first thing users see after the badges.
+- README: added HATCHA (Monday.com) comparison table covering framework support, token format, self-hosting, CLI, MCP integration, adaptive difficulty, and discovery endpoint.
+
+### Deprecated
+
+- `{ op: 'sha256_hash' }` — this operation has always been a cascaded FNV-1a hash, not RFC 6234 SHA-256. It emits a `console.warn` on first use and will be removed in a future major version. Use `{ op: 'fnv1a_cascade' }` (identical wire output) or `{ op: 'fnv1a_hash' }` for single-pass hashing in new code.
+
 ## [0.6.0] - 2026-04-17
 
 ### Added
