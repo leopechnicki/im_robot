@@ -239,7 +239,9 @@ export function formatOperation(op: Operation): string {
     case 'length':
       return 'length()'
     case 'sha256_hash':
-      return 'sha256_hash()'
+      // Return the accurate alias name so callers understand this is fnv1a_cascade under the hood.
+      // The wire format still accepts 'sha256_hash' for backwards compatibility.
+      return 'fnv1a_cascade() /* was: sha256_hash — deprecated alias */'
     case 'byte_xor':
       return `byte_xor([${op.key.join(',')}])`
     case 'hash_chain':
