@@ -5,6 +5,7 @@ import { RateLimiter } from './rate-limiter'
 import type { RateLimiterConfig } from './rate-limiter'
 import { TurnstileVerifier } from './turnstile'
 import { WebBotAuthVerifier } from './web-bot-auth'
+import type { ReplayGuardStore } from './replay-guard'
 
 /**
  * Generic middleware types — framework-agnostic.
@@ -133,6 +134,28 @@ export interface RequireAgentOptions {
      */
     required?: boolean
   }
+  /**
+   * Optional challenge replay guard.
+   * When provided, `createAgentRouter` passes it to the internal `ImRobotVerifier`
+   * so that duplicate `verify()` attempts against the same challenge id are rejected
+   * with `{ valid: false, reason: 'replay' }` (HTTP 403).
+   *
+   * Without a replay guard, a captured `{challenge, answer}` pair can be replayed
+   * indefinitely until the challenge expires. The router-mounted quickstart is
+   * therefore replay-vulnerable by default — pass a `ChallengeReplayGuard` (or any
+   * `ReplayGuardStore` implementation, e.g. Redis) to close that gap.
+   *
+   * @example
+   * ```typescript
+   * import { createAgentRouter, ChallengeReplayGuard } from 'imrobot/server'
+   *
+   * const router = createAgentRouter({
+   *   secret: process.env.IMROBOT_SECRET!,
+   *   replayGuard: new ChallengeReplayGuard({ maxAge: 5 * 60_000 }),
+   * })
+   * ```
+   */
+  replayGuard?: ReplayGuardStore
 }
 
 /**
@@ -312,6 +335,7 @@ export function requireAgent(options: RequireAgentOptions) {
 export function createAgentRouter(options: RequireAgentOptions) {
   const verifier = new ImRobotVerifier({
     secret: options.secret,
+    replayGuard: options.replayGuard,
   })
 
   const tokenIssuer = new ProofTokenIssuer({

@@ -296,12 +296,16 @@ Token shape:
 ```
 
 ```ts
-import { requireAgent, createAgentRouter } from 'imrobot/server'
+import { requireAgent, createAgentRouter, ChallengeReplayGuard } from 'imrobot/server'
 
-// Mount challenge/verify endpoints with rate limiting
+// Mount challenge/verify endpoints with rate limiting AND replay protection
 const router = createAgentRouter({
   secret: process.env.IMROBOT_SECRET!,
   rateLimit: { windowMs: 60_000, maxRequests: 30 },
+  // Reject any second verify() of the same challenge id.
+  // WITHOUT this, a captured {challenge, answer} pair can be replayed
+  // until the challenge expires — see the "Replay protection" section below.
+  replayGuard: new ChallengeReplayGuard({ maxAge: 5 * 60_000 }),
 })
 app.get('/imrobot/challenge', router.challenge)
 app.post('/imrobot/verify', router.verify)
@@ -315,6 +319,14 @@ app.get('/api/data', agentOnly, (req, res) => {
   res.json({ agent: req.agentProof })
 })
 ```
+
+> **Security note:** the `replayGuard` option above is optional but strongly
+> recommended in production. Without it, an attacker who captures a valid
+> `{challenge, answer}` pair can re-submit it to `/imrobot/verify` any number of
+> times until the challenge expires, receiving a fresh proof token each time.
+> Passing a `ChallengeReplayGuard` (or any `ReplayGuardStore` implementation —
+> the Redis-backed store in `imrobot/server` works across processes) closes that
+> gap: the second attempt returns `403 { valid: false, reason: 'replay' }`.
 
 #### `trustProxy` option
 
