@@ -1,6 +1,6 @@
 {
   "name": "imrobot",
-  "version": "0.6.4",
+  "version": "0.7.0",
   "description": "I'm a robot. Reverse-CAPTCHA that verifies AI agents and robots, not humans.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -50,11 +50,6 @@
       "types": "./dist/mcp/index.d.ts",
       "import": "./dist/mcp/index.js",
       "require": "./dist/mcp/index.cjs"
-    },
-    "./next": {
-      "types": "./dist/next/index.d.ts",
-      "import": "./dist/next/index.js",
-      "require": "./dist/next/index.cjs"
     }
   },
   "bin": {
