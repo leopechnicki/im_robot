@@ -504,3 +504,63 @@ describe('Provider type exports', () => {
     expect(config.type).toBe('picsum')
   })
 })
+
+// Regression coverage for CONSOLIDATED#3 (2026-07-02 audit): confirm
+// Pollinations + Picsum are reachable through the package's public surface
+// (i.e. `imrobot/core`) after build. The tests above use the src tree; this
+// one loads the built `dist/core` output that npm consumers actually get.
+//
+// Note: CI runs `npm test` BEFORE `npm run build`, so dist/core doesn't exist
+// during CI. These tests are runtime-guarded so they skip cleanly on CI and
+// exercise the built output locally after `npm run build && npm test`.
+
+import { existsSync as _existsSync } from 'node:fs'
+import { fileURLToPath as _fileURLToPath } from 'node:url'
+import { dirname as _dirname, resolve as _resolve } from 'node:path'
+
+const _distCorePath = _resolve(
+  _dirname(_fileURLToPath(import.meta.url)),
+  '../dist/core/index.js',
+)
+const _distCoreExists = _existsSync(_distCorePath)
+
+describe('imrobot/core public API — Pollinations + Picsum providers ship', () => {
+  it.runIf(_distCoreExists)(
+    'dist/core/index.js re-exports ImageChallengePool + IMAGE_CHALLENGE_TEMPLATES',
+    async () => {
+      const distCore = await import(/* @vite-ignore */ _distCorePath)
+      expect(typeof distCore.ImageChallengePool).toBe('function')
+      // IMAGE_CHALLENGE_TEMPLATES is a Record<ImageChallengeType, ImageChallengeTemplate>
+      expect(distCore.IMAGE_CHALLENGE_TEMPLATES).toBeTypeOf('object')
+      expect(Object.keys(distCore.IMAGE_CHALLENGE_TEMPLATES).length).toBeGreaterThan(0)
+    },
+  )
+
+  it.runIf(_distCoreExists)(
+    'ImageChallengePool from dist/core accepts pollinations provider without runtime error',
+    async () => {
+      const { ImageChallengePool } = await import(/* @vite-ignore */ _distCorePath)
+      // Just constructing must not throw -- confirms the type union accepts the config
+      // shape in the built output. Actual network flow is covered by the mocked tests above.
+      const pool = new ImageChallengePool({
+        poolSize: 1,
+        refillThreshold: 0,
+        provider: { type: 'pollinations', width: 128, height: 128 },
+      })
+      expect(pool).toBeDefined()
+    },
+  )
+
+  it.runIf(_distCoreExists)(
+    'ImageChallengePool from dist/core accepts picsum provider without runtime error',
+    async () => {
+      const { ImageChallengePool } = await import(/* @vite-ignore */ _distCorePath)
+      const pool = new ImageChallengePool({
+        poolSize: 1,
+        refillThreshold: 0,
+        provider: { type: 'picsum', width: 128, height: 128 },
+      })
+      expect(pool).toBeDefined()
+    },
+  )
+})
