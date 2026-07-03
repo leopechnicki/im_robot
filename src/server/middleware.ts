@@ -65,21 +65,6 @@ export interface RequireAgentOptions {
    */
   trustProxy?: boolean
   /**
-   * Optional replay guard to prevent the same challenge from being verified twice.
-   * When provided, each challenge ID is tracked and rejected on reuse.
-   *
-   * @example
-   * ```typescript
-   * import { createAgentRouter, ChallengeReplayGuard } from 'imrobot/server'
-   *
-   * createAgentRouter({
-   *   secret: process.env.IMROBOT_SECRET!,
-   *   replayGuard: new ChallengeReplayGuard({ maxAge: 5 * 60 * 1000 }),
-   * })
-   * ```
-   */
-  replayGuard?: ChallengeReplayGuard
-  /**
    * Optional Cloudflare Turnstile configuration.
    * When provided, the verify endpoint checks the Turnstile token from the request header
    * and attaches the result to the issued proof token payload.
