@@ -41,6 +41,11 @@
       "import": "./dist/server/index.js",
       "require": "./dist/server/index.cjs"
     },
+    "./next": {
+      "types": "./dist/next/index.d.ts",
+      "import": "./dist/next/index.js",
+      "require": "./dist/next/index.cjs"
+    },
     "./mcp": {
       "types": "./dist/mcp/index.d.ts",
       "import": "./dist/mcp/index.js",

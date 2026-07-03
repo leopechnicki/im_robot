@@ -5,6 +5,7 @@ import { RateLimiter } from './rate-limiter'
 import type { RateLimiterConfig } from './rate-limiter'
 import { TurnstileVerifier } from './turnstile'
 import { WebBotAuthVerifier } from './web-bot-auth'
+import type { ChallengeReplayGuard } from './replay-guard'
 
 /**
  * Generic middleware types — framework-agnostic.
@@ -63,6 +64,21 @@ export interface RequireAgentOptions {
    * Set to true only if your app runs behind a trusted reverse proxy (e.g., nginx, Cloudflare).
    */
   trustProxy?: boolean
+  /**
+   * Optional replay guard to prevent the same challenge from being verified twice.
+   * When provided, each challenge ID is tracked and rejected on reuse.
+   *
+   * @example
+   * ```typescript
+   * import { createAgentRouter, ChallengeReplayGuard } from 'imrobot/server'
+   *
+   * createAgentRouter({
+   *   secret: process.env.IMROBOT_SECRET!,
+   *   replayGuard: new ChallengeReplayGuard({ maxAge: 5 * 60 * 1000 }),
+   * })
+   * ```
+   */
+  replayGuard?: ChallengeReplayGuard
   /**
    * Optional Cloudflare Turnstile configuration.
    * When provided, the verify endpoint checks the Turnstile token from the request header
@@ -312,6 +328,7 @@ export function requireAgent(options: RequireAgentOptions) {
 export function createAgentRouter(options: RequireAgentOptions) {
   const verifier = new ImRobotVerifier({
     secret: options.secret,
+    replayGuard: options.replayGuard,
   })
 
   const tokenIssuer = new ProofTokenIssuer({
