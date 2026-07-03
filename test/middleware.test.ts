@@ -642,3 +642,65 @@ describe('createAgentRouter — Turnstile', () => {
     expect((verifyRes.body as Record<string, unknown>).valid).toBe(true)
   })
 })
+
+// ── createAgentRouter — Replay Guard ──────────────────────────────────
+
+describe('createAgentRouter — replayGuard', () => {
+  it('rejects a second verification of the same challenge when replayGuard is provided', async () => {
+    const { ChallengeReplayGuard } = await import('../src/server/replay-guard')
+    const router = createAgentRouter({
+      secret: TEST_SECRET,
+      replayGuard: new ChallengeReplayGuard(),
+    })
+
+    // Get a challenge
+    const challengeRes = mockRes()
+    await router.handler(mockReq({ method: 'GET' }) as any, challengeRes)
+    const challenge = challengeRes.body as Record<string, unknown>
+
+    // Solve it
+    const { solveChallenge } = await import('../src/core/solver')
+    const answer = solveChallenge(challenge as any)
+
+    // First verify — must succeed
+    const firstReq = { ...mockReq({ method: 'POST' }), body: { challenge, answer } }
+    const firstRes = mockRes()
+    await router.handler(firstReq as any, firstRes)
+    expect(firstRes.statusCode).toBe(200)
+    expect((firstRes.body as Record<string, unknown>).valid).toBe(true)
+
+    // Second verify with the SAME challenge+answer — must be rejected as replay
+    const secondReq = { ...mockReq({ method: 'POST' }), body: { challenge, answer } }
+    const secondRes = mockRes()
+    await router.handler(secondReq as any, secondRes)
+    expect(secondRes.statusCode).toBe(403)
+    const secondBody = secondRes.body as Record<string, unknown>
+    expect(secondBody.valid).toBe(false)
+    expect(secondBody.reason).toBe('replay')
+  })
+
+  it('accepts replays when replayGuard is NOT provided (backward compatible)', async () => {
+    // Without a replay guard, the router remains vulnerable to replays — this test
+    // pins the existing behavior so we don't accidentally break users who depend on
+    // it (though they should upgrade). See README for the replayGuard option.
+    const router = createAgentRouter({ secret: TEST_SECRET })
+
+    const challengeRes = mockRes()
+    await router.handler(mockReq({ method: 'GET' }) as any, challengeRes)
+    const challenge = challengeRes.body as Record<string, unknown>
+
+    const { solveChallenge } = await import('../src/core/solver')
+    const answer = solveChallenge(challenge as any)
+
+    const firstReq = { ...mockReq({ method: 'POST' }), body: { challenge, answer } }
+    const firstRes = mockRes()
+    await router.handler(firstReq as any, firstRes)
+    expect(firstRes.statusCode).toBe(200)
+
+    const secondReq = { ...mockReq({ method: 'POST' }), body: { challenge, answer } }
+    const secondRes = mockRes()
+    await router.handler(secondReq as any, secondRes)
+    expect(secondRes.statusCode).toBe(200) // still accepted without a guard
+    expect((secondRes.body as Record<string, unknown>).valid).toBe(true)
+  })
+})

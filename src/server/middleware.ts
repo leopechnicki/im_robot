@@ -5,6 +5,7 @@ import { RateLimiter } from './rate-limiter'
 import type { RateLimiterConfig } from './rate-limiter'
 import { TurnstileVerifier } from './turnstile'
 import { WebBotAuthVerifier } from './web-bot-auth'
+import type { ChallengeReplayGuard } from './replay-guard'
 
 /**
  * Generic middleware types — framework-agnostic.
@@ -133,6 +134,29 @@ export interface RequireAgentOptions {
      */
     required?: boolean
   }
+  /**
+   * Optional replay guard. When provided, the verifier attached to `createAgentRouter`
+   * rejects any second verification attempt for the same challenge id with
+   * `{ valid: false, reason: 'replay' }`.
+   *
+   * Without this option, the router-mounted `/verify` endpoint accepts replays until
+   * the challenge TTL expires -- captured `{challenge, answer}` payloads can be
+   * replayed to mint arbitrary proof tokens. Set this in production to close that gap.
+   *
+   * Use `new ChallengeReplayGuard()` for in-memory (single-process) protection, or
+   * `new RedisReplayStore({ redis })` for distributed protection across workers.
+   *
+   * @example
+   * ```typescript
+   * import { createAgentRouter, ChallengeReplayGuard } from 'imrobot/server'
+   *
+   * const router = createAgentRouter({
+   *   secret: process.env.IMROBOT_SECRET!,
+   *   replayGuard: new ChallengeReplayGuard(),
+   * })
+   * ```
+   */
+  replayGuard?: ChallengeReplayGuard
 }
 
 /**
@@ -312,6 +336,7 @@ export function requireAgent(options: RequireAgentOptions) {
 export function createAgentRouter(options: RequireAgentOptions) {
   const verifier = new ImRobotVerifier({
     secret: options.secret,
+    replayGuard: options.replayGuard,
   })
 
   const tokenIssuer = new ProofTokenIssuer({
