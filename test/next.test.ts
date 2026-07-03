@@ -221,3 +221,29 @@ describe('createNextApiHandler — POST verifies answer', () => {
     expect(res.statusCode).toBe(405)
   })
 })
+
+// ── Subpath export integrity ─────────────────────────────────────────────────
+// Regression coverage for CONSOLIDATED#2 (2026-07-02 audit): the Next.js adapter
+// existed in src/ but was NOT resolvable via 'imrobot/next' because it was missing
+// from package.json exports and tsup.config.ts entries. These tests confirm the
+// built subpath exposes both public APIs.
+
+describe('imrobot/next subpath export', () => {
+  it('resolves and exports createNextMiddleware + createNextApiHandler from dist/next', async () => {
+    // Use the built output directly. `imrobot/next` package-level import is exercised
+    // by the resolution test below.
+    const distNext = await import('../dist/next/index.js')
+    expect(typeof distNext.createNextMiddleware).toBe('function')
+    expect(typeof distNext.createNextApiHandler).toBe('function')
+  })
+
+  it('package.json declares ./next in exports', async () => {
+    const pkg = await import('../package.json', { with: { type: 'json' } })
+    const exportsMap = (pkg.default as { exports: Record<string, unknown> }).exports
+    expect(exportsMap['./next']).toBeDefined()
+    const nextExport = exportsMap['./next'] as Record<string, string>
+    expect(nextExport.types).toBe('./dist/next/index.d.ts')
+    expect(nextExport.import).toBe('./dist/next/index.js')
+    expect(nextExport.require).toBe('./dist/next/index.cjs')
+  })
+})

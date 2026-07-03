@@ -45,6 +45,11 @@
       "types": "./dist/mcp/index.d.ts",
       "import": "./dist/mcp/index.js",
       "require": "./dist/mcp/index.cjs"
+    },
+    "./next": {
+      "types": "./dist/next/index.d.ts",
+      "import": "./dist/next/index.js",
+      "require": "./dist/next/index.cjs"
     }
   },
   "bin": {
@@ -108,7 +113,8 @@
     "vue": ">=3.0.0",
     "svelte": ">=3.0.0",
     "ioredis": ">=5.0.0",
-    "@opentelemetry/api": ">=1.0.0"
+    "@opentelemetry/api": ">=1.0.0",
+    "next": ">=13.0.0"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -127,6 +133,9 @@
       "optional": true
     },
     "@opentelemetry/api": {
+      "optional": true
+    },
+    "next": {
       "optional": true
     }
   },
