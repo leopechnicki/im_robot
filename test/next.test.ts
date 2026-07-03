@@ -221,3 +221,29 @@ describe('createNextApiHandler — POST verifies answer', () => {
     expect(res.statusCode).toBe(405)
   })
 })
+
+// ── Package subpath export (imrobot/next) ────────────────────────────────
+// Guards the ./next export in package.json + tsup entry so require('imrobot/next')
+// keeps resolving. Uses `import.meta.resolve` against the on-disk package.json.
+
+describe('imrobot/next subpath export', () => {
+  it('package.json declares ./next in exports', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { resolve } = await import('node:path')
+    const pkgPath = resolve(process.cwd(), 'package.json')
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8')) as {
+      exports: Record<string, { types?: string; import?: string; require?: string }>
+    }
+    const nextExport = pkg.exports['./next']
+    expect(nextExport).toBeDefined()
+    expect(nextExport.types).toBe('./dist/next/index.d.ts')
+    expect(nextExport.import).toBe('./dist/next/index.js')
+    expect(nextExport.require).toBe('./dist/next/index.cjs')
+  })
+
+  it('exports both createNextMiddleware and createNextApiHandler from the barrel', async () => {
+    const barrel = await import('../src/next/index')
+    expect(typeof barrel.createNextMiddleware).toBe('function')
+    expect(typeof barrel.createNextApiHandler).toBe('function')
+  })
+})
