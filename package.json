@@ -1,6 +1,6 @@
 {
   "name": "imrobot",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "I'm a robot. Reverse-CAPTCHA that verifies AI agents and robots, not humans.",
   "type": "module",
   "main": "./dist/index.cjs",
