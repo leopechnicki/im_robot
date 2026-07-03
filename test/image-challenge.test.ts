@@ -504,3 +504,40 @@ describe('Provider type exports', () => {
     expect(config.type).toBe('picsum')
   })
 })
+
+// Regression coverage for CONSOLIDATED#3 (2026-07-02 audit): confirm
+// Pollinations + Picsum are reachable through the package's public surface
+// (i.e. `imrobot/core`) after build. The tests above use the src tree; this
+// one loads the built `dist/core` output that npm consumers actually get.
+
+describe('imrobot/core public API — Pollinations + Picsum providers ship', () => {
+  it('dist/core/index.js re-exports ImageChallengePool + IMAGE_CHALLENGE_TEMPLATES', async () => {
+    const distCore = await import('../dist/core/index.js')
+    expect(typeof distCore.ImageChallengePool).toBe('function')
+    // IMAGE_CHALLENGE_TEMPLATES is a Record<ImageChallengeType, ImageChallengeTemplate>
+    expect(distCore.IMAGE_CHALLENGE_TEMPLATES).toBeTypeOf('object')
+    expect(Object.keys(distCore.IMAGE_CHALLENGE_TEMPLATES).length).toBeGreaterThan(0)
+  })
+
+  it('ImageChallengePool from dist/core accepts pollinations provider without runtime error', async () => {
+    const { ImageChallengePool } = await import('../dist/core/index.js')
+    // Just constructing must not throw -- confirms the type union accepts the config
+    // shape in the built output. Actual network flow is covered by the mocked tests above.
+    const pool = new ImageChallengePool({
+      poolSize: 1,
+      refillThreshold: 0,
+      provider: { type: 'pollinations', width: 128, height: 128 },
+    })
+    expect(pool).toBeDefined()
+  })
+
+  it('ImageChallengePool from dist/core accepts picsum provider without runtime error', async () => {
+    const { ImageChallengePool } = await import('../dist/core/index.js')
+    const pool = new ImageChallengePool({
+      poolSize: 1,
+      refillThreshold: 0,
+      provider: { type: 'picsum', width: 128, height: 128 },
+    })
+    expect(pool).toBeDefined()
+  })
+})

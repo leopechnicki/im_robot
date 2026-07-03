@@ -1100,7 +1100,8 @@ imrobot is designed to integrate with the broader AI agent ecosystem:
 |---|---|
 | **Cloudflare Turnstile** | Layer human-verification alongside the proof-of-work challenge. `turnstile_verified` is stamped into the issued JWT. |
 | **Web Bot Auth (IETF)** | Verify Ed25519-signed agents (OpenAI Operator, Cloudflare signed bots) directly. Skip the challenge for trusted known agents. |
-| **Pollinations.ai** *(coming)* | Use the free, no-auth Pollinations.ai image generation API to power the `ImageChallengePool` custom provider — zero API keys, zero cost. Generates on-demand image challenges with deterministic ground truth. |
+| **Pollinations.ai** | Free, no-auth image generation for `ImageChallengePool`. Set `provider: { type: 'pollinations' }` — zero API keys, zero cost. See `PollinationsProviderConfig` in `imrobot/core`. |
+| **Picsum** | Free, no-auth placeholder photos for lighter-weight image challenges. Set `provider: { type: 'picsum' }`. See `PicsumProviderConfig` in `imrobot/core`. |
 | **A2A Agent Card** | `/.well-known/imrobot.json` follows the A2A Agent Card pattern so discovery-enabled agents find your protected endpoints automatically. |
 | **Any JWT library** | Proof tokens are standard HS256 JWTs — verify with `jose`, `jsonwebtoken`, Python `PyJWT`, Go `golang-jwt`, or any RFC 7519-compliant library. |
 
