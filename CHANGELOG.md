@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-03
+
+### Added
+
+- `./next` package subpath is now actually shipped: added to `exports`, wired into `tsup` entrypoints, and declared as an optional peer dependency. `import { createNextMiddleware, createNextApiHandler } from 'imrobot/next'` now resolves against the built `dist/next` bundle instead of falling through to the root export. (#110)
+- Dist-level regression tests that import `imrobot/core` and `imrobot/next` from the compiled output to catch missing subpath exports before publish. (#111)
+- Pollinations.ai and Picsum AI image providers are officially documented as shipped in the README and provider matrix. (#111)
+
 ### Changed
 
 - `formatOperation({ op: 'sha256_hash' })` now returns `fnv1a_cascade() /* was: sha256_hash — deprecated alias */` instead of `sha256_hash()`, making the naming mistake visible at the display layer. The wire format (`op: 'sha256_hash'`) is unchanged for backwards compatibility.
@@ -16,6 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Deprecated
 
 - `{ op: 'sha256_hash' }` — this operation has always been a cascaded FNV-1a hash, not RFC 6234 SHA-256. It emits a `console.warn` on first use and will be removed in a future major version. Use `{ op: 'fnv1a_cascade' }` (identical wire output) or `{ op: 'fnv1a_hash' }` for single-pass hashing in new code.
+
+### Fixed
+
+- `createAgentRouter()` now honors the `replayGuard` option — it wires the guard into the underlying `ImRobotVerifier` so `POST /verify` actually rejects duplicate challenge IDs with `reason: 'replay'` instead of silently accepting replays. (#109)
+- Removed a duplicate `replayGuard` local identifier introduced during the wiring change that broke the server build under stricter TypeScript targets. (#112)
 
 ## [0.6.0] - 2026-04-17
 
