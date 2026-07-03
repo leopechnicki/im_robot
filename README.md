@@ -75,7 +75,7 @@ A complete working example: protect an Express.js route so only verified AI agen
 ```typescript
 // server.ts
 import express from 'express'
-import { createAgentRouter, requireAgent } from 'imrobot/server'
+import { createAgentRouter, requireAgent, ChallengeReplayGuard } from 'imrobot/server'
 
 const app = express()
 app.use(express.json())
@@ -84,6 +84,9 @@ app.use(express.json())
 const agentRouter = createAgentRouter({
   secret: process.env.IMROBOT_SECRET!, // e.g. "my-32-char-secret-key-goes-here"
   rateLimit: { windowMs: 60_000, maxRequests: 30 },
+  // Rejects any second verification of the same challenge — recommended in production.
+  // Without this, captured {challenge, answer} payloads can be replayed until challenge TTL.
+  replayGuard: new ChallengeReplayGuard(),
 })
 app.get('/imrobot/challenge', agentRouter.challenge)
 app.post('/imrobot/verify', agentRouter.verify)
