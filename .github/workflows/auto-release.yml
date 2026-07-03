@@ -16,6 +16,7 @@ jobs:
     outputs:
       release_created: ${{ steps.create_release.outputs.release_created }}
       release_tag: ${{ steps.create_release.outputs.release_tag }}
+      already_published: ${{ steps.npm_check.outputs.already_published }}
     steps:
       # Mint a short-lived GitHub App installation token. The bump branch/PR
       # MUST be created with a non-GITHUB_TOKEN identity: GitHub does not start
@@ -39,6 +40,28 @@ jobs:
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
+
+      - name: Check if package.json version is already published on npm
+        id: npm_check
+        run: |
+          set -euo pipefail
+          PKG_NAME=$(node -p "require('./package.json').name")
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          echo "Package: ${PKG_NAME}@${PKG_VERSION}"
+          # Query npm registry for all published versions. If the current
+          # package.json version is already listed, downstream publish.yml would
+          # hit E403 ("cannot publish over the previously published version").
+          # Skip the reusable publish job in that case so this workflow stays
+          # idempotent when re-run (schedule + workflow_dispatch on the same
+          # HEAD, or after a manual publish already shipped the version).
+          if npm view "$PKG_NAME" versions --json 2>/dev/null \
+              | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const v=JSON.parse(d||'[]');process.exit(v.includes(process.argv[1])?0:1)})" "$PKG_VERSION"; then
+            echo "already_published=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::${PKG_NAME}@${PKG_VERSION} is already published on npm — publish job will be skipped."
+          else
+            echo "already_published=false" >> "$GITHUB_OUTPUT"
+            echo "${PKG_NAME}@${PKG_VERSION} is not yet on npm — publish job will run."
+          fi
 
       - name: Check for new commits since last tag
         id: check
@@ -146,7 +169,12 @@ jobs:
   # (anti-recursion protection). workflow_call is not subject to this restriction.
   publish:
     needs: release
-    if: needs.release.outputs.release_created == 'true'
+    # Only publish when (a) a new GitHub release was created AND
+    # (b) the current package.json version is not already on npm.
+    # Prevents the reusable publish.yml from hitting npm E403
+    # ("cannot publish over the previously published version") when
+    # a manual publish already shipped this version.
+    if: needs.release.outputs.release_created == 'true' && needs.release.outputs.already_published != 'true'
     uses: ./.github/workflows/publish.yml
     with:
       tag: ${{ needs.release.outputs.release_tag }}
