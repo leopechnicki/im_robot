@@ -221,3 +221,46 @@ describe('createNextApiHandler — POST verifies answer', () => {
     expect(res.statusCode).toBe(405)
   })
 })
+
+// ── Subpath export integrity ─────────────────────────────────────────────────
+// Regression coverage for CONSOLIDATED#2 (2026-07-02 audit): the Next.js adapter
+// existed in src/ but was NOT resolvable via 'imrobot/next' because it was missing
+// from package.json exports and tsup.config.ts entries. These tests confirm the
+// built subpath exposes both public APIs.
+//
+// Note: the dist-level check requires the package to be built first. CI runs
+// `npm test` before `npm run build`, so we skip that check when dist/next is
+// absent (the package.json declaration test still runs unconditionally). Run
+// `npm run build && npm test` locally to exercise the dist-level assertion.
+
+import { existsSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { dirname, resolve } from 'node:path'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+const distNextPath = resolve(__dirname, '../dist/next/index.js')
+const distNextExists = existsSync(distNextPath)
+
+describe('imrobot/next subpath export', () => {
+  it.runIf(distNextExists)(
+    'resolves and exports createNextMiddleware + createNextApiHandler from dist/next',
+    async () => {
+      // Dynamic string prevents Vite from statically resolving the import at
+      // transform time — the file only needs to exist when the test runs.
+      const distNext = await import(/* @vite-ignore */ distNextPath)
+      expect(typeof distNext.createNextMiddleware).toBe('function')
+      expect(typeof distNext.createNextApiHandler).toBe('function')
+    },
+  )
+
+  it('package.json declares ./next in exports', async () => {
+    const pkg = await import('../package.json', { with: { type: 'json' } })
+    const exportsMap = (pkg.default as { exports: Record<string, unknown> }).exports
+    expect(exportsMap['./next']).toBeDefined()
+    const nextExport = exportsMap['./next'] as Record<string, string>
+    expect(nextExport.types).toBe('./dist/next/index.d.ts')
+    expect(nextExport.import).toBe('./dist/next/index.js')
+    expect(nextExport.require).toBe('./dist/next/index.cjs')
+  })
+})
