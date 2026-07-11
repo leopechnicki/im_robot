@@ -1,152 +1,116 @@
-# imrobot (Python SDK)
+# imrobot (Python)
 
-Reverse-CAPTCHA for AI agents -- verify bots, not humans.
+**Reverse-CAPTCHA that verifies AI agents and robots, not humans — Python SDK.**
 
-Python SDK for [imrobot](https://github.com/leopechnicki/im_robot), mirroring the JavaScript API. Full cross-language interoperability: challenges generated in JS can be solved in Python, and vice versa.
+[![PyPI](https://img.shields.io/pypi/v/imrobot?style=flat-square&color=f59e0b)](https://pypi.org/project/imrobot/)
+[![Python](https://img.shields.io/pypi/pyversions/imrobot?style=flat-square)](https://pypi.org/project/imrobot/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-f59e0b?style=flat-square)](../LICENSE)
 
-Built for LangChain, CrewAI, AutoGPT, and any Python-based AI agent framework.
+Companion package to the JavaScript [imrobot](https://www.npmjs.com/package/imrobot) SDK. Produces byte-identical challenge outputs so a Python client can solve JS-issued challenges and vice-versa. Zero required dependencies for the solver + verifier; FastAPI is an optional extra.
 
 ## Install
 
 ```bash
-pip install imrobot
+pip install imrobot                  # solver + verifier + JWT (zero deps)
+pip install "imrobot[fastapi]"       # + FastAPI middleware
 ```
 
-With FastAPI middleware:
-
-```bash
-pip install imrobot[fastapi]
-```
-
-## Quick Start
-
-### Core API (headless)
+## Quick start — AI agent (LangChain / CrewAI / AutoGPT / any Python bot)
 
 ```python
-from imrobot import generate_challenge, solve_challenge, verify_answer
+import httpx
+from imrobot import solve_challenge
 
-challenge = generate_challenge(difficulty="medium")
+# 1. Fetch challenge
+resp = httpx.get("https://example.com/imrobot/challenge")
+challenge = resp.json()
+
+# 2. Solve it
 answer = solve_challenge(challenge)
-is_valid = verify_answer(challenge, answer)  # True
-```
 
-### Server SDK (HMAC-signed verification)
-
-```python
-from imrobot.server import create_verifier
-
-verifier = create_verifier(secret="your-secret-min-16-chars")
-
-# Generate a signed challenge
-challenge = verifier.generate()
-
-# Verify agent's answer
-result = verifier.verify(challenge, agent_answer)
-# result.valid, result.elapsed, result.suspicious, result.reason
-```
-
-### Invisible Verification (zero-UI)
-
-```python
-from imrobot import invisible_verify
-
-result = invisible_verify(
-    challenge_url="https://api.example.com/imrobot/challenge",
-    verify_url="https://api.example.com/imrobot/verify",
-    agent_id="my-bot-v1",
+# 3. Get your proof token
+resp = httpx.post(
+    "https://example.com/imrobot/verify",
+    json={"challenge": challenge, "answer": answer},
 )
+proof_token = resp.json()["proofToken"]
 
-if result.success:
-    headers = {"X-Agent-Proof": result.proof_token}
+# 4. Use the token on protected routes
+httpx.get(
+    "https://example.com/api/agent-data",
+    headers={"X-Agent-Proof": proof_token},
+)
 ```
 
-### FastAPI Middleware
+## Quick start — FastAPI server
 
 ```python
-from fastapi import FastAPI, Depends
-from imrobot.fastapi_middleware import ImRobotMiddleware, require_agent
+import os
+from fastapi import Depends, FastAPI
+from imrobot.fastapi import create_imrobot_router, require_agent
 
 app = FastAPI()
+secret = os.environ["IMROBOT_SECRET"]  # min 16 chars
 
-# Mount challenge/verify endpoints
-middleware = ImRobotMiddleware(secret="your-secret-min-16-chars")
-app.include_router(middleware.router, prefix="/imrobot")
+# Mount /imrobot/challenge + /imrobot/verify
+app.include_router(create_imrobot_router(secret=secret), prefix="/imrobot")
 
-# Protect routes -- only verified agents can access
-agent_guard = require_agent(secret="your-secret-min-16-chars")
-
-@app.get("/api/data")
-async def get_data(proof=Depends(agent_guard)):
-    return {"message": "Agent verified!", "agent": proof["sub"]}
+# Protect a route
+@app.get("/api/agent-data", dependencies=[Depends(require_agent(secret=secret))])
+async def agent_only():
+    return {"secret": "only bots see this"}
 ```
 
-### LangChain Integration
+## API surface
 
-```python
-from imrobot import solve_challenge
-from imrobot.types import Challenge
-import requests
+### `imrobot`
 
-# Fetch challenge from imrobot-protected API
-resp = requests.get("https://api.example.com/imrobot/challenge")
-challenge = Challenge.from_dict(resp.json())
+| Function | Purpose |
+|---|---|
+| `solve_challenge(challenge)` | Compute the answer for a challenge (agent-side) |
+| `execute_operation(input, op)` | Run one operation directly |
+| `execute_pipeline(seed, pipeline)` | Run a full pipeline |
+| `fnv1a(text)` | 32-bit FNV-1a hash — deterministic, 8 hex chars |
+| `ImRobotVerifier(secret, ...)` | Server-side challenge generator + verifier |
+| `ProofTokenIssuer(secret, ...)` | JWT (HS256) proof token issue/verify |
+| `InMemoryReplayGuard(capacity)` | Bounded replay-attack guard |
+| `hmac_sign(secret, message)` | HMAC-SHA256 hex (matches JS `hmacSign`) |
+| `hmac_verify(secret, message, sig)` | Constant-time HMAC verify |
 
-# Solve and submit
-answer = solve_challenge(challenge)
-result = requests.post(
-    "https://api.example.com/imrobot/verify",
-    json={"challenge": resp.json(), "answer": answer, "agentId": "langchain-agent"},
-)
+### `imrobot.fastapi`
 
-if result.json()["valid"]:
-    proof_token = result.json()["proofToken"]
-    # Use proof_token in X-Agent-Proof header for subsequent requests
+| Function | Purpose |
+|---|---|
+| `create_imrobot_router(secret=..., ...)` | Returns an `APIRouter` with GET `/challenge` + POST `/verify` |
+| `require_agent(secret=..., ...)` | Returns a FastAPI dependency that enforces the `X-Agent-Proof` header |
+
+## Interoperability
+
+The Python and JS SDKs share the exact same wire format:
+
+- **FNV-1a** — bit-for-bit identical output (matches JS `Math.imul` semantics).
+- **HMAC-SHA256** — 64-char lowercase hex.
+- **Base64url** — RFC 4648 §5, no padding.
+- **JWT** — RFC 7519 HS256, standard claims + namespaced `imr` claim.
+- **Challenge JSON** — same field names (camelCase for wire compatibility with JS: `visibleSeed`, `expiresAt`, `hmac`, `pipeline`).
+
+The `tests/test_interop.py` suite pins known JS reference outputs so any drift breaks CI.
+
+## Naming note — `sha256_hash`
+
+The operation `{ "op": "sha256_hash" }` is a **deprecated alias for `fnv1a_cascade`** (8 rounds of FNV-1a → 64 hex chars). It is **not** SHA-256. Kept for wire-format compatibility; new challenges use `fnv1a_cascade` or `hash_chain`. The Python SDK emits a `DeprecationWarning` when the alias is executed. See the main `README.md` for full context.
+
+## Development
+
+```bash
+git clone https://github.com/leopechnicki/im_robot
+cd im_robot/python
+pip install -e ".[dev]"
+pytest
+ruff check src tests
+mypy src
 ```
-
-## API Reference
-
-### Core
-
-| Function | Description |
-|---|---|
-| `generate_challenge(difficulty, ttl)` | Generate a new challenge |
-| `solve_challenge(challenge)` | Solve a challenge (reference solver) |
-| `verify_answer(challenge, answer)` | Client-side verification (FNV-1a) |
-| `execute_pipeline(seed, pipeline)` | Execute a pipeline of operations |
-| `format_pipeline(seed, pipeline)` | Human-readable pipeline display |
-
-### Server
-
-| Class/Function | Description |
-|---|---|
-| `ImRobotVerifier(secret, difficulty, ttl, replay_guard)` | Server-side verifier |
-| `create_verifier(secret, ...)` | Factory function |
-| `ChallengeReplayGuard(max_age_ms)` | In-memory replay protection |
-
-### FastAPI
-
-| Class/Function | Description |
-|---|---|
-| `ImRobotMiddleware(secret, ...)` | Router with challenge/verify endpoints |
-| `require_agent(secret, header_name)` | Dependency for route protection |
-
-## Cross-Language Compatibility
-
-The Python SDK produces identical output to the JavaScript implementation for all 27 operations. This means:
-
-- A challenge generated by the JS server can be solved by a Python agent
-- A challenge generated by the Python server can be solved by a JS agent
-- FNV-1a hashes are identical across both implementations
-- Pipeline execution is deterministic and matching
-
-## Operations
-
-All 27 operations from the JavaScript SDK are supported:
-
-**String**: `reverse`, `to_upper`, `to_lower`, `base64_encode`, `rot13`, `hex_encode`, `sort_chars`, `char_code_sum`, `substring`, `repeat`, `replace`, `pad_start`, `vowel_count`, `consonant_extract`, `run_length_encode`, `atbash`
-
-**Byte & Cipher**: `caesar`, `xor_encode`, `count_chars`, `slice_alternate`, `fnv1a_hash`, `length`, `sha256_hash`, `byte_xor`, `hash_chain`, `nibble_swap`, `bit_rotate`
 
 ## License
 
-MIT
+MIT © Leo Pechnicki

@@ -63,7 +63,9 @@ The challenge data is embedded in the DOM via `data-imrobot-challenge` attribute
 ## Install
 
 ```bash
-npm install imrobot
+npm install imrobot                # JS/TS SDK (Node, Bun, Deno, Cloudflare Workers, browsers)
+pip install imrobot                # Python SDK — LangChain / CrewAI / AutoGPT / FastAPI
+pip install "imrobot[fastapi]"     # + FastAPI middleware
 ```
 
 ## Quick Demo
@@ -1094,6 +1096,56 @@ const { token } = JSON.parse(solveResult.content[0].text)
 ```
 
 The MCP server has zero runtime dependencies — it implements JSON-RPC 2.0 directly and calls the same core API that agents use.
+
+## Python SDK (`pip install imrobot`)
+
+A companion Python package lives in [`./python/`](./python/) — designed for **LangChain / CrewAI / AutoGPT / any Python-based AI agent** on the client side, and **FastAPI / Starlette** on the server side. Byte-identical wire format with the JS SDK, so a Python client can solve JS-issued challenges (and vice-versa) without any glue code.
+
+**Agent-side (client)**
+
+```python
+import httpx
+from imrobot import solve_challenge
+
+challenge = httpx.get("https://example.com/imrobot/challenge").json()
+answer = solve_challenge(challenge)
+proof = httpx.post(
+    "https://example.com/imrobot/verify",
+    json={"challenge": challenge, "answer": answer},
+).json()["proofToken"]
+
+# Use the proof on protected routes
+httpx.get(
+    "https://example.com/api/agent-data",
+    headers={"X-Agent-Proof": proof},
+)
+```
+
+**Server-side (FastAPI)**
+
+```python
+from fastapi import Depends, FastAPI
+from imrobot.fastapi import create_imrobot_router, require_agent
+
+app = FastAPI()
+secret = os.environ["IMROBOT_SECRET"]
+
+app.include_router(create_imrobot_router(secret=secret), prefix="/imrobot")
+
+@app.get("/api/agent-data", dependencies=[Depends(require_agent(secret=secret))])
+async def agent_only():
+    return {"secret": "only bots see this"}
+```
+
+Highlights:
+
+- **Zero deps** for `solve_challenge`, `ImRobotVerifier`, `ProofTokenIssuer`. FastAPI is an optional `[fastapi]` extra.
+- **Cross-runtime interop** — `test_interop.py` pins JS reference outputs (FNV-1a, HMAC-SHA256, base64url) so any drift breaks CI.
+- **RFC 7519 JWTs (HS256)** — proof tokens verify with `PyJWT`, `python-jose`, or any RFC-compliant library.
+- **Python 3.9 – 3.13** supported.
+- **PyPI auto-publish** on `py-v*` tags via `.github/workflows/publish-python.yml` (OIDC trusted publishing, no long-lived tokens).
+
+Full API reference and development instructions: [`./python/README.md`](./python/README.md).
 
 ## Ecosystem
 
