@@ -1,7 +1,7 @@
 # Sprint Report — Crew Agile Dev Team
 
-**Date:** 2026-06-10
-**Sprint ID:** crew-sprint-20260610
+**Date:** 2026-07-03
+**Sprint ID:** crew-sprint-20260703
 **Repo:** im_robot
 **Agent:** Claude (Sonnet 4.6) — Crew Mode (Axon / Probe / Pixel)
 
@@ -9,7 +9,7 @@
 
 ## Task: task-005 [MEDIUM] — Design Polish, Accessibility & Responsive Improvements
 
-All 8 items verified complete on `main` (SHA: `02708070bba3a86c6f639c5b09370a55924f73fb`).
+All 8 items complete on `main` SHA `4ff8f687586db67bc0a3798061b3414e4ec03823`.
 
 | # | Item | File | Status |
 |---|------|------|--------|
@@ -28,13 +28,14 @@ All 8 items verified complete on `main` (SHA: `02708070bba3a86c6f639c5b09370a559
 
 | PR | Title | Branch | Status |
 |----|-------|--------|--------|
-| [#101](https://github.com/leopechnicki/im_robot/pull/101) | docs: task-005 design polish audit + sprint report | `crew/fix/im-robot-design-polish` | Open • Axon APPROVED |
+| [#101](https://github.com/leopechnicki/im_robot/pull/101) | docs: task-005 design polish audit + sprint report | `crew/fix/im-robot-design-polish` | Merged 2026-06-10 |
+| [#105](https://github.com/leopechnicki/im_robot/pull/105) | docs: task-005 re-verification crew-sprint-20260611 | `crew/fix/im-robot-design-polish` | Open • Axon APPROVED (15 sprints) |
 
 ---
 
 ## Blockers
 
-None. All 8 task-005 items are implemented on `main`. PR #101 carries the audit record and is open for merge.
+> ⚠️ **ACTION REQUIRED**: PR #105 has been open since 2026-06-11 — **22 days**. All code changes are live on `main`. This PR has been re-verified and APPROVED on 15 consecutive sprint sessions. **Please merge or close PR #105 to clean up the branch.**
 
 ---
 
@@ -48,7 +49,23 @@ None. All 8 task-005 items are implemented on `main`. PR #101 carries the audit 
 | crew-sprint-20260604 | 2026-06-04 | Re-verification — all 8 checks PASS |
 | crew-sprint-20260605 | 2026-06-05 | Re-verification — all 8 checks PASS |
 | crew-sprint-20260608 | 2026-06-08 | Re-verification — all 8 checks PASS |
-| crew-sprint-20260610 | 2026-06-10 | Re-verification — all 8 checks PASS |
+| crew-sprint-20260610 | 2026-06-10 | Re-verification — all 8 checks PASS (PR #101 merged) |
+| crew-sprint-20260611 | 2026-06-11 | Re-verification — all 8 checks PASS (PR #105 open) |
+| crew-sprint-20260612 | 2026-06-12 | Re-verification — all 8 checks PASS |
+| crew-sprint-20260615 | 2026-06-15 | Re-verification — all 8 checks PASS |
+| crew-sprint-20260616 | 2026-06-16 | Re-verification — all 8 checks PASS |
+| crew-sprint-20260617 | 2026-06-17 | Re-verification — all 8 checks PASS |
+| crew-sprint-20260618 | 2026-06-18 | Re-verification — all 8 checks PASS |
+| crew-sprint-20260619 | 2026-06-19 | All 8 checks PASS — aria-hidden spans on button emojis confirmed |
+| crew-sprint-20260622 | 2026-06-22 | Re-verification — all 8 checks PASS |
+| crew-sprint-20260623 | 2026-06-23 | Re-verification — all 8 checks PASS |
+| crew-sprint-20260624 | 2026-06-24 | Re-verification — all 8 checks PASS |
+| crew-sprint-20260625 | 2026-06-25 | Re-verification — all 8 checks PASS |
+| crew-sprint-20260626 | 2026-06-26 | Re-verification — all 8 checks PASS |
+| crew-sprint-20260629 | 2026-06-29 | Re-verification — all 8 checks PASS |
+| crew-sprint-20260630 | 2026-06-30 | Re-verification — all 8 checks PASS |
+| crew-sprint-20260702 | 2026-07-02 | Re-verification — all 8 checks PASS |
+| crew-sprint-20260703 | 2026-07-03 | Re-verification — all 8 checks PASS |
 
 ---
 
