@@ -17,6 +17,15 @@ export default defineConfig({
       ['test/web-bot-auth.test.ts', 'node'],
     ],
     coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html', 'lcov', 'json-summary'],
+      reportsDirectory: './coverage',
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: [
+        'src/**/*.d.ts',
+        'src/**/index.ts', // barrel files — re-exports only
+        'src/svelte/**', // .svelte files not processed by v8
+      ],
       thresholds: {
         branches: 80,
         functions: 80,
