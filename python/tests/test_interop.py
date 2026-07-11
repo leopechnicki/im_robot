@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from imrobot import execute_operation, execute_pipeline, fnv1a, hmac_sign, solve_challenge
 
-
 # ---------------------------------------------------------------------------
 # FNV-1a fixtures — verified against JS `fnv1a()` output
 # ---------------------------------------------------------------------------

@@ -153,7 +153,10 @@ def require_agent(
         previous_secrets=previous_secrets,
     )
 
-    async def _dep(request: Request) -> dict[str, Any]:  # type: ignore[valid-type]
+    async def _dep(request: Any) -> dict[str, Any]:
+        # `request` is a starlette/FastAPI Request. We use Any here (not
+        # Request) because the FastAPI import is closure-scoped for optional
+        # peer dependency — mypy can't see the type in the outer scope.
         if bypass is not None:
             skip = await bypass(request)
             if skip:
