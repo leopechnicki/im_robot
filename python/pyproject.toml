@@ -1,0 +1,83 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "imrobot"
+version = "0.1.0"
+description = "Reverse-CAPTCHA for AI agents -- verify bots, not humans."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.9"
+authors = [
+    { name = "Leo Pechnicki", email = "leopsantos@hotmail.com" },
+]
+keywords = [
+    "captcha",
+    "reverse-captcha",
+    "bot",
+    "ai",
+    "agent",
+    "verification",
+    "hmac",
+    "proof-of-agent",
+    "middleware",
+    "langchain",
+    "crewai",
+    "autogpt",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Typing :: Typed",
+]
+
+[project.optional-dependencies]
+fastapi = ["fastapi>=0.100.0", "pydantic>=2.0.0"]
+server = []
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "mypy>=1.0",
+    "ruff>=0.1.0",
+]
+all = ["imrobot[fastapi,dev]"]
+
+[project.urls]
+Homepage = "https://github.com/leopechnicki/im_robot"
+Documentation = "https://github.com/leopechnicki/im_robot/tree/main/python"
+Repository = "https://github.com/leopechnicki/im_robot"
+Issues = "https://github.com/leopechnicki/im_robot/issues"
+npm = "https://www.npmjs.com/package/imrobot"
+
+[tool.hatch.build.targets.wheel]
+packages = ["imrobot"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.mypy]
+python_version = "3.9"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
