@@ -62,10 +62,7 @@ export interface HonoContext {
 }
 
 /** Hono middleware handler shape. */
-export type HonoMiddleware = (
-  c: HonoContext,
-  next: () => Promise<void>,
-) => Promise<Response | void>
+export type HonoMiddleware = (c: HonoContext, next: () => Promise<void>) => Promise<Response | void>
 
 /** Hono handler shape (leaf routes). */
 export type HonoHandler = (c: HonoContext) => Promise<Response> | Response
