@@ -46,6 +46,11 @@
       "import": "./dist/next/index.js",
       "require": "./dist/next/index.cjs"
     },
+    "./hono": {
+      "types": "./dist/hono/index.d.ts",
+      "import": "./dist/hono/index.js",
+      "require": "./dist/hono/index.cjs"
+    },
     "./mcp": {
       "types": "./dist/mcp/index.d.ts",
       "import": "./dist/mcp/index.js",
@@ -89,6 +94,8 @@
     "jwt",
     "proof-of-agent",
     "middleware",
+    "hono",
+    "bun",
     "cli",
     "invisible",
     "crypto"
@@ -114,7 +121,8 @@
     "svelte": ">=3.0.0",
     "ioredis": ">=5.0.0",
     "@opentelemetry/api": ">=1.0.0",
-    "next": ">=13.0.0"
+    "next": ">=13.0.0",
+    "hono": ">=4.0.0"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -136,6 +144,9 @@
       "optional": true
     },
     "next": {
+      "optional": true
+    },
+    "hono": {
       "optional": true
     }
   },

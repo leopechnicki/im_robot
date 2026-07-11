@@ -10,15 +10,15 @@ export default defineConfig([
       'web-component/index': 'src/web-component/index.ts',
       'server/index': 'src/server/index.ts',
       'next/index': 'src/next/index.ts',
+      'hono/index': 'src/hono/index.ts',
       'mcp/index': 'src/mcp/index.ts',
-      'next/index': 'src/next/index.ts',
     },
     format: ['esm', 'cjs'],
     dts: true,
     splitting: false,
     clean: true,
-    // `next` is `import type`-only in src/next/**; mark as external so the build does not
-    // require `next` at compile time. Consumers with Next.js installed resolve the types.
+    // `next` and `hono` are `import type`-only in src/**; mark as external so the build does not
+    // require them at compile time. Consumers with the framework installed resolve the types.
     external: [
       'react',
       'react-dom',
@@ -28,6 +28,7 @@ export default defineConfig([
       '@opentelemetry/api',
       'next',
       'next/server',
+      'hono',
     ],
     treeshake: true,
     sourcemap: true,
