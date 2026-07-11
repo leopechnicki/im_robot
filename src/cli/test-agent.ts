@@ -47,10 +47,7 @@ const MAX_HTML_BYTES = 512_000 // 512 KB — enough to catch head + first conten
 
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error(`${label} timed out after ${ms}ms`)),
-      ms,
-    )
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
     p.then(
       (v) => {
         clearTimeout(timer)
