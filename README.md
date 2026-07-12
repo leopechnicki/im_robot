@@ -1,8 +1,8 @@
 <div align="center">
 
-# 🤖 imrobot
+# ðŸ¤– imrobot
 
-**Reverse-CAPTCHA for AI agents — verify bots, not humans.**
+**Reverse-CAPTCHA for AI agents â€” verify bots, not humans.**
 
 [![npm version](https://img.shields.io/npm/v/imrobot.svg?style=flat-square&color=3b82f6)](https://www.npmjs.com/package/imrobot)
 [![npm downloads](https://img.shields.io/npm/dw/imrobot.svg?style=flat-square&color=10b981)](https://www.npmjs.com/package/imrobot)
@@ -10,13 +10,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-100%25-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://github.com/leopechnicki/im_robot)
 [![zero dependencies](https://img.shields.io/badge/dependencies-0-22c55e?style=flat-square)](https://www.npmjs.com/package/imrobot)
 
-### [Try the Live Playground →](https://imrobot.vercel.app)
-
-See it solve a challenge in real time. No install needed.
-
----
-
-[npm](https://www.npmjs.com/package/imrobot) · [Dev.to Article](https://dev.to/leo_pechnicki/why-i-built-a-captcha-that-only-bots-can-solve-30np) · [Changelog](./CHANGELOG.md)
+[Live Demo](https://imrobot.vercel.app) Â· [npm](https://www.npmjs.com/package/imrobot) Â· [Dev.to Article](https://dev.to/leo_pechnicki/why-i-built-a-captcha-that-only-bots-can-solve-30np)
 
 </div>
 
@@ -26,28 +20,13 @@ See it solve a challenge in real time. No install needed.
 
 Traditional CAPTCHAs prove you're human. But what about the opposite?
 
-As AI agents become first-class web citizens — browsing, booking, purchasing, automating — some systems need to gate access to **agent-facing endpoints** without forcing every caller to enroll a key. Think agent-only APIs, AI-only platforms, or multi-agent authentication.
+As AI agents become first-class web citizens â€” browsing, booking, purchasing, automating â€” some systems need to verify their visitors are **legitimate AI agents**, not humans trying to bypass agent-only access. Think agent-facing APIs, AI-only platforms, or multi-agent authentication.
 
 **imrobot** flips the CAPTCHA model: it generates deterministic challenge pipelines that are trivial for any LLM or programmatic agent to solve (< 1 second), but impractical for humans to work through manually.
 
-### What this protocol does and doesn't prove
-
-- ✅ Proves the caller can **execute a deterministic compute pipeline** (string transforms, bytewise ops, hashing) end-to-end without human interaction.
-- ✅ Proves the verification request was **issued by a server holding the same HMAC secret** (no cross-site replay).
-- ✅ Issues a **standards-compliant JWT** (RFC 7519, HS256) that downstream services can verify with any JWT library.
-- ⚠️ Does **not** cryptographically identify a specific bot — anyone who can run JS in a browser console can call `solveChallenge()` and pass.
-- ⚠️ Does **not** replace cryptographic agent identity. For verified-bot identity, layer this with [Cloudflare's Web Bot Auth](https://developers.cloudflare.com/bots/concepts/bot/verified-bots/web-bot-auth/) (HTTP Message Signatures, RFC 9421), mTLS, or per-agent OAuth credentials.
-- ⚠️ The `sha256_hash` operation is **misnamed for historical reasons** — it cascades FNV-1a 8 times into 64 hex characters; it is **not** RFC 6234 SHA-256. Use `fnv1a_cascade` in new code (same wire output).
-
-The library's positioning is "zero-enrollment behavioural gate that survives serialization" — not "cryptographic proof of bot identity." Use the right tool for the job.
-
-### Protocol versioning
-
-The `version` field on the discovery document (`/.well-known/imrobot.json`) is the protocol version, not the package version. The current protocol version is `1.0`. Backwards-incompatible wire-format changes will bump the major.
-
 ## How it works
 
-imrobot generates a pipeline of deterministic operations (string transforms, byte operations, hashing, and more) applied to a random seed. AI agents parse the structured challenge data, execute the pipeline, and submit the result. Humans would need to manually compute multi-step transformations — practically impossible without tools.
+imrobot generates a pipeline of deterministic operations (string transforms, byte operations, hashing, and more) applied to a random seed. AI agents parse the structured challenge data, execute the pipeline, and submit the result. Humans would need to manually compute multi-step transformations â€” practically impossible without tools.
 
 ```
 seed: "a7f3b2c1d4e5f609"
@@ -66,102 +45,6 @@ The challenge data is embedded in the DOM via `data-imrobot-challenge` attribute
 npm install imrobot                # JS/TS SDK (Node, Bun, Deno, Cloudflare Workers, browsers)
 pip install imrobot                # Python SDK — LangChain / CrewAI / AutoGPT / FastAPI
 pip install "imrobot[fastapi]"     # + FastAPI middleware
-```
-
-## Quick Demo
-
-A complete working example: protect an Express.js route so only verified AI agents can access it.
-
-**1. Set up the server**
-
-```typescript
-// server.ts
-import express from 'express'
-import { createAgentRouter, requireAgent, ChallengeReplayGuard } from 'imrobot/server'
-
-const app = express()
-app.use(express.json())
-
-// Mount challenge + verify endpoints under /imrobot
-const agentRouter = createAgentRouter({
-  secret: process.env.IMROBOT_SECRET!, // e.g. "my-32-char-secret-key-goes-here"
-  rateLimit: { windowMs: 60_000, maxRequests: 30 },
-  // Rejects any second verification of the same challenge — recommended in production.
-  // Without this, captured {challenge, answer} payloads can be replayed until challenge TTL.
-  replayGuard: new ChallengeReplayGuard(),
-})
-app.get('/imrobot/challenge', agentRouter.challenge)
-app.post('/imrobot/verify', agentRouter.verify)
-
-// Protect a route — only agents with a valid proof token can enter
-const agentOnly = requireAgent({ secret: process.env.IMROBOT_SECRET! })
-
-app.get('/api/agent-data', agentOnly, (req, res) => {
-  res.json({ secret: 'only bots see this', agent: req.agentProof })
-})
-
-app.listen(3000, () => console.log('Server on :3000'))
-```
-
-**2. Agent solves the challenge (copy-paste runnable)**
-
-```typescript
-// agent.ts — run this from any TypeScript/JavaScript environment
-import { solveChallenge } from 'imrobot/core'
-
-const BASE = 'http://localhost:3000'
-
-// Step 1: fetch a signed challenge from the server
-const { challenge } = await fetch(`${BASE}/imrobot/challenge`).then(r => r.json())
-
-// Step 2: solve the pipeline deterministically (< 1ms)
-const answer = solveChallenge(challenge)
-
-// Step 3: submit the answer and receive a proof token (JWT)
-const { token } = await fetch(`${BASE}/imrobot/verify`, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ challenge, answer }),
-}).then(r => r.json())
-
-console.log('Got proof token:', token)
-// eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-
-// Step 4: call the protected endpoint
-const data = await fetch(`${BASE}/api/agent-data`, {
-  headers: { 'X-Agent-Proof': token },
-}).then(r => r.json())
-
-console.log(data)
-// { secret: 'only bots see this', agent: { challengeId: 'ch_...', difficulty: 'medium', ... } }
-```
-
-**What happens end-to-end:**
-
-```
-Agent                          Server
-  |                               |
-  |-- GET /imrobot/challenge ---→ |  generates HMAC-signed challenge
-  |← { challenge }  ------------ |  { id, seed, pipeline, signature, expiresAt }
-  |                               |
-  |  solveChallenge(challenge)    |  (local, < 1ms)
-  |  answer = "3F9A..."           |
-  |                               |
-  |-- POST /imrobot/verify -----→ |  verifies HMAC, answer, expiry, replay guard
-  |← { token: "eyJ..." } ------- |  issues HS256 JWT (X-Agent-Proof)
-  |                               |
-  |-- GET /api/agent-data ------→ |  requireAgent middleware validates JWT
-  |← { secret: "..." } --------- |  route handler runs
-```
-
-**Try it in 30 seconds with the CLI:**
-
-```bash
-npx imrobot solve --difficulty medium
-# Solved in 0.4ms → answer: "3F9A8C..."
-
-npx imrobot benchmark --count 1000
-# 1000 challenges solved, avg 0.31ms, p99 0.8ms
 ```
 
 ## Quick start
@@ -243,7 +126,7 @@ const isValid = verifyAnswer(challenge, answer) // true
 
 ### Server SDK (HMAC-signed verification)
 
-For production use, the server SDK provides tamper-proof, stateless challenge verification using HMAC-SHA256. No database required — the cryptographic signature ensures integrity.
+For production use, the server SDK provides tamper-proof, stateless challenge verification using HMAC-SHA256. No database required â€” the cryptographic signature ensures integrity.
 
 ```ts
 import { createVerifier } from 'imrobot/server'
@@ -269,36 +152,11 @@ app.post('/api/verify', async (req, res) => {
 })
 ```
 
-The server verifier checks in order: HMAC signature validity (challenge and pipeline not tampered), expiration (challenge not expired), answer correctness (pipeline re-executed), and replay detection (duplicate challenge IDs are rejected when a replay guard is configured). A different secret on a different server will reject the challenge — preventing cross-site replay attacks.
+The server verifier checks in order: HMAC signature validity (challenge and pipeline not tampered), expiration (challenge not expired), answer correctness (pipeline re-executed), and replay detection (duplicate challenge IDs are rejected when a replay guard is configured). A different secret on a different server will reject the challenge â€” preventing cross-site replay attacks.
 
 ### Middleware & Proof-of-Agent tokens
 
-Protect your API endpoints with framework-agnostic middleware. Verified agents receive a **standards-compliant JWT** (RFC 7519, `alg: HS256`) that they pass via `X-Agent-Proof` header on subsequent requests. The token decodes cleanly with any JWT library (`jose`, `jsonwebtoken`, `jwt-decode`, ...).
-
-Token shape:
-
-```json
-// Header
-{ "alg": "HS256", "typ": "JWT", "kid": "k-2026-04" }
-
-// Payload (claims in seconds-since-epoch per RFC 7519 §4.1.4)
-{
-  "iss": "imrobot",
-  "sub": "agent_123",
-  "iat": 1711540860,
-  "nbf": 1711540860,
-  "exp": 1711544460,
-  "jti": "imr_abcd1234",
-  "imr": {
-    "challenge_id": "ch_abc",
-    "difficulty": "hard",
-    "solve_time_ms": 42,
-    "suspicious": false,
-    "version": 2,
-    "turnstile_verified": true
-  }
-}
-```
+Protect your API endpoints with framework-agnostic middleware. Verified agents receive a JWT-like Proof-of-Agent token (HMAC-SHA256 signed) that they pass via `X-Agent-Proof` header on subsequent requests.
 
 ```ts
 import { requireAgent, createAgentRouter } from 'imrobot/server'
@@ -311,7 +169,7 @@ const router = createAgentRouter({
 app.get('/imrobot/challenge', router.challenge)
 app.post('/imrobot/verify', router.verify)
 
-// Protect routes — only verified agents can access
+// Protect routes â€” only verified agents can access
 const agentOnly = requireAgent({
   secret: process.env.IMROBOT_SECRET!,
   rateLimit: { windowMs: 60_000, maxRequests: 30 },
@@ -352,18 +210,18 @@ import { createAgentRouter } from 'imrobot/server'
 
 const router = createAgentRouter({ secret: process.env.IMROBOT_SECRET! })
 
-// Routes GET → /challenge and POST → /verify under one path
+// Routes GET â†’ /challenge and POST â†’ /verify under one path
 app.use('/imrobot', router.handler)
 ```
 
 The handler automatically routes based on HTTP method:
-- **GET** → challenge endpoint (returns a signed challenge)
-- **POST** → verify endpoint (verifies answer, returns proof token)
-- **Other methods** → 405 Method Not Allowed
+- **GET** â†’ challenge endpoint (returns a signed challenge)
+- **POST** â†’ verify endpoint (verifies answer, returns proof token)
+- **Other methods** â†’ 405 Method Not Allowed
 
 ### Rate limiting
 
-Both `createAgentRouter` and `requireAgent` support built-in **sliding-window** rate limiting to protect against brute-force attacks and request flooding. The rate limiter is in-memory, zero-dependency, and avoids the 2× boundary burst that fixed-window counters allow.
+Both `createAgentRouter` and `requireAgent` support built-in rate limiting to protect against brute-force attacks and request flooding. The rate limiter is in-memory with zero external dependencies.
 
 ```ts
 import { createAgentRouter } from 'imrobot/server'
@@ -378,7 +236,7 @@ const router = createAgentRouter({
 })
 ```
 
-When a client exceeds the limit, they receive a `429 Too Many Requests` response with standard headers. `X-RateLimit-Reset` is in **seconds since epoch** (matching the GitHub / IETF convention), and `Retry-After` is in seconds (RFC 6585):
+When a client exceeds the limit, they receive a `429 Too Many Requests` response with standard headers:
 
 ```
 HTTP/1.1 429 Too Many Requests
@@ -407,144 +265,9 @@ const status = limiter.getStatus(clientIp)
 | ---------------- | --------------- | ------- | ---------------------------------------- |
 | `windowMs`       | `number`        | `60000` | Sliding window duration in ms            |
 | `maxRequests`    | `number`        | `30`    | Max requests per window per key          |
-| `onLimitReached` | `(key) => void` | —       | Callback when a client exceeds the limit |
+| `onLimitReached` | `(key) => void` | â€”       | Callback when a client exceeds the limit |
 
 Expired entries are automatically cleaned up to prevent memory leaks in long-running servers.
-
-### Cloudflare Turnstile integration
-
-`createAgentRouter` optionally integrates with [Cloudflare Turnstile](https://developers.cloudflare.com/turnstile/) — a privacy-preserving CAPTCHA alternative — as an extra human-verification layer alongside the imrobot proof-of-work challenge.
-
-When configured, the `/verify` endpoint reads the `cf-turnstile-response` header, validates the token against Cloudflare's siteverify API, and stamps the result (`turnstile_verified: true/false`) into the issued proof token. Zero external dependencies — uses Node 18+ native `fetch`.
-
-```ts
-import { createAgentRouter } from 'imrobot/server'
-
-const router = createAgentRouter({
-  secret: process.env.IMROBOT_SECRET!,
-  turnstile: {
-    // Load from env — never hardcode. Must be ≥16 non-whitespace characters.
-    secretKey: process.env.TURNSTILE_SECRET_KEY!,
-    tokenHeader: 'cf-turnstile-response', // default, matches Cloudflare widget output
-    required: false,                       // default — non-breaking, won't block existing clients
-    timeoutMs: 5000,                       // siteverify timeout (default 5s; 0 disables)
-  },
-})
-```
-
-The siteverify call uses an `AbortController` with a configurable `timeoutMs` so a slow Cloudflare response can never hang your verify endpoint. On timeout the result is `{ success: false, errorCodes: ['timeout'] }` and the request is treated like any other Turnstile failure (per your `required` setting).
-
-On the client side, include the Turnstile widget and pass its token as a request header:
-
-```html
-<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-
-<div class="cf-turnstile" data-sitekey="YOUR_SITE_KEY" data-callback="onTurnstileSuccess"></div>
-
-<script>
-  function onTurnstileSuccess(token) {
-    // Pass token when submitting the imrobot verify request
-    fetch('/imrobot/verify', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'cf-turnstile-response': token,
-      },
-      body: JSON.stringify({ challenge, answer }),
-    })
-  }
-</script>
-```
-
-The standalone `TurnstileVerifier` class and `verifyTurnstileToken` function are also exported for use outside of `createAgentRouter`:
-
-```ts
-import { TurnstileVerifier, verifyTurnstileToken } from 'imrobot/server'
-
-// Class-based
-const verifier = new TurnstileVerifier({
-  secretKey: process.env.TURNSTILE_SECRET_KEY!,
-})
-const result = await verifier.verify(cfToken, clientIp)
-// { success: true, hostname: 'example.com', challenge_ts: '...', errorCodes: [] }
-
-// Standalone function
-const result = await verifyTurnstileToken(secretKey, cfToken, clientIp)
-```
-
-**Behaviour by `required` flag:**
-
-| `required` | Token absent | Token invalid | Token valid |
-|---|---|---|---|
-| `false` (default) | token issued, no `turnstile_verified` flag | token issued, `turnstile_verified: false` | token issued, `turnstile_verified: true` |
-| `true` | `400 TURNSTILE_TOKEN_REQUIRED` | `400 TURNSTILE_VERIFICATION_FAILED` | token issued, `turnstile_verified: true` |
-
-Set `required: false` initially for a non-breaking rollout — you can enforce it once all clients send the header.
-
-> **Security note:** The secret key must always be loaded from `process.env.TURNSTILE_SECRET_KEY`. Never hardcode it.
-
-### Key rotation (`kid`) and clock skew
-
-Both `requireAgent` and `createAgentRouter` accept a `keyId` (embedded as `kid` in the JWT header) and a `previousSecrets` array so you can rotate signing secrets without invalidating outstanding tokens:
-
-```ts
-const router = createAgentRouter({
-  secret: process.env.IMROBOT_SECRET!,         // active key
-  keyId: 'k-2026-04',                          // identifies the active key
-  previousSecrets: [
-    { keyId: 'k-2026-01', secret: process.env.IMROBOT_SECRET_PREV! },
-  ],
-  clockSkewSec: 5,                             // tolerate ±5s drift on iat/nbf/exp (default 5, max 300)
-})
-```
-
-- New tokens are signed with `secret` and stamped with `kid: keyId`.
-- Verification looks up the secret by the token's `kid`. If `kid` is unknown the request is rejected with `403`.
-- Tokens issued before you started setting `keyId` (no `kid` header) verify against the active `secret`.
-
-Roll a key by deploying with the new `secret`/`keyId` while moving the previous one into `previousSecrets`. Once your max token TTL has elapsed, you can drop the old entry.
-
-### Web Bot Auth (verify cryptographically-signed agents)
-
-The industry is converging on [Web Bot Auth](https://datatracker.ietf.org/doc/draft-meunier-web-bot-auth-architecture/) (an IETF effort backed by Cloudflare, Google, AWS, Vercel, Shopify, and OpenAI) — agents sign their requests with an Ed25519 key ([RFC 9421 HTTP Message Signatures](https://www.rfc-editor.org/rfc/rfc9421)) and publish the public key at a `.well-known/http-message-signatures-directory`. imrobot can verify those signatures directly, so you can recognise a trusted signed agent (OpenAI Operator, Cloudflare signed agents, etc.) instead of challenging it.
-
-```ts
-import { WebBotAuthVerifier } from 'imrobot/server'
-
-const verifier = new WebBotAuthVerifier({
-  directoryUrl: 'https://my-agent.example/.well-known/http-message-signatures-directory',
-})
-
-// `req` only needs { method, url, headers } — Express, Koa, raw Node, etc.
-const result = await verifier.verify(req)
-if (result.verified) {
-  // Trusted signed agent — skip the imrobot challenge entirely
-  console.log('Signed agent verified, keyid:', result.keyid)
-}
-```
-
-The verifier reconstructs the signature base from the covered components (`@method`, `@authority`, `@path`, `@query`, and any header field), fetches the key directory (cached, default 5 min), and verifies the Ed25519 signature with Web Crypto — zero external dependencies. On failure, `result.reason` is one of `no_signature`, `malformed`, `unsupported_alg`, `tag_mismatch`, `not_yet_valid`, `expired`, `unknown_key`, `directory_error`, or `bad_signature`.
-
-A standalone `verifyWebBotAuthSignature(req, config)` is also exported.
-
-#### As a layer on `createAgentRouter`
-
-Web Bot Auth can run alongside the challenge flow. When configured, the `/verify` endpoint checks for a signature and stamps `web_bot_auth_verified` into the issued proof token (mirroring the Turnstile integration):
-
-```ts
-const router = createAgentRouter({
-  secret: process.env.IMROBOT_SECRET!,
-  webBotAuth: {
-    directoryUrl: 'https://my-agent.example/.well-known/http-message-signatures-directory',
-    required: false, // default — record the result but don't block unsigned callers
-  },
-})
-```
-
-| `required` | Signature absent | Signature invalid | Signature valid |
-|---|---|---|---|
-| `false` (default) | token issued, no flag | token issued, `web_bot_auth_verified: false` | token issued, `web_bot_auth_verified: true` |
-| `true` | `400 WEB_BOT_AUTH_REQUIRED` | `400 WEB_BOT_AUTH_VERIFICATION_FAILED` | token issued, `web_bot_auth_verified: true` |
 
 ### Invisible verification (zero-UI)
 
@@ -625,33 +348,15 @@ const doc = buildDiscoveryDocument({ challengePath: '/imrobot' })
 // Serve `doc` as JSON at /.well-known/imrobot.json
 ```
 
-`createDiscoveryHandler` sets sensible defaults so third-party agents can fetch the document from any origin and cache it:
-
-```
-Content-Type: application/json; charset=utf-8
-Cache-Control: public, max-age=3600
-Access-Control-Allow-Origin: *
-Vary: Origin
-```
-
-Override either with `cacheControl` / `corsOrigin`. Pass `null` to omit:
-
-```ts
-createDiscoveryHandler({
-  cacheControl: 'no-store',                  // disable caching
-  corsOrigin: 'https://agents.example.com',  // restrict CORS
-})
-```
-
 ## Screenshot protection
 
 The challenge text is **blurred by default** and only revealed when the user hovers over it. This defeats screenshot-based attacks (screen capture tools, CDP screenshots, PrintScreen) since the captured image shows only blurred content.
 
 An additional JavaScript shield detects screenshot shortcuts (PrintScreen, Cmd+Shift+3/4/5, Ctrl+Shift+S) and window blur/visibility changes, applying an extra blur layer that overrides even the hover state.
 
-Combined with the hidden nonce (not displayed visually) and TTL expiry, this makes screenshot+OCR workflows ineffective — even if the blur were bypassed, the nonce is missing from the visual output.
+Combined with the hidden nonce (not displayed visually) and TTL expiry, this makes screenshot+OCR workflows ineffective â€” even if the blur were bypassed, the nonce is missing from the visual output.
 
-> **Note:** AI agents are unaffected — they read challenge data from the DOM, not from the screen.
+> **Note:** AI agents are unaffected â€” they read challenge data from the DOM, not from the screen.
 
 ### Using the shield in vanilla JS
 
@@ -670,10 +375,10 @@ const cleanup = setupScreenshotShield((shielded) => {
 
 ## How agents interact with it
 
-AI agents read the challenge data directly from the DOM via the `data-imrobot-challenge` attribute — they never need to "see" the visual text, so blur has no effect on them.
+AI agents read the challenge data directly from the DOM via the `data-imrobot-challenge` attribute â€” they never need to "see" the visual text, so blur has no effect on them.
 
 1. **Read the challenge** from `data-imrobot-challenge` attribute (JSON)
-2. **Execute the pipeline** — each operation is a deterministic transform
+2. **Execute the pipeline** â€” each operation is a deterministic transform
 3. **Submit the answer** via the input field or programmatically
 
 ```js
@@ -710,9 +415,9 @@ console.log(formatPipelineNL(challenge.visibleSeed, challenge.pipeline))
 //  ..."
 ```
 
-Every operation has 3–4 distinct phrasings that are randomly selected on each call, so the display text varies unpredictably. Agents must parse the JSON `pipeline` (unaffected), while regex scraping of the visual text becomes unreliable.
+Every operation has 3â€“4 distinct phrasings that are randomly selected on each call, so the display text varies unpredictably. Agents must parse the JSON `pipeline` (unaffected), while regex scraping of the visual text becomes unreliable.
 
-> **Tip:** The original programmatic functions `formatOperation` / `formatPipeline` remain unchanged — use them when you need a stable, deterministic format.
+> **Tip:** The original programmatic functions `formatOperation` / `formatPipeline` remain unchanged â€” use them when you need a stable, deterministic format.
 
 ## Operations reference
 
@@ -720,41 +425,38 @@ Every operation has 3–4 distinct phrasings that are randomly selected on each 
 
 | Operation            | Description             | Example                  |
 | -------------------- | ----------------------- | ------------------------ |
-| `reverse()`          | Reverse the string      | `"abc"` → `"cba"`        |
-| `to_upper()`         | Convert to uppercase    | `"abc"` → `"ABC"`        |
-| `to_lower()`         | Convert to lowercase    | `"ABC"` → `"abc"`        |
-| `base64_encode()`    | Base64 encode           | `"hello"` → `"aGVsbG8="` |
-| `rot13()`            | ROT13 cipher            | `"hello"` → `"uryyb"`    |
-| `hex_encode()`       | Hex encode each char    | `"AB"` → `"4142"`        |
-| `sort_chars()`       | Sort characters         | `"dcba"` → `"abcd"`      |
-| `char_code_sum()`    | Sum of char codes       | `"AB"` → `"131"`         |
-| `substring(s, e)`    | Extract substring       | `"abcdef"` → `"cde"`     |
-| `repeat(n)`          | Repeat string n times   | `"ab"` → `"ababab"`      |
-| `replace(s, r)`      | Replace all occurrences | `"aab"` → `"xxb"`        |
-| `pad_start(len, ch)` | Pad start to length     | `"abc"` → `"000abc"`     |
-| `vowel_count()`      | Count vowels            | `"hello"` → `"2"`        |
-| `consonant_extract()`| Extract consonants only | `"hello"` → `"hll"`      |
-| `run_length_encode()` | Run-length encode      | `"aaabb"` → `"3a2b"`     |
-| `atbash()`           | Atbash cipher (a↔z)    | `"abc"` → `"zyx"`        |
+| `reverse()`          | Reverse the string      | `"abc"` â†’ `"cba"`        |
+| `to_upper()`         | Convert to uppercase    | `"abc"` â†’ `"ABC"`        |
+| `to_lower()`         | Convert to lowercase    | `"ABC"` â†’ `"abc"`        |
+| `base64_encode()`    | Base64 encode           | `"hello"` â†’ `"aGVsbG8="` |
+| `rot13()`            | ROT13 cipher            | `"hello"` â†’ `"uryyb"`    |
+| `hex_encode()`       | Hex encode each char    | `"AB"` â†’ `"4142"`        |
+| `sort_chars()`       | Sort characters         | `"dcba"` â†’ `"abcd"`      |
+| `char_code_sum()`    | Sum of char codes       | `"AB"` â†’ `"131"`         |
+| `substring(s, e)`    | Extract substring       | `"abcdef"` â†’ `"cde"`     |
+| `repeat(n)`          | Repeat string n times   | `"ab"` â†’ `"ababab"`      |
+| `replace(s, r)`      | Replace all occurrences | `"aab"` â†’ `"xxb"`        |
+| `pad_start(len, ch)` | Pad start to length     | `"abc"` â†’ `"000abc"`     |
+| `vowel_count()`      | Count vowels            | `"hello"` â†’ `"2"`        |
+| `consonant_extract()`| Extract consonants only | `"hello"` â†’ `"hll"`      |
+| `run_length_encode()` | Run-length encode      | `"aaabb"` â†’ `"3a2b"`     |
+| `atbash()`           | Atbash cipher (aâ†”z)    | `"abc"` â†’ `"zyx"`        |
 
 ### Byte & cipher operations
 
 | Operation            | Description                           | Example                         |
 | -------------------- | ------------------------------------- | ------------------------------- |
-| `caesar(shift)`      | Caesar cipher with configurable shift | `"abc"` + shift 1 → `"bcd"`     |
-| `xor_encode(key)`    | XOR each byte with key                | `"AB"` + key 1 → `"@C"`         |
-| `count_chars(char)`  | Count occurrences of a char           | `"aababc"` + char `"a"` → `"3"` |
-| `slice_alternate()`  | Keep every other character            | `"abcdef"` → `"ace"`            |
-| `fnv1a_hash()`       | FNV-1a hash of the string             | `"test"` → `"bc2c0be9"`         |
-| `length()`           | String length as string               | `"hello"` → `"5"`               |
-| `fnv1a_cascade()`    | Cascaded FNV-1a, 8 rounds → 64 hex chars | deterministic hex output     |
-| `sha256_hash()`      | **Misnomer — alias of `fnv1a_cascade()`.** Kept for wire-format compatibility. NOT real SHA-256. | identical output to `fnv1a_cascade` |
-| `byte_xor(key[])`    | XOR each byte with key array (cycling) | byte-level encryption          |
+| `caesar(shift)`      | Caesar cipher with configurable shift | `"abc"` + shift 1 â†’ `"bcd"`     |
+| `xor_encode(key)`    | XOR each byte with key                | `"AB"` + key 1 â†’ `"@C"`         |
+| `count_chars(char)`  | Count occurrences of a char           | `"aababc"` + char `"a"` â†’ `"3"` |
+| `slice_alternate()`  | Keep every other character            | `"abcdef"` â†’ `"ace"`            |
+| `fnv1a_hash()`       | FNV-1a hash of the string             | `"test"` â†’ `"bc2c0be9"`         |
+| `length()`           | String length as string               | `"hello"` â†’ `"5"`               |
+| `sha256_hash()`      | Cascaded FNV-1a hash (256-bit output) | deterministic 64-char hex       |
+| `byte_xor(key[])`    | XOR each byte with key array          | byte-level encryption           |
 | `hash_chain(rounds)` | Iterated FNV-1a hash                  | cascaded hashing                |
-| `nibble_swap()`      | Swap high/low nibbles per byte        | `0xAB` → `0xBA`                 |
+| `nibble_swap()`      | Swap high/low nibbles per byte        | `0xAB` â†’ `0xBA`                 |
 | `bit_rotate(bits)`   | Rotate bits left within byte          | bitwise rotation                |
-
-> **About `sha256_hash`:** The op name is preserved for wire-format compatibility with already-issued challenges, but the implementation has always been FNV-1a cascaded 8 times — not RFC 6234 SHA-256. Use `fnv1a_cascade` in new code; both names produce identical output.
 
 ## Configuration
 
@@ -762,16 +464,16 @@ Every operation has 3–4 distinct phrasings that are randomly selected on each 
 | ------------ | --------------------------------- | -------------- | ---------------------------------------------------------------- |
 | `difficulty` | `'easy' \| 'medium' \| 'hard'`    | `'medium'`     | Number and complexity of operations                              |
 | `theme`      | `'light' \| 'dark'`               | `'light'`      | Color theme                                                      |
-| `size`       | `'compact' \| 'standard'`         | `'standard'`   | Widget size — `compact` for smaller footprint (320px). Supported by all four adapters (React, Vue, Svelte, Web Component). |
+| `size`       | `'compact' \| 'standard'`         | `'standard'`   | Widget size â€” `compact` for smaller footprint (320px)            |
 | `ttl`        | `number`                          | per-difficulty | Challenge time-to-live in ms (easy: 30s, medium: 20s, hard: 15s) |
-| `onVerified` | `(token) => void`                 | —              | Callback on successful verification                              |
-| `onError`    | `(error) => void`                 | —              | Callback on failed verification                                  |
+| `onVerified` | `(token) => void`                 | â€”              | Callback on successful verification                              |
+| `onError`    | `(error) => void`                 | â€”              | Callback on failed verification                                  |
 
 ### Difficulty levels
 
 - **easy**: 2-3 simple operations (reverse, case, sort, length, slice_alternate, vowel_count, atbash)
 - **medium**: 3-5 operations including encoding, extraction, caesar, char counting, consonant_extract, run_length_encode
-- **hard**: 5-7 operations including XOR encoding, hashing, replacement, padding, SHA-256, byte XOR, hash chains, nibble swap, and bit rotate
+- **hard**: 5-7 operations including XOR encoding, hashing, replacement, padding, cascaded FNV-1a (256-bit), byte XOR, hash chains, nibble swap, and bit rotate
 
 ## Server verification
 
@@ -786,7 +488,7 @@ const verifier = createVerifier({
   ttl: 10_000, // optional: override default TTL
 })
 
-// Generate → send to client → client solves → verify answer
+// Generate â†’ send to client â†’ client solves â†’ verify answer
 const challenge = await verifier.generate()
 const result = await verifier.verify(challenge, agentAnswer)
 ```
@@ -815,43 +517,9 @@ const verifier = createVerifier({
 
 The replay guard is in-memory with automatic expiry cleanup and `unref()`'d timers, so it won't keep the process alive. Call `replayGuard.destroy()` on shutdown to clear the cleanup interval.
 
-#### Redis replay guard (multi-instance deployments)
-
-For production deployments running multiple server instances, use `RedisReplayStore` instead of the default in-memory guard. It uses Redis `SET NX` with TTL for atomic, race-condition-safe replay detection that persists across restarts and works across all instances.
-
-Install `ioredis` (optional peer dependency):
-
-```bash
-npm install ioredis
-```
-
-```ts
-import Redis from 'ioredis'
-import { createVerifier, RedisReplayStore } from 'imrobot/server'
-
-const redis = new Redis({ host: 'localhost', port: 6379 })
-
-const replayGuard = new RedisReplayStore(redis, {
-  ttlMs: 5 * 60 * 1000,       // how long IDs stay in Redis (5 min)
-  keyPrefix: 'imrobot:replay:', // optional namespace prefix
-})
-
-// Verification is now async — use markUsedAsync directly, or plug in as a
-// custom middleware step before calling verifier.verify()
-const allowed = await replayGuard.markUsedAsync(challengeId)
-if (!allowed) {
-  return res.status(403).json({ error: 'Replay attack detected' })
-}
-
-// Shut down: close the Redis connection (not the store — it holds no resources)
-process.on('SIGTERM', () => redis.quit())
-```
-
-The `RedisReplayStore` exposes async methods (`markUsedAsync`, `isUsedAsync`, `deleteAsync`, `resetAsync`) to match Redis's inherently asynchronous I/O model. `destroy()` is a no-op — lifecycle of the Redis connection is owned by the caller.
-
 ### ChallengeAnalytics
 
-`ChallengeAnalytics` (exported from `imrobot/server`) is a lightweight, in-memory metrics tracker for monitoring challenge activity — generation rates, verification rates, solve-time percentiles, and failure-reason distributions. Zero external dependencies, memory-bounded (sliding window of configurable size).
+`ChallengeAnalytics` (exported from `imrobot/server`) is a lightweight, in-memory metrics tracker for monitoring challenge activity â€” generation rates, verification rates, solve-time percentiles, and failure-reason distributions. Zero external dependencies, memory-bounded (sliding window of configurable size).
 
 ```ts
 import { ChallengeAnalytics } from 'imrobot/server'
@@ -875,14 +543,14 @@ console.log(stats.byDifficulty.hard.failureReasons)   // { wrong_answer: 1 }
 // Export for dashboards / structured logging
 console.log(JSON.stringify(analytics.toJSON(), null, 2))
 
-// Periodic rotation — reset all counters
+// Periodic rotation â€” reset all counters
 analytics.reset()
 ```
 
 `getStats()` returns an `AnalyticsSnapshot` with:
-- **`summary`** — aggregate totals: `totalGenerated`, `totalVerified`, `totalFailed`, `totalExpired`, `totalSuspicious`, `verificationRate`, `avgSolveTimeMs`, `uptimeMs`
-- **`byDifficulty`** — per-difficulty `DifficultyStats` with min/max/p95 solve times and per-reason failure counts
-- **`collectedAt`** — Unix timestamp of the snapshot
+- **`summary`** â€” aggregate totals: `totalGenerated`, `totalVerified`, `totalFailed`, `totalExpired`, `totalSuspicious`, `verificationRate`, `avgSolveTimeMs`, `uptimeMs`
+- **`byDifficulty`** â€” per-difficulty `DifficultyStats` with min/max/p95 solve times and per-reason failure counts
+- **`collectedAt`** â€” Unix timestamp of the snapshot
 
 ### VerifyResult
 
@@ -914,7 +582,7 @@ interface ImRobotToken {
 
 ## Adaptive difficulty
 
-The adaptive difficulty engine auto-adjusts challenge difficulty per agent based on behavioral patterns — inspired by Arkose Labs (FunCaptcha) progressive difficulty and reCAPTCHA v3 risk scoring.
+The adaptive difficulty engine auto-adjusts challenge difficulty per agent based on behavioral patterns â€” inspired by Arkose Labs (FunCaptcha) progressive difficulty and reCAPTCHA v3 risk scoring.
 
 ```ts
 import { AdaptiveDifficulty } from 'imrobot/core'
@@ -980,7 +648,7 @@ const isCorrect = pool.verifyAnswer(challenge.id, userAnswer)
 
 Six challenge types are supported: `object_count`, `spatial_reasoning`, `color_identification`, `scene_description`, `text_recognition`, and `odd_one_out`. Each type includes built-in prompt templates that generate prompts with known ground truth.
 
-> **Warning:** The `openai` and `stability` providers are not yet implemented and will throw at runtime. Use `custom` or `static` providers instead.
+> **Warning:** The `openai` and `stability` providers are not yet implemented and will throw at runtime. Use `custom` or `static` providers instead. (Direct integration with these SaaS APIs is planned for a future release.)
 
 ## OpenTelemetry metrics
 
@@ -1218,7 +886,6 @@ Use those when you want the opposite: protect your service from bots and allow o
 | **Discovery endpoint** | Yes — `/.well-known/imrobot.json` (A2A-inspired Agent Card) | No |
 
 **Key difference:** imrobot is framework-agnostic, self-hostable, and issues standard JWTs. HATCHA is a managed SaaS product with a single web-component integration. If you need zero CDN dependencies, multi-framework support, or JWT tokens that any downstream service can verify without calling Monday.com's servers, imrobot is the right choice.
-
 ## Contributing
 
 Contributions are welcome! Feel free to open issues for bug reports or feature requests, or submit pull requests.
