@@ -4,6 +4,7 @@ import { formatPipeline } from '../core/operations'
 import { createVerifier } from '../server/verifier'
 import type { Difficulty } from '../core/types'
 import { CLI_VERSION } from './version'
+import { cmdTestAgent } from './test-agent'
 
 const HELP = `
 imrobot — Reverse-CAPTCHA CLI for AI Agent Verification
@@ -12,16 +13,18 @@ Usage:
   npx imrobot <command> [options]
 
 Commands:
-  challenge   Generate a test challenge
-  solve       Generate and immediately solve a challenge
-  verify      Verify an answer against a challenge
-  benchmark   Run a performance benchmark
-  info        Show project information
+  challenge    Generate a test challenge
+  solve        Generate and immediately solve a challenge
+  verify       Verify an answer against a challenge
+  benchmark    Run a performance benchmark
+  test-agent   Probe a URL to check whether it accepts AI agents via imrobot
+  info         Show project information
 
 Options:
   --difficulty <easy|medium|hard>   Difficulty level (default: medium)
   --count <n>                       Number of iterations for benchmark (default: 100)
   --secret <string>                 HMAC secret for server-mode verification
+  --json                            Print machine-readable JSON output (test-agent)
   --help                            Show this help message
 
 Examples:
@@ -29,10 +32,13 @@ Examples:
   npx imrobot solve --difficulty medium
   npx imrobot benchmark --count 1000
   npx imrobot verify --secret my-secret-at-least-16-chars
+  npx imrobot test-agent https://example.com
+  npx imrobot test-agent example.com --json
 `
 
 function parseArgs(args: string[]): Record<string, string> {
   const parsed: Record<string, string> = {}
+  const positionals: string[] = []
   for (let i = 0; i < args.length; i++) {
     if (args[i].startsWith('--') && i + 1 < args.length && !args[i + 1].startsWith('--')) {
       parsed[args[i].slice(2)] = args[i + 1]
@@ -41,7 +47,13 @@ function parseArgs(args: string[]): Record<string, string> {
       parsed[args[i].slice(2)] = 'true'
     } else if (!parsed._command) {
       parsed._command = args[i]
+    } else {
+      // extra positional args after the command (e.g., URL for test-agent)
+      positionals.push(args[i])
     }
+  }
+  if (positionals.length > 0) {
+    parsed._positional = positionals.join(' ')
   }
   return parsed
 }
@@ -195,6 +207,14 @@ async function main() {
   if (args.help === 'true' || command === 'help') {
     console.log(HELP)
     return
+  }
+
+  // test-agent takes a URL, not the standard --difficulty / --count args, so
+  // handle it before the strict parsers to avoid unnecessary errors.
+  if (command === 'test-agent') {
+    const url = args._positional || args.url
+    const exit = await cmdTestAgent(url, { json: args.json === 'true' })
+    process.exit(exit)
   }
 
   let difficulty: Difficulty

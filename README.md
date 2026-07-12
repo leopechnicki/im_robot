@@ -300,7 +300,19 @@ npx imrobot challenge --difficulty hard
 npx imrobot solve --difficulty medium
 npx imrobot benchmark --count 1000
 npx imrobot info
+
+# Probe any URL to check if it accepts AI agents via imrobot
+npx imrobot test-agent https://example.com
+npx imrobot test-agent example.com --json    # machine-readable output
 ```
+
+`test-agent` looks for (in order of confidence):
+
+1. `<origin>/.well-known/imrobot.json` — the strongest signal (protocol declared)
+2. A `data-imrobot-challenge` attribute in the HTML (embedded challenge)
+3. `<script>` tags referencing `imrobot`, or a `<meta name="imrobot">` tag
+
+Exit codes: `0` = accepts agents (yes/likely), `1` = no signals found, `2` = network/usage error. Useful in CI scripts.
 
 ### Agent discovery (`.well-known/imrobot.json`)
 
