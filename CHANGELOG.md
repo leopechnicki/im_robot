@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `formatOperation({ op: 'sha256_hash' })` documentation updated to make clear the operation uses cascaded FNV-1a, not RFC 6234 SHA-256. Wire format unchanged. (#124)
 - Demo site: accessibility and responsive polish — improved ARIA labels, focus management, mobile navigation, and layout at small viewports. (#119)
 
+### Fixed
+
+- Web component (`<imrobot-widget>`): the "✓ Verified" and "✗ Failed" status spans were rendering visibly stacked in the widget footer at initial idle state, before the user had attempted verification. The spans carried `hidden = true`, but the `.imrobot-status` class rule set `display: flex` with higher CSS specificity than the browser's UA `[hidden] { display: none }` — so the hide never took effect. Added an explicit `.imrobot-status[hidden] { display: none }` rule that re-asserts hiding for both status spans regardless of parent flex layout. Three new regression tests in `test/web-component.test.ts` lock in the fix (initial idle hides both, wrong answer shows only failed, correct answer shows only verified) by asserting `getComputedStyle(...).display` — not just the `hidden` attribute.
+
 ## [0.7.2] - 2026-07-12
 
 Republish of `0.7.1` after the auto-release publish guard landed in `#117`. No source changes vs `0.7.1`; the bump exists so that Friday's Auto Release workflow could ship the fixed publish pipeline as a clean version on npm.

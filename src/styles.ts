@@ -215,6 +215,14 @@ export function getStyles(theme: 'light' | 'dark', size?: WidgetSize): string {
       font-weight: 600;
       font-size: 13px;
     }
+    /* [hidden] must beat .imrobot-status's display:flex — otherwise the
+       initial idle state renders BOTH the "Verified" and "Failed" spans
+       stacked on top of the input before the user has attempted anything.
+       Browser UA default [hidden] { display:none } loses on specificity
+       to the class selector, so we re-assert it explicitly. */
+    .imrobot-status[hidden] {
+      display: none;
+    }
     .imrobot-status--verified {
       color: ${t.successColor};
     }

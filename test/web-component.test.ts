@@ -121,6 +121,62 @@ describe('Web Component ImRobotElement', () => {
     expect((status as HTMLElement).hidden).toBe(false)
   })
 
+  // Regression: v0.7.2 — the .imrobot-status class set `display: flex`
+  // with higher specificity than the browser's UA `[hidden] { display:none }`,
+  // so both the "Verified" and "Failed" spans were painted on top of each
+  // other before the user attempted verification. Fix: `.imrobot-status[hidden]
+  // { display: none }` in styles.ts. These tests lock in that both spans are
+  // *actually* invisible at idle, not just carrying a `hidden` attribute.
+  it('hides both status messages at initial idle render (no attempt yet)', () => {
+    const el = createElement()
+    const shadow = el.shadowRoot!
+    const verified = shadow.querySelector('.imrobot-status--verified') as HTMLElement
+    const failed = shadow.querySelector('.imrobot-status--failed') as HTMLElement
+
+    expect(verified).toBeTruthy()
+    expect(failed).toBeTruthy()
+
+    // Attribute-level hidden
+    expect(verified.hidden).toBe(true)
+    expect(failed.hidden).toBe(true)
+
+    // The real regression check: computed style must be `none`, not `flex`.
+    // Without the `.imrobot-status[hidden] { display: none }` rule the class
+    // selector wins and both messages render visibly at once.
+    expect(getComputedStyle(verified).display).toBe('none')
+    expect(getComputedStyle(failed).display).toBe('none')
+  })
+
+  it('shows only the failed message after a wrong submission (not verified)', () => {
+    const el = createElement()
+    el.submitAnswer('wrong-answer')
+
+    const shadow = el.shadowRoot!
+    const verified = shadow.querySelector('.imrobot-status--verified') as HTMLElement
+    const failed = shadow.querySelector('.imrobot-status--failed') as HTMLElement
+
+    expect(verified.hidden).toBe(true)
+    expect(failed.hidden).toBe(false)
+    expect(getComputedStyle(verified).display).toBe('none')
+    expect(getComputedStyle(failed).display).not.toBe('none')
+  })
+
+  it('shows only the verified message after a correct submission (not failed)', () => {
+    const el = createElement()
+    const challenge = el.getChallenge()
+    const answer = solveChallenge(challenge)
+    el.submitAnswer(answer)
+
+    const shadow = el.shadowRoot!
+    const verified = shadow.querySelector('.imrobot-status--verified') as HTMLElement
+    const failed = shadow.querySelector('.imrobot-status--failed') as HTMLElement
+
+    expect(verified.hidden).toBe(false)
+    expect(failed.hidden).toBe(true)
+    expect(getComputedStyle(verified).display).not.toBe('none')
+    expect(getComputedStyle(failed).display).toBe('none')
+  })
+
   it('preserves input focus across a failed verification (no full re-render)', () => {
     const el = createElement()
     const input = el.shadowRoot!.querySelector('.imrobot-input') as HTMLInputElement
