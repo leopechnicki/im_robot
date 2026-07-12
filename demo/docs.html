@@ -405,6 +405,11 @@
     <a href="#server-examples" class="sidebar-link">Express / Next.js</a>
   </div>
   <div class="sidebar-group">
+    <div class="sidebar-label">Framework Adapters</div>
+    <a href="#next-adapter" class="sidebar-link">Next.js Adapter</a>
+    <a href="#mcp-adapter" class="sidebar-link">MCP Server</a>
+  </div>
+  <div class="sidebar-group">
     <div class="sidebar-label">v0.4 Features</div>
     <a href="#middleware" class="sidebar-link">Middleware</a>
     <a href="#proof-tokens" class="sidebar-link">Proof-of-Agent Tokens</a>
@@ -836,6 +841,117 @@ const verifyRes = await fetch('/api/verify', {
 const result = await verifyRes.json()
 console.log(result) <span class="comment">// { verified: true, elapsed: 12 }</span></code></pre>
   </div>
+</div>
+
+<hr />
+
+<!-- ═══ NEXT.JS ADAPTER ═══════════════════════════════════════ -->
+<h2 id="next-adapter">Next.js Adapter</h2>
+<p>The <code>imrobot/next</code> subpath ships two adapters that wrap the same <code>ImRobotVerifier</code> and <code>ProofTokenIssuer</code> as the Express and Hono adapters &mdash; proof tokens issued by any of them verify against all of them.</p>
+
+<h3><code>createNextMiddleware(config)</code> &mdash; App Router</h3>
+<p>Drop into <code>middleware.ts</code> at the project root. Auto-mounts <code>GET /imrobot/challenge</code> and <code>POST /imrobot/verify</code>, then gates any path in <code>protectedPaths</code> behind a valid <code>X-Agent-Proof</code> token.</p>
+
+<div class="code-block">
+  <div class="code-header"><span class="lang">middleware.ts</span><button class="copy-btn" aria-live="polite">Copy</button></div>
+  <pre><code>import { createNextMiddleware } from 'imrobot/next'
+
+export const middleware = createNextMiddleware({
+  secret: process.env.IMROBOT_SECRET!,
+  protectedPaths: ['/api/agent'],
+  <span class="comment">// Optional: difficulty, ttl, imrobotPath, proofHeaderName, tokenTTL, rateLimit</span>
+})
+
+export const config = {
+  matcher: ['/api/agent/:path*', '/imrobot/:path*'],
+}</code></pre>
+</div>
+
+<div class="callout callout-info">
+  <span class="callout-icon">&#x2139;&#xFE0F;</span>
+  <p><strong>Zero <code>next/server</code> import:</strong> the adapter accepts any object that matches the <code>NextRequest</code> shape and returns a plain <code>Response</code> (or <code>null</code> to fall through to the next handler). This keeps <code>imrobot</code> installable in non-Next.js projects &mdash; <code>next</code> is declared as an <em>optional</em> peer dependency.</p>
+</div>
+
+<h3><code>createNextApiHandler(config)</code> &mdash; Pages Router</h3>
+<p>Single handler that routes both <code>GET</code> (challenge) and <code>POST</code> (verify) on the same API route. Other methods receive <code>405 Method Not Allowed</code>.</p>
+
+<div class="code-block">
+  <div class="code-header"><span class="lang">pages/api/imrobot.ts</span><button class="copy-btn" aria-live="polite">Copy</button></div>
+  <pre><code>import { createNextApiHandler } from 'imrobot/next'
+
+export default createNextApiHandler({
+  secret: process.env.IMROBOT_SECRET!,
+  difficulty: 'medium',
+  <span class="comment">// Optional: issuer, tokenTTL, ttl</span>
+})</code></pre>
+</div>
+
+<p>Use <code>requireAgent</code> from <code>imrobot/server</code> in your other API routes to gate them behind the issued proof token &mdash; the JWTs are the same format across the App Router middleware, Pages Router handler, Express, and Hono.</p>
+
+<hr />
+
+<!-- ═══ MCP SERVER ═══════════════════════════════════════════ -->
+<h2 id="mcp-adapter">MCP Server</h2>
+<p>imrobot ships a native <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener">Model Context Protocol</a> server via the <code>imrobot/mcp</code> subpath. AI agents (Claude Desktop, Cursor, and any MCP-aware client) auto-discover the tools and complete verification challenges without any custom integration code.</p>
+
+<div class="callout callout-info">
+  <span class="callout-icon">&#x2139;&#xFE0F;</span>
+  <p><strong>Zero runtime dependencies:</strong> the MCP server implements JSON-RPC 2.0 directly and calls the same core API that browser agents use. No SDK required.</p>
+</div>
+
+<h3><code>createMCPServer(config?)</code> &mdash; stdio transport</h3>
+<p>Starts a standard MCP stdio server. Wire it into <code>claude_desktop_config.json</code>, Cursor's MCP settings, or any client that spawns MCP servers as child processes.</p>
+
+<div class="code-block">
+  <div class="code-header"><span class="lang">TypeScript</span><button class="copy-btn" aria-live="polite">Copy</button></div>
+  <pre><code>import { createMCPServer } from 'imrobot/mcp'
+
+<span class="comment">// Start a stdio MCP server (reads stdin, writes stdout)</span>
+createMCPServer({ defaultDifficulty: 'medium' }).start()</code></pre>
+</div>
+
+<div class="code-block">
+  <div class="code-header"><span class="lang">claude_desktop_config.json</span><button class="copy-btn" aria-live="polite">Copy</button></div>
+  <pre><code>{
+  "mcpServers": {
+    "imrobot": {
+      "command": "node",
+      "args": ["-e", "import('imrobot/mcp').then(m =&gt; m.createMCPServer().start())"]
+    }
+  }
+}</code></pre>
+</div>
+
+<h3>Available tools</h3>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Tool</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>generate-challenge</code></td><td>Generate a new verification challenge</td></tr>
+    <tr><td><code>solve-challenge</code></td><td>Auto-solve a challenge (returns answer + proof token)</td></tr>
+    <tr><td><code>verify-answer</code></td><td>Check if a computed answer is correct</td></tr>
+    <tr><td><code>create-token</code></td><td>Create a proof token after solving</td></tr>
+    <tr><td><code>get-discovery-document</code></td><td>Fetch the imrobot discovery document</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Programmatic usage (no stdio)</h3>
+<p>Call <code>handleMessage()</code> directly to invoke tools without spawning a server &mdash; useful for embedding imrobot in another MCP host or for unit tests.</p>
+
+<div class="code-block">
+  <div class="code-header"><span class="lang">TypeScript</span><button class="copy-btn" aria-live="polite">Copy</button></div>
+  <pre><code>import { createMCPServer } from 'imrobot/mcp'
+
+const server = createMCPServer()
+
+const response = await server.handleMessage(JSON.stringify({
+  jsonrpc: '2.0', id: 1, method: 'tools/call',
+  params: { name: 'generate-challenge', arguments: { difficulty: 'easy' } },
+}))
+
+const { result } = JSON.parse(response)
+const { challenge } = JSON.parse(result.content[0].text)</code></pre>
 </div>
 
 <hr />

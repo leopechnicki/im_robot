@@ -244,6 +244,42 @@ app.get("/api/agent-data", requireAgentHono({ secret }), (c) => {
 
 Under the hood it uses the same `ImRobotVerifier` and `ProofTokenIssuer` â€” so JWTs issued by the Hono router verify against the Express `requireAgent`, and vice-versa. Rotate secrets across both without breaking anything.
 
+### Next.js
+
+The `imrobot/next` subpath ships two adapters â€” one for the App Router (Edge or Node.js middleware) and one for the Pages Router (API routes). Both wrap the same `ImRobotVerifier` and `ProofTokenIssuer` as the Express and Hono adapters, so proof tokens are cross-verifiable across all four runtimes.
+
+**App Router â€” `middleware.ts` at the repo root:**
+
+```ts
+import { createNextMiddleware } from 'imrobot/next'
+
+export const middleware = createNextMiddleware({
+  secret: process.env.IMROBOT_SECRET!,
+  protectedPaths: ['/api/agent'],
+  // Optional: rateLimit, difficulty, ttl, imrobotPath, proofHeaderName, tokenTTL
+})
+
+export const config = {
+  matcher: ['/api/agent/:path*', '/imrobot/:path*'],
+}
+```
+
+The middleware auto-mounts `GET /imrobot/challenge` and `POST /imrobot/verify`, then guards any path in `protectedPaths` by requiring a valid `X-Agent-Proof` header. Requests without a token get `401`; invalid tokens get `403`. The adapter intentionally avoids importing from `next/server` so the package remains installable in non-Next.js projects â€” it accepts any object matching the `NextRequest` shape and returns a plain `Response` (or `null` to fall through).
+
+**Pages Router â€” `pages/api/imrobot.ts`:**
+
+```ts
+import { createNextApiHandler } from 'imrobot/next'
+
+export default createNextApiHandler({
+  secret: process.env.IMROBOT_SECRET!,
+  difficulty: 'medium',
+  // Optional: issuer, tokenTTL, ttl
+})
+```
+
+A single handler routes both `GET` (challenge) and `POST` (verify) on the same route. Use `requireAgent` from `imrobot/server` in your other API routes to gate them behind the issued proof token â€” the JWTs are the same format across both routers.
+
 ### Rate limiting
 
 Both `createAgentRouter` and `requireAgent` support built-in rate limiting to protect against brute-force attacks and request flooding. The rate limiter is in-memory with zero external dependencies.

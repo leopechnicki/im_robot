@@ -1,6 +1,12 @@
 import { ImRobotElement, register } from 'imrobot/web-component'
 import { solveChallenge, type Challenge, type ImRobotToken } from 'imrobot/core'
 
+// Injected by Vite (`define` in vite.config.ts) from the root package.json
+// at build time — keeps the agent prompt in sync with the published npm
+// version automatically. Fallback keeps types happy in dev tools that
+// don't run through Vite's define pass.
+declare const __IMROBOT_VERSION__: string
+
 // ── Register web component ──────────────────────────────────────────
 register()
 
@@ -328,9 +334,9 @@ const challenge = pool.getChallenge()
 \`\`\`
 
 ## Key facts
-- Package: \`imrobot\` on npm (v0.6.0)
+- Package: \`imrobot\` on npm (v${__IMROBOT_VERSION__})
 - Zero runtime dependencies, ~14 KB core
-- Exports: \`imrobot/core\`, \`imrobot/react\`, \`imrobot/vue\`, \`imrobot/svelte\`, \`imrobot/web-component\`, \`imrobot/server\`
+- Exports: \`imrobot/core\`, \`imrobot/react\`, \`imrobot/vue\`, \`imrobot/svelte\`, \`imrobot/web-component\`, \`imrobot/server\`, \`imrobot/next\`, \`imrobot/mcp\`, \`imrobot/hono\`
 - Challenge data lives in \`data-imrobot-challenge\` DOM attribute as JSON
 - 27 operation types: reverse, base64, rot13, caesar, xor, sha256, fnv1a, bit_rotate, atbash, vowel_count, etc.
 - Adaptive difficulty engine with per-agent risk scoring (AdaptiveDifficulty)
