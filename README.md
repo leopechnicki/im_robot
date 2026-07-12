@@ -44,7 +44,9 @@ The challenge data is embedded in the DOM via `data-imrobot-challenge` attribute
 ## Install
 
 ```bash
-npm install imrobot
+npm install imrobot                # JS/TS SDK (Node, Bun, Deno, Cloudflare Workers, browsers)
+pip install imrobot                # Python SDK — LangChain / CrewAI / AutoGPT / FastAPI
+pip install "imrobot[fastapi]"     # + FastAPI middleware
 ```
 
 ## Quick start
@@ -683,8 +685,244 @@ const isCorrect = pool.verifyAnswer(challenge.id, userAnswer)
 
 Six challenge types are supported: `object_count`, `spatial_reasoning`, `color_identification`, `scene_description`, `text_recognition`, and `odd_one_out`. Each type includes built-in prompt templates that generate prompts with known ground truth.
 
-> **Note:** Direct OpenAI/Stability AI API integration is planned. For now, use the `custom` or `static` provider.
+> **Warning:** The `openai` and `stability` providers are not yet implemented and will throw at runtime. Use `custom` or `static` providers instead. (Direct integration with these SaaS APIs is planned for a future release.)
 
+## OpenTelemetry metrics
+
+`ChallengeOTelExporter` (exported from `imrobot/server`) bridges the in-memory `ChallengeAnalytics` tracker to any OpenTelemetry-compatible backend — Datadog, Grafana, Prometheus, or any OTLP endpoint.
+
+Install the optional peer dependencies:
+
+```bash
+npm install @opentelemetry/api @opentelemetry/sdk-metrics @opentelemetry/exporter-metrics-otlp-http
+```
+
+```ts
+import { MeterProvider, PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics'
+import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http'
+import { ChallengeAnalytics, ChallengeOTelExporter } from 'imrobot/server'
+
+const analytics = new ChallengeAnalytics()
+
+const meterProvider = new MeterProvider({
+  readers: [
+    new PeriodicExportingMetricReader({
+      exporter: new OTLPMetricExporter({ url: 'http://localhost:4318/v1/metrics' }),
+      exportIntervalMillis: 30_000,
+    }),
+  ],
+})
+
+const otelExporter = new ChallengeOTelExporter(analytics, meterProvider, {
+  scopeName: 'imrobot',
+  exportIntervalMs: 15_000,
+})
+
+otelExporter.start()
+
+// Wire analytics into your verifier
+const verifier = createVerifier({ secret: process.env.IMROBOT_SECRET!, analytics })
+
+// On shutdown
+process.on('SIGTERM', () => otelExporter.stop())
+```
+
+### Exported metrics
+
+| Metric | Type | Attributes | Description |
+|---|---|---|---|
+| `imrobot.challenge.generated` | Counter | `difficulty` | Challenges generated |
+| `imrobot.challenge.solved` | Counter | `difficulty` | Successfully verified challenges |
+| `imrobot.challenge.failed` | Counter | `difficulty` | Failed verification attempts |
+| `imrobot.challenge.solve_time_ms` | Histogram | `difficulty` | P95 solve time in ms |
+| `imrobot.challenge.active` | ObservableGauge | — | Generated minus verified/failed |
+| `imrobot.challenge.verification_rate` | ObservableGauge | — | Verified / total attempts (0.0–1.0) |
+
+`@opentelemetry/api` is an optional peer dependency — the exporter uses the interface types only and does not hard-import the SDK.
+
+## MCP server (Model Context Protocol)
+
+imrobot ships a native MCP server that lets AI agents auto-discover and complete verification challenges without any custom integration code. Agents call the tools directly; no HTTP endpoints required.
+
+```ts
+import { createMCPServer } from 'imrobot/mcp'
+
+// Start a stdio MCP server (use in Claude Desktop, Cursor, etc.)
+createMCPServer({ defaultDifficulty: 'medium' }).start()
+```
+
+Add to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "imrobot": {
+      "command": "node",
+      "args": ["-e", "import('imrobot/mcp').then(m => m.createMCPServer().start())"]
+    }
+  }
+}
+```
+
+### Available MCP tools
+
+| Tool | Description |
+|---|---|
+| `generate-challenge` | Generate a new verification challenge |
+| `solve-challenge` | Auto-solve a challenge (returns answer + proof token) |
+| `verify-answer` | Check if a computed answer is correct |
+| `create-token` | Create a proof token after solving |
+| `get-discovery-document` | Fetch the imrobot discovery document |
+
+### Programmatic usage (no stdio)
+
+```ts
+import { createMCPServer } from 'imrobot/mcp'
+
+const server = createMCPServer()
+
+// Generate + auto-solve in one step
+const challengeResp = await server.handleMessage(JSON.stringify({
+  jsonrpc: '2.0', id: 1, method: 'tools/call',
+  params: { name: 'generate-challenge', arguments: { difficulty: 'easy' } }
+}))
+
+const { result } = JSON.parse(challengeResp)
+const { challenge } = JSON.parse(result.content[0].text)
+
+const solveResp = await server.handleMessage(JSON.stringify({
+  jsonrpc: '2.0', id: 2, method: 'tools/call',
+  params: { name: 'solve-challenge', arguments: { challenge } }
+}))
+
+const { result: solveResult } = JSON.parse(solveResp)
+const { token } = JSON.parse(solveResult.content[0].text)
+// Use token.challengeId + token.signature for X-Agent-Proof header
+```
+
+The MCP server has zero runtime dependencies — it implements JSON-RPC 2.0 directly and calls the same core API that agents use.
+
+## Python SDK (`pip install imrobot`)
+
+A companion Python package lives in [`./python/`](./python/) — designed for **LangChain / CrewAI / AutoGPT / any Python-based AI agent** on the client side, and **FastAPI / Starlette** on the server side. Byte-identical wire format with the JS SDK, so a Python client can solve JS-issued challenges (and vice-versa) without any glue code.
+
+**Agent-side (client)**
+
+```python
+import httpx
+from imrobot import solve_challenge
+
+challenge = httpx.get("https://example.com/imrobot/challenge").json()
+answer = solve_challenge(challenge)
+proof = httpx.post(
+    "https://example.com/imrobot/verify",
+    json={"challenge": challenge, "answer": answer},
+).json()["proofToken"]
+
+# Use the proof on protected routes
+httpx.get(
+    "https://example.com/api/agent-data",
+    headers={"X-Agent-Proof": proof},
+)
+```
+
+**Server-side (FastAPI)**
+
+```python
+from fastapi import Depends, FastAPI
+from imrobot.fastapi import create_imrobot_router, require_agent
+
+app = FastAPI()
+secret = os.environ["IMROBOT_SECRET"]
+
+app.include_router(create_imrobot_router(secret=secret), prefix="/imrobot")
+
+@app.get("/api/agent-data", dependencies=[Depends(require_agent(secret=secret))])
+async def agent_only():
+    return {"secret": "only bots see this"}
+```
+
+Highlights:
+
+- **Zero deps** for `solve_challenge`, `ImRobotVerifier`, `ProofTokenIssuer`. FastAPI is an optional `[fastapi]` extra.
+- **Cross-runtime interop** — `test_interop.py` pins JS reference outputs (FNV-1a, HMAC-SHA256, base64url) so any drift breaks CI.
+- **RFC 7519 JWTs (HS256)** — proof tokens verify with `PyJWT`, `python-jose`, or any RFC-compliant library.
+- **Python 3.9 – 3.13** supported.
+- **PyPI auto-publish** on `py-v*` tags via `.github/workflows/publish-python.yml` (OIDC trusted publishing, no long-lived tokens).
+
+Full API reference and development instructions: [`./python/README.md`](./python/README.md).
+
+## Ecosystem
+
+imrobot is designed to integrate with the broader AI agent ecosystem:
+
+| Integration | Description |
+|---|---|
+| **Cloudflare Turnstile** | Layer human-verification alongside the proof-of-work challenge. `turnstile_verified` is stamped into the issued JWT. |
+| **Web Bot Auth (IETF)** | Verify Ed25519-signed agents (OpenAI Operator, Cloudflare signed bots) directly. Skip the challenge for trusted known agents. |
+| **Pollinations.ai** | Free, no-auth image generation for `ImageChallengePool`. Set `provider: { type: 'pollinations' }` — zero API keys, zero cost. See `PollinationsProviderConfig` in `imrobot/core`. |
+| **Picsum** | Free, no-auth placeholder photos for lighter-weight image challenges. Set `provider: { type: 'picsum' }`. See `PicsumProviderConfig` in `imrobot/core`. |
+| **A2A Agent Card** | `/.well-known/imrobot.json` follows the A2A Agent Card pattern so discovery-enabled agents find your protected endpoints automatically. |
+| **Any JWT library** | Proof tokens are standard HS256 JWTs — verify with `jose`, `jsonwebtoken`, Python `PyJWT`, Go `golang-jwt`, or any RFC 7519-compliant library. |
+
+
+## Blog posts & articles
+
+- [Why I built a CAPTCHA that only bots can solve](https://dev.to/leo_pechnicki/why-i-built-a-captcha-that-only-bots-can-solve-30np) — Dev.to article introducing imrobot: the motivation, design decisions, and how it works under the hood
+
+
+## FAQ — How does imrobot compare to Turnstile / ALTCHA / reCAPTCHA?
+
+imrobot solves the **opposite** problem from traditional CAPTCHA systems.
+
+| | imrobot | Cloudflare Turnstile | ALTCHA | reCAPTCHA / hCaptcha | Friendly Captcha |
+|---|---|---|---|---|---|
+| **Goal** | Verify the visitor **is a bot / AI agent** | Verify the visitor is **human** | Verify the visitor is **human** | Verify the visitor is **human** | Verify the visitor is **human** |
+| **Who should pass?** | AI agents, bots, automated scripts | Humans only | Humans only | Humans only | Humans only |
+| **Who should fail?** | Humans (hard to solve manually) | Bots | Bots | Bots | Bots |
+| **Challenge type** | Deterministic pipeline (string transforms, hashing) | Browser fingerprint + JS proof-of-work | Server-side SHA-256 PoW | Image/audio recognition | SHA-256 PoW |
+| **AI-solvable?** | Yes, by design (< 1 second for any LLM) | Not applicable | Yes, unintentionally | Yes (AI vision can solve) | Yes, unintentionally |
+| **Use case** | Agent-only APIs, multi-agent auth, AI platforms | Public web forms | Public web forms | Public web forms | Public web forms |
+| **Privacy** | Zero tracking, no fingerprinting | Privacy-preserving | Open-source, self-hosted | Google/third-party tracking | No tracking |
+| **Self-hosted** | Yes (zero dependencies) | No (Cloudflare CDN) | Yes | No | Yes |
+| **Open source** | Yes (MIT) | No | Yes (MIT) | No | Yes |
+
+### When to use imrobot
+
+Use imrobot when you want to **grant access to AI agents** and **deny access to humans**:
+
+- Agent-only data APIs (price feeds, knowledge graphs, structured data exports)
+- Multi-agent authentication (prove your caller is a legitimate AI client)
+- AI platform gating (only LLM-powered clients may access a route)
+- Testing / CI pipelines that simulate agent access
+
+### When to use Turnstile / reCAPTCHA / ALTCHA
+
+Use those when you want the opposite: protect your service from bots and allow only human users.
+
+> **Can I use both?** Yes — some services authenticate agents via imrobot and gate human-facing forms with Turnstile on the same backend.
+
+## FAQ — How does imrobot compare to HATCHA (Monday.com)?
+
+[HATCHA](https://hatcha.monday.com) is Monday.com's reverse-CAPTCHA — the closest direct competitor to imrobot. Both solve the same problem (proving a caller is a bot, not a human) but take different approaches.
+
+| | imrobot | HATCHA (Monday.com) |
+|---|---|---|
+| **Framework support** | React, Vue, Svelte, Web Component, headless core | Web Component only |
+| **Token format** | Standards-compliant JWT (RFC 7519, HS256) — verify with any JWT library | Proprietary token format |
+| **Challenge type** | Deterministic compute pipeline (string transforms, hashing, bitwise ops) | Reverse image recognition |
+| **Image challenges** | Optional AI image layer (`ImageChallengePool`) | Always-on |
+| **Zero dependencies** | Yes — 0 runtime deps | No |
+| **Self-hosted** | Yes — deploy anywhere, no CDN lock-in | No — requires Monday.com CDN |
+| **Open source** | Yes (MIT) | No |
+| **Replay protection** | Built-in `ChallengeReplayGuard` (in-memory) + `RedisReplayStore` (multi-instance) | Unknown |
+| **Adaptive difficulty** | Yes — per-agent risk scoring with 4 weighted factors | Unknown |
+| **CLI tool** | Yes — `npx imrobot challenge\|solve\|verify\|benchmark` | No |
+| **MCP integration** | Yes — `imrobot/mcp` for AI agent tooling | No |
+| **Rate limiting** | Built-in sliding window rate limiter, per-IP, standard headers | Unknown |
+| **Discovery endpoint** | Yes — `/.well-known/imrobot.json` (A2A-inspired Agent Card) | No |
+
+**Key difference:** imrobot is framework-agnostic, self-hostable, and issues standard JWTs. HATCHA is a managed SaaS product with a single web-component integration. If you need zero CDN dependencies, multi-framework support, or JWT tokens that any downstream service can verify without calling Monday.com's servers, imrobot is the right choice.
 ## Contributing
 
 Contributions are welcome! Feel free to open issues for bug reports or feature requests, or submit pull requests.
