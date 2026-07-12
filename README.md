@@ -219,6 +219,29 @@ The handler automatically routes based on HTTP method:
 - **POST** â†’ verify endpoint (verifies answer, returns proof token)
 - **Other methods** â†’ 405 Method Not Allowed
 
+### Hono / Bun
+
+For Hono (Bun, Cloudflare Workers, Deno, Node), use the dedicated `imrobot/hono` adapter â€” it wraps the same verifier + JWT issuer as Express but exposes Hono-native handler shapes.
+
+```ts
+import { Hono } from "hono";
+import { createHonoAgentRouter, requireAgentHono } from "imrobot/hono";
+
+const app = new Hono();
+const secret = process.env.IMROBOT_SECRET!;
+
+// Mount /imrobot/challenge (GET) and /imrobot/verify (POST) in one call
+createHonoAgentRouter({ secret }).mount(app, "/imrobot");
+
+// Protect a route â€” only agents with a valid X-Agent-Proof pass through
+app.get("/api/agent-data", requireAgentHono({ secret }), (c) => {
+  const proof = c.get("agentProof");
+  return c.json({ secret: "only bots see this", agent: proof });
+});
+```
+
+Under the hood it uses the same `ImRobotVerifier` and `ProofTokenIssuer` â€” so JWTs issued by the Hono router verify against the Express `requireAgent`, and vice-versa. Rotate secrets across both without breaking anything.
+
 ### Rate limiting
 
 Both `createAgentRouter` and `requireAgent` support built-in rate limiting to protect against brute-force attacks and request flooding. The rate limiter is in-memory with zero external dependencies.
