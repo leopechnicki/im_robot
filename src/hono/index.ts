@@ -32,16 +32,11 @@
  * ```
  */
 
-import type {
-  SignedChallenge,
-  Difficulty,
-  VerifyResult,
-  AgentProofToken,
-} from "../core/types";
-import { ImRobotVerifier } from "../server/verifier";
-import { ProofTokenIssuer } from "../server/proof-token";
-import type { ChallengeReplayGuard } from "../server/replay-guard";
-import { fnv1a } from "../core/hash";
+import type { SignedChallenge, Difficulty, VerifyResult, AgentProofToken } from '../core/types'
+import { ImRobotVerifier } from '../server/verifier'
+import { ProofTokenIssuer } from '../server/proof-token'
+import type { ChallengeReplayGuard } from '../server/replay-guard'
+import { fnv1a } from '../core/hash'
 
 // ---------------------------------------------------------------------------
 // Minimal Hono type surface — we DON'T import from `hono` at runtime so that
@@ -52,33 +47,30 @@ import { fnv1a } from "../core/hash";
 /** Subset of Hono Context we rely on. Structural typing keeps us decoupled. */
 export interface HonoContext {
   req: {
-    header(name: string): string | undefined;
-    json<T = unknown>(): Promise<T>;
-    url: string;
-    method: string;
-    raw: Request;
-  };
-  json(body: unknown, status?: number): Response;
-  text(body: string, status?: number): Response;
-  status(status: number): void;
-  header(name: string, value: string): void;
-  set(key: string, value: unknown): void;
-  get<T = unknown>(key: string): T;
+    header(name: string): string | undefined
+    json<T = unknown>(): Promise<T>
+    url: string
+    method: string
+    raw: Request
+  }
+  json(body: unknown, status?: number): Response
+  text(body: string, status?: number): Response
+  status(status: number): void
+  header(name: string, value: string): void
+  set(key: string, value: unknown): void
+  get<T = unknown>(key: string): T
 }
 
 /** Hono middleware handler shape. */
-export type HonoMiddleware = (
-  c: HonoContext,
-  next: () => Promise<void>,
-) => Promise<Response | void>;
+export type HonoMiddleware = (c: HonoContext, next: () => Promise<void>) => Promise<Response | void>
 
 /** Hono handler shape (leaf routes). */
-export type HonoHandler = (c: HonoContext) => Promise<Response> | Response;
+export type HonoHandler = (c: HonoContext) => Promise<Response> | Response
 
 /** Minimal Hono router surface we produce (`get`/`post`). */
 export interface HonoRouterLike {
-  get(path: string, handler: HonoHandler): unknown;
-  post(path: string, handler: HonoHandler): unknown;
+  get(path: string, handler: HonoHandler): unknown
+  post(path: string, handler: HonoHandler): unknown
 }
 
 // ---------------------------------------------------------------------------
@@ -86,49 +78,49 @@ export interface HonoRouterLike {
 // ---------------------------------------------------------------------------
 
 export interface HonoAgentRouterConfig {
-  secret: string;
-  difficulty?: Difficulty;
-  ttl?: number;
+  secret: string
+  difficulty?: Difficulty
+  ttl?: number
   /** Where to write the proof token as a response header. Default: 'X-Agent-Proof' */
-  proofHeader?: string;
+  proofHeader?: string
   /** Issuer name embedded in the JWT `iss` claim. Default: 'imrobot' */
-  issuer?: string;
+  issuer?: string
   /** Proof token TTL in ms. Default: 1 hour */
-  tokenTTL?: number;
+  tokenTTL?: number
   /** Optional replay guard. If provided, verified challenge IDs are recorded. */
-  replayGuard?: ChallengeReplayGuard;
+  replayGuard?: ChallengeReplayGuard
   /**
    * How to derive an `agentId` for the issued JWT `sub` claim.
    * Defaults to a per-request fnv1a of the challenge id + timestamp — anonymous but stable.
    */
-  agentIdFrom?: (c: HonoContext, challenge: SignedChallenge) => string;
+  agentIdFrom?: (c: HonoContext, challenge: SignedChallenge) => string
 }
 
 export interface RequireAgentHonoOptions {
-  secret: string;
+  secret: string
   /** Where to read the proof token. Default: 'X-Agent-Proof' */
-  headerName?: string;
+  headerName?: string
   /** Issuer name to enforce on tokens (must match router). Default: 'imrobot' */
-  issuer?: string;
+  issuer?: string
   /** Allowed clock skew in seconds for iat/nbf/exp. Default: 5 */
-  clockSkewSec?: number;
+  clockSkewSec?: number
   /** Custom bypass — return true to allow request through without verification. */
-  bypass?: (c: HonoContext) => boolean | Promise<boolean>;
+  bypass?: (c: HonoContext) => boolean | Promise<boolean>
   /** Optional key id (`kid`) for the current signing secret. */
-  keyId?: string;
+  keyId?: string
   /** Additional accepted secrets for graceful key rotation. */
-  previousSecrets?: Array<{ keyId: string; secret: string }>;
+  previousSecrets?: Array<{ keyId: string; secret: string }>
   /** Where the verified proof gets stashed on the context. Default: 'agentProof' */
-  contextKey?: string;
+  contextKey?: string
 }
 
-const DEFAULT_PROOF_HEADER = "X-Agent-Proof";
-const DEFAULT_ISSUER = "imrobot";
-const DEFAULT_TOKEN_TTL_MS = 60 * 60 * 1000;
+const DEFAULT_PROOF_HEADER = 'X-Agent-Proof'
+const DEFAULT_ISSUER = 'imrobot'
+const DEFAULT_TOKEN_TTL_MS = 60 * 60 * 1000
 
 function defaultAgentId(_c: HonoContext, challenge: SignedChallenge): string {
   // Anonymous but per-verification stable — the challenge id is unique enough.
-  return `agent_${fnv1a(challenge.id + ":" + challenge.timestamp)}`;
+  return `agent_${fnv1a(challenge.id + ':' + challenge.timestamp)}`
 }
 
 // ---------------------------------------------------------------------------
@@ -152,37 +144,34 @@ export function createHonoAgentRouter(config: HonoAgentRouterConfig) {
     difficulty: config.difficulty,
     ttl: config.ttl,
     replayGuard: config.replayGuard,
-  });
+  })
   const issuer = new ProofTokenIssuer({
     secret: config.secret,
     issuer: config.issuer ?? DEFAULT_ISSUER,
     tokenTTL: config.tokenTTL ?? DEFAULT_TOKEN_TTL_MS,
-  });
-  const proofHeader = config.proofHeader ?? DEFAULT_PROOF_HEADER;
-  const agentIdFrom = config.agentIdFrom ?? defaultAgentId;
+  })
+  const proofHeader = config.proofHeader ?? DEFAULT_PROOF_HEADER
+  const agentIdFrom = config.agentIdFrom ?? defaultAgentId
 
   const challenge: HonoHandler = async (c) => {
-    const signed = await verifier.generate();
-    return c.json(signed);
-  };
+    const signed = await verifier.generate()
+    return c.json(signed)
+  }
 
   const verify: HonoHandler = async (c) => {
-    let body: { challenge?: SignedChallenge; answer?: string };
+    let body: { challenge?: SignedChallenge; answer?: string }
     try {
-      body = await c.req.json();
+      body = await c.req.json()
     } catch {
-      return c.json({ valid: false, reason: "invalid_json" }, 400);
+      return c.json({ valid: false, reason: 'invalid_json' }, 400)
     }
-    if (!body.challenge || typeof body.answer !== "string") {
-      return c.json({ valid: false, reason: "missing_fields" }, 400);
+    if (!body.challenge || typeof body.answer !== 'string') {
+      return c.json({ valid: false, reason: 'missing_fields' }, 400)
     }
 
-    const result: VerifyResult = await verifier.verify(
-      body.challenge,
-      body.answer,
-    );
+    const result: VerifyResult = await verifier.verify(body.challenge, body.answer)
     if (!result.valid) {
-      return c.json(result, 400);
+      return c.json(result, 400)
     }
 
     const token = await issuer.issue({
@@ -191,19 +180,19 @@ export function createHonoAgentRouter(config: HonoAgentRouterConfig) {
       difficulty: body.challenge.difficulty,
       solveTimeMs: result.elapsed ?? 0,
       suspicious: result.suspicious ?? false,
-    });
+    })
 
-    c.header(proofHeader, token);
-    return c.json({ ...result, proofToken: token });
-  };
+    c.header(proofHeader, token)
+    return c.json({ ...result, proofToken: token })
+  }
 
-  const mount = (app: HonoRouterLike, basePath = "/imrobot") => {
-    const base = basePath.endsWith("/") ? basePath.slice(0, -1) : basePath;
-    app.get(`${base}/challenge`, challenge);
-    app.post(`${base}/verify`, verify);
-  };
+  const mount = (app: HonoRouterLike, basePath = '/imrobot') => {
+    const base = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath
+    app.get(`${base}/challenge`, challenge)
+    app.post(`${base}/verify`, verify)
+  }
 
-  return { challenge, verify, mount };
+  return { challenge, verify, mount }
 }
 
 // ---------------------------------------------------------------------------
@@ -222,52 +211,50 @@ export function createHonoAgentRouter(config: HonoAgentRouterConfig) {
  * })
  * ```
  */
-export function requireAgentHono(
-  options: RequireAgentHonoOptions,
-): HonoMiddleware {
+export function requireAgentHono(options: RequireAgentHonoOptions): HonoMiddleware {
   const issuer = new ProofTokenIssuer({
     secret: options.secret,
     issuer: options.issuer ?? DEFAULT_ISSUER,
     clockSkewSec: options.clockSkewSec ?? 5,
     keyId: options.keyId,
     previousSecrets: options.previousSecrets,
-  });
-  const headerName = options.headerName ?? DEFAULT_PROOF_HEADER;
-  const contextKey = options.contextKey ?? "agentProof";
+  })
+  const headerName = options.headerName ?? DEFAULT_PROOF_HEADER
+  const contextKey = options.contextKey ?? 'agentProof'
 
   return async (c, next) => {
     if (options.bypass) {
-      const skip = await options.bypass(c);
+      const skip = await options.bypass(c)
       if (skip) {
-        await next();
-        return;
+        await next()
+        return
       }
     }
 
-    const token = c.req.header(headerName);
+    const token = c.req.header(headerName)
     if (!token) {
       return c.json(
         {
-          error: "agent_proof_required",
+          error: 'agent_proof_required',
           message: `Missing ${headerName} header — call the /imrobot/verify endpoint first.`,
         },
         401,
-      );
+      )
     }
 
-    const result = await issuer.verify(token);
+    const result = await issuer.verify(token)
     if (!result.valid || !result.payload) {
       return c.json(
         {
-          error: "agent_proof_invalid",
-          reason: result.reason ?? "unknown",
+          error: 'agent_proof_invalid',
+          reason: result.reason ?? 'unknown',
         },
         401,
-      );
+      )
     }
 
-    c.set(contextKey, result.payload as AgentProofToken);
-    c.set("agentVerified", true);
-    await next();
-  };
+    c.set(contextKey, result.payload as AgentProofToken)
+    c.set('agentVerified', true)
+    await next()
+  }
 }
