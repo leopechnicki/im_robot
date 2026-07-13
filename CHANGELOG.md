@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Hono adapter (`imrobot/hono`) — `createHonoAgentRouter()` + `requireAgentHono()` for Bun, Cloudflare Workers, and Deno. Shares the same `ImRobotVerifier` and `ProofTokenIssuer` as the Express middleware, so JWTs verify identically across both runtimes. (#123)
+- Python SDK (`pip install imrobot`) — companion package for LangChain / CrewAI / AutoGPT agents and FastAPI / Starlette servers. Byte-identical wire format with the JS SDK (interop tests pin FNV-1a, HMAC-SHA256, and base64url reference outputs). Python 3.9–3.13 supported. PyPI auto-publish via OIDC trusted publishing. (#125)
+- `imrobot test-agent <url>` CLI command — probes any URL for imrobot support by checking `.well-known/imrobot.json`, `data-imrobot-challenge` DOM attributes, and `<script>`/`<meta>` markers. Useful in CI scripts. Exit codes: `0` = accepts agents, `1` = no signals, `2` = network/usage error. (#122)
+- Vitest coverage tooling and Codecov badges. (#121)
+
+### Changed
+
+- `formatOperation({ op: 'sha256_hash' })` documentation updated to make clear the operation uses cascaded FNV-1a, not RFC 6234 SHA-256. Wire format unchanged. (#124)
+- Demo site: accessibility and responsive polish — improved ARIA labels, focus management, mobile navigation, and layout at small viewports. (#119)
+
+### Fixed
+
+- Web component (`<imrobot-widget>`): the "✓ Verified" and "✗ Failed" status spans were rendering visibly stacked in the widget footer at initial idle state, before the user had attempted verification. The spans carried `hidden = true`, but the `.imrobot-status` class rule set `display: flex` with higher CSS specificity than the browser's UA `[hidden] { display: none }` — so the hide never took effect. Added an explicit `.imrobot-status[hidden] { display: none }` rule that re-asserts hiding for both status spans regardless of parent flex layout. Three new regression tests in `test/web-component.test.ts` lock in the fix (initial idle hides both, wrong answer shows only failed, correct answer shows only verified) by asserting `getComputedStyle(...).display` — not just the `hidden` attribute.
+
+## [0.7.2] - 2026-07-12
+
+Republish of `0.7.1` after the auto-release publish guard landed in `#117`. No source changes vs `0.7.1`; the bump exists so that Friday's Auto Release workflow could ship the fixed publish pipeline as a clean version on npm.
+
+### Changed
+
+- Version bump only (`package.json` 0.7.1 → 0.7.2). (#118)
+
+## [0.7.1] - 2026-07-03
+
+### Fixed
+
+- Auto Release (Friday) workflow now queries the npm registry via `npm view <pkg> versions --json` before invoking the reusable `publish.yml` and skips the publish job when the current `package.json` version is already on npm. This prevents the E403 "cannot publish over the previously published version" error observed on run 28647189182 (2026-07-03) after a manual publish had already shipped v0.7.0. `publish.yml` itself is untouched. (#117)
+
+### Changed
+
+- `vite` bumped from 8.0.8 → 8.0.16 in the root project and from 7.3.2 → 8.0.16 in `demo/`. `esbuild` removed as a direct `demo/` dependency (still pulled transitively through vite). (#107)
+
 ## [0.7.0] - 2026-07-03
 
 ### Added
