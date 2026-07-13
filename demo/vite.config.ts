@@ -14,6 +14,14 @@ export default defineConfig({
     // matching `declare const __IMROBOT_VERSION__: string`.
     __IMROBOT_VERSION__: JSON.stringify(pkgJson.version),
   },
+  plugins: [
+    {
+      name: 'html-version-inject',
+      transformIndexHtml(html) {
+        return html.replace(/%IMROBOT_VERSION%/g, pkgJson.version)
+      },
+    },
+  ],
   resolve: {
     alias: {
       'imrobot': resolve(__dirname, '../src'),
