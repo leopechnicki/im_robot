@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- BREAKING: removed the Pollinations image provider and `PollinationsProviderConfig` export. `ImageChallengePool` now throws at construction when `provider` is missing or its `type` is unsupported (including `'pollinations'`), instead of producing a silently empty pool. Use `picsum`, `static`, or `custom` (bring your own generator).
+
 ### Added
 
 - Hono adapter (`imrobot/hono`) — `createHonoAgentRouter()` + `requireAgentHono()` for Bun, Cloudflare Workers, and Deno. Shares the same `ImRobotVerifier` and `ProofTokenIssuer` as the Express middleware, so JWTs verify identically across both runtimes. (#123)
