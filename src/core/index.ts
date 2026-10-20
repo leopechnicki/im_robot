@@ -40,7 +40,6 @@ export type {
   ImageChallengeTemplate,
   ImageChallengePoolConfig,
   ImageProviderConfig,
-  PollinationsProviderConfig,
   PicsumProviderConfig,
   OpenAIProviderConfig,
   StabilityProviderConfig,

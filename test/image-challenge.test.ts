@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
   ImageChallengePool,
   IMAGE_CHALLENGE_TEMPLATES,
   type ImageChallenge,
-  type PollinationsProviderConfig,
+  type ImageChallengePoolConfig,
   type PicsumProviderConfig,
 } from '../src/core/image-challenge'
 
@@ -228,139 +228,32 @@ describe('answer normalization', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Pollinations provider -- unit tests with mocked fetch
+// Provider validation -- missing / unsupported providers fail fast
 // ---------------------------------------------------------------------------
 
-describe('ImageChallengePool -- pollinations provider', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
+describe('ImageChallengePool -- provider validation', () => {
+  it('throws a clear error when no provider is configured', () => {
+    expect(
+      () => new ImageChallengePool({} as unknown as ImageChallengePoolConfig),
+    ).toThrow(/a supported image provider is required \(got no provider\)/)
   })
 
-  it('builds the correct Pollinations URL and populates the pool', async () => {
-    const mockFetch = vi.fn().mockResolvedValue({ ok: true, status: 200, statusText: 'OK' })
-    vi.stubGlobal('fetch', mockFetch)
-
-    const pool = new ImageChallengePool({
-      provider: { type: 'pollinations', width: 256, height: 256, model: 'flux', nologo: true },
-      poolSize: 2,
-      challengeTypes: ['object_count'],
-      concurrency: 1,
-    })
-    await pool.initialize()
-
-    expect(pool.size).toBe(2)
-    expect(mockFetch).toHaveBeenCalledTimes(2)
-
-    const calledUrl: string = mockFetch.mock.calls[0][0]
-    expect(calledUrl).toMatch(/^https:\/\/image\.pollinations\.ai\/prompt\//)
-    expect(calledUrl).toContain('width=256')
-    expect(calledUrl).toContain('height=256')
-    expect(calledUrl).toContain('model=flux')
-    expect(calledUrl).toContain('nologo=true')
-    expect(calledUrl).toContain('seed=')
-
-    pool.destroy()
+  it('throws a clear error for an unsupported provider type (no silent empty pool)', () => {
+    expect(
+      () =>
+        new ImageChallengePool({
+          provider: { type: 'unknown-provider' },
+        } as unknown as ImageChallengePoolConfig),
+    ).toThrow(/got type "unknown-provider".*Supported provider types: 'picsum'/)
   })
 
-  it('stores correct metadata on generated challenges', async () => {
-    const mockFetch = vi.fn().mockResolvedValue({ ok: true, status: 200, statusText: 'OK' })
-    vi.stubGlobal('fetch', mockFetch)
-
-    const pool = new ImageChallengePool({
-      provider: { type: 'pollinations', model: 'turbo', seed: 42 },
-      poolSize: 1,
-      challengeTypes: ['scene_description'],
-      concurrency: 1,
-    })
-    await pool.initialize()
-
-    const challenge = pool.getChallenge()!
-    expect(challenge.metadata?.provider).toBe('pollinations')
-    expect(challenge.metadata?.model).toBe('turbo')
-    expect(challenge.metadata?.seed).toBe(42)
-    expect(challenge.imageUrl).toContain('seed=42')
-
-    pool.destroy()
-  })
-
-  it('uses HEAD request (no image download) for URL verification', async () => {
-    const mockFetch = vi.fn().mockResolvedValue({ ok: true, status: 200, statusText: 'OK' })
-    vi.stubGlobal('fetch', mockFetch)
-
-    const pool = new ImageChallengePool({
-      provider: { type: 'pollinations' },
-      poolSize: 1,
-      challengeTypes: ['object_count'],
-      concurrency: 1,
-    })
-    await pool.initialize()
-
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining('image.pollinations.ai'),
-      { method: 'HEAD' },
-    )
-
-    pool.destroy()
-  })
-
-  it('skips failed images (non-200) and does not add them to the pool', async () => {
-    const mockFetch = vi
-      .fn()
-      .mockResolvedValue({ ok: false, status: 503, statusText: 'Service Unavailable' })
-    vi.stubGlobal('fetch', mockFetch)
-
-    const pool = new ImageChallengePool({
-      provider: { type: 'pollinations' },
-      poolSize: 3,
-      challengeTypes: ['object_count'],
-      concurrency: 1,
-    })
-    await pool.initialize()
-
-    // All generations failed -- pool should be empty (not throw)
-    expect(pool.size).toBe(0)
-    expect(pool.getChallenge()).toBeNull()
-
-    pool.destroy()
-  })
-
-  it('encodes special characters in the prompt URL', async () => {
-    const mockFetch = vi.fn().mockResolvedValue({ ok: true, status: 200, statusText: 'OK' })
-    vi.stubGlobal('fetch', mockFetch)
-
-    const pool = new ImageChallengePool({
-      provider: { type: 'pollinations' },
-      poolSize: 1,
-      challengeTypes: ['text_recognition'],
-      concurrency: 1,
-    })
-    await pool.initialize()
-
-    const calledUrl: string = mockFetch.mock.calls[0][0]
-    // The prompt portion (between /prompt/ and ?) must be URL-encoded -- no raw spaces
-    const promptPart = calledUrl.split('/prompt/')[1].split('?')[0]
-    expect(promptPart).not.toContain(' ')
-
-    pool.destroy()
-  })
-
-  it('uses default dimensions (512x512) when not specified', async () => {
-    const mockFetch = vi.fn().mockResolvedValue({ ok: true, status: 200, statusText: 'OK' })
-    vi.stubGlobal('fetch', mockFetch)
-
-    const pool = new ImageChallengePool({
-      provider: { type: 'pollinations' },
-      poolSize: 1,
-      challengeTypes: ['object_count'],
-      concurrency: 1,
-    })
-    await pool.initialize()
-
-    const calledUrl: string = mockFetch.mock.calls[0][0]
-    expect(calledUrl).toContain('width=512')
-    expect(calledUrl).toContain('height=512')
-
-    pool.destroy()
+  it('lists the custom provider as the bring-your-own-generator escape hatch', () => {
+    expect(
+      () =>
+        new ImageChallengePool({
+          provider: { type: 'unknown-provider' },
+        } as unknown as ImageChallengePoolConfig),
+    ).toThrow(/\{ type: 'custom', generate \}/)
   })
 })
 
@@ -479,18 +372,6 @@ describe('ImageChallengePool -- picsum provider', () => {
 // ---------------------------------------------------------------------------
 
 describe('Provider type exports', () => {
-  it('PollinationsProviderConfig is assignable', () => {
-    const config: PollinationsProviderConfig = {
-      type: 'pollinations',
-      width: 1024,
-      height: 768,
-      nologo: true,
-      seed: 12345,
-      model: 'flux-realism',
-    }
-    expect(config.type).toBe('pollinations')
-  })
-
   it('PicsumProviderConfig is assignable', () => {
     const config: PicsumProviderConfig = {
       type: 'picsum',
@@ -506,7 +387,7 @@ describe('Provider type exports', () => {
 })
 
 // Regression coverage for CONSOLIDATED#3 (2026-07-02 audit): confirm
-// Pollinations + Picsum are reachable through the package's public surface
+// the image providers are reachable through the package's public surface
 // (i.e. `imrobot/core`) after build. The tests above use the src tree; this
 // one loads the built `dist/core` output that npm consumers actually get.
 //
@@ -524,7 +405,7 @@ const _distCorePath = _resolve(
 )
 const _distCoreExists = _existsSync(_distCorePath)
 
-describe('imrobot/core public API — Pollinations + Picsum providers ship', () => {
+describe('imrobot/core public API — image providers ship', () => {
   it.runIf(_distCoreExists)(
     'dist/core/index.js re-exports ImageChallengePool + IMAGE_CHALLENGE_TEMPLATES',
     async () => {
@@ -537,17 +418,12 @@ describe('imrobot/core public API — Pollinations + Picsum providers ship', () 
   )
 
   it.runIf(_distCoreExists)(
-    'ImageChallengePool from dist/core accepts pollinations provider without runtime error',
+    'ImageChallengePool from dist/core throws when no provider is configured',
     async () => {
       const { ImageChallengePool } = await import(/* @vite-ignore */ _distCorePath)
-      // Just constructing must not throw -- confirms the type union accepts the config
-      // shape in the built output. Actual network flow is covered by the mocked tests above.
-      const pool = new ImageChallengePool({
-        poolSize: 1,
-        refillThreshold: 0,
-        provider: { type: 'pollinations', width: 128, height: 128 },
-      })
-      expect(pool).toBeDefined()
+      expect(() => new ImageChallengePool({ poolSize: 1 })).toThrow(
+        /a supported image provider is required/,
+      )
     },
   )
 

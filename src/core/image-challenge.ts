@@ -11,27 +11,28 @@
  * would need to visually interpret the scene AND solve the pipeline.
  *
  * **Supported providers:**
- * - `pollinations` -- Pollinations.ai (free, no auth, zero-deps fetch)
- * - `picsum`       -- Lorem Picsum placeholder images (free, no auth)
- * - `openai`       -- OpenAI DALL-E (requires API key)
- * - `stability`    -- Stability AI (requires API key)
- * - `custom`       -- bring your own generator function
- * - `static`       -- serve from pre-built image arrays (no network)
+ * - `picsum`    -- Lorem Picsum placeholder images (free, no auth)
+ * - `openai`    -- OpenAI DALL-E (requires API key)
+ * - `stability` -- Stability AI (requires API key)
+ * - `custom`    -- bring your own generator function
+ * - `static`    -- serve from pre-built image arrays (no network)
+ *
+ * A provider is required. Constructing a pool without one, or with an
+ * unknown `type`, throws immediately.
  *
  * @example
  * ```typescript
  * import { ImageChallengePool } from 'imrobot/core'
  *
- * // Pollinations.ai -- free, no API key required
+ * // Bring your own image generator
  * const pool = new ImageChallengePool({
- *   provider: { type: 'pollinations' },
+ *   provider: { type: 'custom', generate: async (prompt) => ({ imageUrl: await myGenerator(prompt) }) },
  *   poolSize: 20,
  *   challengeTypes: ['object_count', 'spatial_reasoning'],
  * })
  * await pool.initialize()
  *
  * const challenge = pool.getChallenge()
- * // { type: 'object_count', imageUrl: 'https://image.pollinations.ai/prompt/...', ... }
  * ```
  */
 
@@ -92,50 +93,6 @@ export interface ImageChallengeTemplate {
 // ---------------------------------------------------------------------------
 // Provider Configuration
 // ---------------------------------------------------------------------------
-
-/**
- * Pollinations.ai provider -- free, no API key, zero external dependencies.
- *
- * Uses the public Pollinations.ai image API which accepts a text prompt
- * and returns a generated image as a direct URL. The URL itself IS the
- * image (redirect to CDN), making it safe to embed in <img src>.
- *
- * @see https://pollinations.ai
- *
- * @example
- * ```typescript
- * const pool = new ImageChallengePool({
- *   provider: { type: 'pollinations' },
- * })
- * ```
- */
-export interface PollinationsProviderConfig {
-  type: 'pollinations'
-  /**
-   * Image width in pixels (default: 512).
-   * Pollinations supports 64-2048.
-   */
-  width?: number
-  /**
-   * Image height in pixels (default: 512).
-   * Pollinations supports 64-2048.
-   */
-  height?: number
-  /**
-   * Suppress the Pollinations.ai watermark logo (default: true).
-   */
-  nologo?: boolean
-  /**
-   * Optional seed for reproducible generations (default: random).
-   * Set a fixed seed if you want the same prompt to always produce the same image.
-   */
-  seed?: number
-  /**
-   * Pollinations model name (default: 'flux').
-   * Available: 'flux', 'flux-realism', 'flux-anime', 'flux-3d', 'turbo'
-   */
-  model?: 'flux' | 'flux-realism' | 'flux-anime' | 'flux-3d' | 'turbo'
-}
 
 /**
  * Lorem Picsum provider -- deterministic placeholder images (free, no auth).
@@ -226,7 +183,6 @@ export interface StaticProviderConfig {
 }
 
 export type ImageProviderConfig =
-  | PollinationsProviderConfig
   | PicsumProviderConfig
   | OpenAIProviderConfig
   | StabilityProviderConfig
@@ -377,63 +333,35 @@ export const IMAGE_CHALLENGE_TEMPLATES: Record<ImageChallengeType, ImageChalleng
 // Provider Implementations -- internal helpers
 // ---------------------------------------------------------------------------
 
+/** Provider `type` values accepted by {@link ImageChallengePool}. */
+const SUPPORTED_PROVIDER_TYPES: ReadonlyArray<ImageProviderConfig['type']> = [
+  'picsum',
+  'openai',
+  'stability',
+  'custom',
+  'static',
+]
+
 /**
- * Generate an image via Pollinations.ai (free, no auth).
- *
- * The Pollinations image API accepts a URL-encoded prompt and returns
- * the image directly. The stable URL format is:
- *   https://image.pollinations.ai/prompt/{encoded-prompt}?width=N&height=N&nologo=true&model=flux
- *
- * The URL is a CDN redirect -- it can be embedded directly in <img src>
- * or downloaded. No API key, no rate-limit headers, no auth needed.
- *
- * Latency: ~2-8 s cold, ~300 ms cached (CDN hit on identical prompt+seed).
- * Rate:    ~10 req/min anonymous; stable for reasonable pool sizes.
+ * Fail fast on a missing or unknown provider. Generation errors are
+ * swallowed per-image by the pool (a failed image is just skipped), so an
+ * unsupported provider would otherwise yield a silently empty pool.
  */
-async function generatePollinations(
-  prompt: string,
-  config: PollinationsProviderConfig,
-): Promise<{ imageUrl: string; metadata: Record<string, unknown> }> {
-  const width = config.width ?? 512
-  const height = config.height ?? 512
-  const nologo = config.nologo ?? true
-  const model = config.model ?? 'flux'
-
-  // Use a random seed per generation unless the caller pins one.
-  // A seed in the URL makes the image deterministic and cacheable by Pollinations CDN.
-  const seed = config.seed ?? Math.floor(Math.random() * 1_000_000)
-
-  const encodedPrompt = encodeURIComponent(prompt)
-  const params = new URLSearchParams({
-    width: String(width),
-    height: String(height),
-    nologo: String(nologo),
-    model,
-    seed: String(seed),
-  })
-
-  const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?${params}`
-
-  // Verify the URL resolves (HEAD request -- no image download, saves bandwidth).
-  // Pollinations returns 200 on valid prompts; errors return 4xx/5xx.
-  const response = await fetch(imageUrl, { method: 'HEAD' })
-  if (!response.ok) {
-    throw new Error(
-      `Pollinations.ai returned ${response.status} ${response.statusText} for prompt: "${prompt.slice(0, 80)}"`,
-    )
+function assertSupportedProvider(provider: unknown): asserts provider is ImageProviderConfig {
+  const type =
+    provider !== null && typeof provider === 'object'
+      ? (provider as { type?: unknown }).type
+      : undefined
+  if (typeof type === 'string' && (SUPPORTED_PROVIDER_TYPES as readonly string[]).includes(type)) {
+    return
   }
-
-  return {
-    imageUrl,
-    metadata: {
-      provider: 'pollinations',
-      model,
-      width,
-      height,
-      seed,
-      promptLength: prompt.length,
-    },
-  }
+  const got =
+    provider === undefined || provider === null ? 'no provider' : `type ${JSON.stringify(type)}`
+  throw new Error(
+    `ImageChallengePool: a supported image provider is required (got ${got}). ` +
+      `Supported provider types: ${SUPPORTED_PROVIDER_TYPES.map((t) => `'${t}'`).join(', ')}. ` +
+      `Use { type: 'custom', generate } to plug in your own image generator.`,
+  )
 }
 
 /**
@@ -493,13 +421,16 @@ function generatePicsum(
  * generation latency and API costs.
  *
  * For development/testing, use the `picsum` provider for instant, free
- * placeholder images, or the `pollinations` provider for real AI images
- * with no API key required.
+ * placeholder images. For real AI images, plug in your own generator via
+ * the `custom` provider.
  *
- * @example Pollinations.ai (recommended free default)
+ * The constructor throws if `provider` is missing or its `type` is not
+ * supported.
+ *
+ * @example Custom generator
  * ```typescript
  * const pool = new ImageChallengePool({
- *   provider: { type: 'pollinations' },
+ *   provider: { type: 'custom', generate: async (prompt) => ({ imageUrl: await myGenerator(prompt) }) },
  *   poolSize: 20,
  * })
  * await pool.initialize()
@@ -529,6 +460,7 @@ export class ImageChallengePool {
   private picsumSequentialIndex = 0
 
   constructor(config: ImageChallengePoolConfig) {
+    assertSupportedProvider(config?.provider)
     this.config = {
       provider: config.provider,
       poolSize: config.poolSize ?? 50,
@@ -680,9 +612,6 @@ export class ImageChallengePool {
     const provider = this.config.provider
 
     switch (provider.type) {
-      case 'pollinations':
-        return generatePollinations(prompt, provider)
-
       case 'picsum': {
         const result = generatePicsum(prompt, provider, this.picsumSequentialIndex)
         this.picsumSequentialIndex++
