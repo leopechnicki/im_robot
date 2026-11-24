@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-24
+
+0.8.0 was tagged and has a GitHub release, but it never reached npm or PyPI (both uploads were
+refused for credentials). 0.9.0 is the first release on both registries since 0.7.3 and contains
+everything listed under 0.8.0 below.
+
 ### Added
 
 - Web Bot Auth, first class (draft-ietf-webbotauth-httpsig-protocol-01):
