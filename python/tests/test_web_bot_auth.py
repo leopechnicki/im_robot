@@ -530,7 +530,10 @@ def test_fastapi_require_agent_web_bot_auth() -> None:
     f, _ = agent_host(key)
     app = fastapi.FastAPI()
     dep = require_agent(
-        secret="k" * 32, web_bot_auth=WebBotAuthVerifier(trusted_signature_agents=[AGENT], fetch=f)
+        secret="k" * 32,
+        web_bot_auth=WebBotAuthVerifier(
+            trusted_signature_agents=[AGENT], authorities=["site.example"], fetch=f
+        ),
     )
 
     @app.get("/api/data")
@@ -578,3 +581,194 @@ def test_fastapi_accept_veto() -> None:
         "GET", "https://site.example/x", private_jwk=key.private_jwk, signature_agent=AGENT
     )
     assert TestClient(app, base_url="https://site.example").get("/x", headers=h).status_code == 401
+
+
+# --- review hardening (Axon, unit imrobot-wba) -----------------------------
+
+
+async def test_authorities_block_cross_site_replay() -> None:
+    key = generate_agent_key()
+    f, _ = agent_host(key)
+    v = WebBotAuthVerifier(
+        trusted_signature_agents=[AGENT],
+        authorities=["https://site.example", "site.example:8443"],
+        fetch=f,
+    )
+    # Signed for evil.example, replayed to us with the matching (spoofed) Host.
+    h = sign_request(
+        "GET", "https://evil.example/x", private_jwk=key.private_jwk, signature_agent=AGENT
+    )
+    r = await v.verify(
+        SignedHttpRequest(headers={"host": "evil.example", **{k.lower(): x for k, x in h.items()}})
+    )
+    assert (r.verified, r.outcome, r.reason) == (False, "invalid", "wrong_authority")
+    h = sign_request(
+        "GET", "https://site.example:443/", private_jwk=key.private_jwk, signature_agent=AGENT
+    )
+    ok = await v.verify(
+        SignedHttpRequest(
+            headers={"host": "SITE.example:443", **{k.lower(): x for k, x in h.items()}}
+        )
+    )
+    assert ok.verified, ok
+
+
+def test_normalize_authority() -> None:
+    assert wba.normalize_authority("Site.Example.:443") == "site.example"
+    assert wba.normalize_authority("https://site.example:8443/path") == "site.example:8443"
+    assert wba.normalize_authority("[::1]:80") == "[::1]"
+    assert wba.normalize_authority("bad host") is None
+    with pytest.raises(ValueError):
+        WebBotAuthVerifier(directory_url="https://a.example/k", authorities=[])
+
+
+async def test_require_components() -> None:
+    key = generate_agent_key()
+    f, _ = agent_host(key)
+    v = WebBotAuthVerifier(
+        trusted_signature_agents=[AGENT], require_components=["@method", "@path"], fetch=f
+    )
+    assert (await v.verify(signed_req(key))).reason == "missing_component"
+    assert (await v.verify(signed_req(key, components=["@method", "@path"]))).verified
+
+
+async def test_duplicate_component_identifiers() -> None:
+    key = generate_agent_key()
+    f, _ = agent_host(key)
+    v = WebBotAuthVerifier(trusted_signature_agents=[AGENT], fetch=f)
+    r = signed_req(key)
+    r.headers["signature-input"] = r.headers["signature-input"].replace(
+        '("@authority"', '("@authority" "@authority"'
+    )
+    assert (await v.verify(r)).reason == "malformed"
+
+
+async def test_default_max_age_is_five_minutes() -> None:
+    import time as _time
+
+    key = generate_agent_key()
+    f, _ = agent_host(key)
+    created = int(_time.time()) - 400
+    v = WebBotAuthVerifier(trusted_signature_agents=[AGENT], fetch=f)
+    r = await v.verify(signed_req(key, created=created, expires=created + 3600))
+    assert r.reason == "expired"
+
+
+def test_is_private_host_numeric_trailing_dot_and_v6() -> None:
+    for h in [
+        "2130706433",
+        "0x7f000001",
+        "127.1",
+        "0177.0.0.1",
+        "localhost.",
+        "svc.internal.",
+        "[fec0::1]",
+        "64:ff9b::a9fe:a9fe",
+        "2002:a9fe:a9fe::1",
+        "2001::1",
+        "2001:db8::1",
+        "::a9fe:a9fe",
+        "192.0.2.1",
+    ]:
+        assert is_private_host(h), h
+    for h in ["2606:4700::1111", "1.1.1.1", "agent.example."]:
+        assert not is_private_host(h), h
+
+
+def test_pinned_directory_must_be_https() -> None:
+    with pytest.raises(ValueError, match="https"):
+        WebBotAuthVerifier(directory_url="http://a.example/k")
+    WebBotAuthVerifier(directory_url="http://a.example/k", allow_insecure_directory=True)
+
+
+async def test_non_canonical_directory_key_ignored() -> None:
+    key = generate_agent_key()
+    x = key.public_jwk["x"]
+    alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+    variant = x[:-1] + alphabet[alphabet.index(x[-1]) ^ 1]
+    body = json.dumps({"keys": [{"kty": "OKP", "crv": "Ed25519", "x": variant}]}).encode()
+
+    def f(url: str) -> DirectoryResponse:
+        return DirectoryResponse(200, {}, body)
+
+    v = WebBotAuthVerifier(directory_url="https://agent.example/keys", fetch=f)
+    assert (await v.verify(signed_req(key))).reason == "unknown_key"
+
+
+async def test_raising_accept_challenges() -> None:
+    key = generate_agent_key()
+    f, _ = agent_host(key)
+    v = WebBotAuthVerifier(trusted_signature_agents=[AGENT], fetch=f)
+
+    def boom(_r: Any) -> bool:
+        raise RuntimeError("boom")
+
+    skip, result = await wba.evaluate_web_bot_auth(v, signed_req(key), boom)
+    assert skip is False and result.verified
+
+
+async def test_directories_per_request_capped() -> None:
+    keys = [generate_agent_key() for _ in range(3)]
+    calls: list[str] = []
+
+    def f(url: str) -> DirectoryResponse:
+        calls.append(url)
+        return DirectoryResponse(200, {}, b'{"keys":[]}')
+
+    v = WebBotAuthVerifier(allow_any_signature_agent=True, fetch=f)
+    parts = [
+        sign_request(
+            "GET",
+            SITE,
+            private_jwk=k.private_jwk,
+            signature_agent=f"https://a{i}.example",
+            label=f"s{i}",
+        )
+        for i, k in enumerate(keys)
+    ]
+    headers = {"host": "site.example"}
+    for name in ("Signature-Agent", "Signature-Input", "Signature"):
+        headers[name.lower()] = ", ".join(p[name] for p in parts)
+    await v.verify(SignedHttpRequest(headers=headers))
+    from urllib.parse import urlsplit
+
+    assert len({urlsplit(c).hostname for c in calls}) == 2
+
+
+async def test_cancelled_owner_does_not_poison_waiters() -> None:
+    import asyncio
+
+    key = generate_agent_key()
+    f_sync, _ = agent_host(key)
+    gate = asyncio.Event()
+
+    async def slow(url: str) -> DirectoryResponse:
+        await gate.wait()
+        return f_sync(url)
+
+    v = WebBotAuthVerifier(trusted_signature_agents=[AGENT], fetch=slow)
+    owner = asyncio.ensure_future(v.verify(signed_req(key)))
+    await asyncio.sleep(0)
+    waiter = asyncio.ensure_future(v.verify(signed_req(key)))
+    await asyncio.sleep(0)
+    owner.cancel()
+    gate.set()
+    r = await waiter
+    assert r.verified, r
+
+
+def test_trusted_default_port_matches() -> None:
+    assert wba._normalize_trusted("https://agent.example:443/")[1] == "https://agent.example/"
+
+
+def test_fastapi_warns_without_authorities() -> None:
+    pytest.importorskip("fastapi")
+    from imrobot.fastapi import require_agent
+
+    key = generate_agent_key()
+    f, _ = agent_host(key)
+    with pytest.warns(UserWarning, match="authorities"):
+        require_agent(
+            secret="k" * 32,
+            web_bot_auth=WebBotAuthVerifier(trusted_signature_agents=[AGENT], fetch=f),
+        )

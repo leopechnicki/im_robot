@@ -13,6 +13,7 @@ export {
   parseSignatureInputs,
   buildSignatureBase,
   isPrivateHost,
+  normalizeAuthority,
   WEB_BOT_AUTH_ACCEPT_SIGNATURE,
   WELL_KNOWN_DIRECTORY_PATH,
   DIRECTORY_MEDIA_TYPE,

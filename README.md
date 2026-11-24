@@ -446,10 +446,19 @@ import { requireAgent } from 'imrobot/server'
 
 app.use('/api/agent', requireAgent({
   secret: process.env.IMROBOT_SECRET!,
-  webBotAuth: { trustedSignatureAgents: ['https://agent.example'] },
+  webBotAuth: {
+    trustedSignatureAgents: ['https://agent.example'],
+    authorities: ['api.your-site.example'], // your own host(s): stops cross-site replay
+  },
 }))
 // req.webBotAuth -> { verified: true, keyid, agent, ... } for a signed agent
 ```
+
+Set `authorities`. Without it, a signature an agent made for another site can be replayed to
+you with a spoofed `Host` header, and the adapters log a warning. A signature over `@authority`
+alone still replays to any path on your host until it is 5 minutes old (`maxAgeSeconds`) or its
+nonce is seen. `requireComponents: ['@method', '@path']` binds it to one request, and
+`requireNonce: true` makes it single-use.
 
 The same option exists on `requireAgentHono` (`c.get('webBotAuth')`) and on `createNextMiddleware`
 (for `protectedPaths`). A refused request gets a 401 with an `Accept-Signature` header describing the
@@ -459,7 +468,9 @@ Other key sources:
 
 - `directoryUrl`: pin one directory.
 - `allowAnySignatureAgent: true`: accept any public https agent. Private and loopback hosts are refused.
-  DNS is not resolved, so put this behind an egress firewall.
+  This is risky on a server that can reach internal services: a public name that RESOLVES to a
+  private address is not detected (DNS is not resolved). Prefer an allow-list there, or an egress
+  firewall. At most 2 directories are fetched per request.
 
 `accept(result)` can still veto a verified agent.
 

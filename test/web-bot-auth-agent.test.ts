@@ -8,7 +8,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   WEB_BOT_AUTH_ACCEPT_SIGNATURE,
   WebBotAuthVerifier,
+  evaluateWebBotAuth,
   isPrivateHost,
+  normalizeAuthority,
 } from '../src/server/web-bot-auth'
 import {
   buildKeyDirectory,
@@ -288,7 +290,7 @@ describe('Express requireAgent + webBotAuth', () => {
     const key = await generateAgentKey()
     const guard = requireAgent({
       secret: HMAC_KEY,
-      webBotAuth: { trustedSignatureAgents: [AGENT], fetch: agentHost(key).f },
+      webBotAuth: { trustedSignatureAgents: [AGENT], authorities: ['site.example'], fetch: agentHost(key).f },
     })
     const req: MiddlewareRequest = {
       method: 'GET',
@@ -444,5 +446,143 @@ describe('Next createNextMiddleware + webBotAuth', () => {
     const res = await mw(new Request(SITE))
     expect(res?.status).toBe(401)
     expect(res?.headers.get('accept-signature')).toBe(WEB_BOT_AUTH_ACCEPT_SIGNATURE)
+  })
+})
+
+describe('review hardening (Axon, unit imrobot-wba)', () => {
+  it('authorities: a signature made for another site does not verify here', async () => {
+    const key = await generateAgentKey()
+    const v = new WebBotAuthVerifier({
+      trustedSignatureAgents: [AGENT],
+      authorities: ['https://site.example', 'site.example:8443'],
+      fetch: agentHost(key).f,
+    })
+    // Signed for evil.example, replayed to us with the matching (spoofed) Host.
+    const sig = lower(await signedHeaders(key, 'https://evil.example/x'))
+    const r = await v.verify({ headers: { host: 'evil.example', ...sig } })
+    expect(r).toMatchObject({ verified: false, outcome: 'invalid', reason: 'wrong_authority' })
+    const ok = await v.verify({ headers: { host: 'SITE.example:443', ...lower(await signedHeaders(key, 'https://site.example:443/')) } })
+    expect(ok.verified).toBe(true)
+  })
+
+  it('normalizeAuthority strips default ports, case and trailing dots', () => {
+    expect(normalizeAuthority('Site.Example.:443')).toBe('site.example')
+    expect(normalizeAuthority('https://site.example:8443/path')).toBe('site.example:8443')
+    expect(normalizeAuthority('[::1]:80')).toBe('[::1]')
+    expect(normalizeAuthority('bad host')).toBeUndefined()
+    expect(() => new WebBotAuthVerifier({ directoryUrl: 'https://a.example/k', authorities: [] })).toThrow()
+  })
+
+  it('requireComponents rejects a signature that binds only the host', async () => {
+    const key = await generateAgentKey()
+    const v = new WebBotAuthVerifier({
+      trustedSignatureAgents: [AGENT],
+      requireComponents: ['@method', '@path'],
+      fetch: agentHost(key).f,
+    })
+    const hostOnly = await v.verify({ headers: { host: 'site.example', ...lower(await signedHeaders(key)) } })
+    expect(hostOnly).toMatchObject({ verified: false, reason: 'missing_component' })
+    const full = lower(await signedHeaders(key, SITE, { components: ['@method', '@path'] }))
+    const r = await v.verify({ method: 'GET', url: '/api/data?x=1', headers: { host: 'site.example', ...full } })
+    expect(r.verified).toBe(true)
+  })
+
+  it('rejects duplicate component identifiers', async () => {
+    const key = await generateAgentKey()
+    const v = new WebBotAuthVerifier({ trustedSignatureAgents: [AGENT], fetch: agentHost(key).f })
+    const h = lower(await signedHeaders(key))
+    h['signature-input'] = h['signature-input'].replace('("@authority"', '("@authority" "@authority"')
+    expect(await v.verify({ headers: { host: 'site.example', ...h } })).toMatchObject({
+      verified: false,
+      reason: 'malformed',
+    })
+  })
+
+  it('the default max age is 5 minutes, whatever expires says', async () => {
+    const key = await generateAgentKey()
+    const created = Math.floor(Date.now() / 1000) - 400
+    const h = lower(await signedHeaders(key, SITE, { created, expires: created + 3600 }))
+    const v = new WebBotAuthVerifier({ trustedSignatureAgents: [AGENT], fetch: agentHost(key).f })
+    expect(await v.verify({ headers: { host: 'site.example', ...h } })).toMatchObject({ reason: 'expired' })
+  })
+
+  it('isPrivateHost: trailing dots, numeric hosts and non-global IPv6', () => {
+    for (const h of [
+      'localhost.',
+      'svc.internal.',
+      '127.1',
+      '2130706433',
+      '0x7f000001',
+      '[fec0::1]',
+      '[64:ff9b::a9fe:a9fe]',
+      '[2002:a9fe:a9fe::1]',
+      '[2001::1]',
+      '[2001:db8::1]',
+      '[::a9fe:a9fe]',
+      '[::ffff:a9fe:a9fe]',
+      '192.0.2.1',
+    ]) {
+      expect(isPrivateHost(h), h).toBe(true)
+    }
+    for (const h of ['[2606:4700::1111]', '1.1.1.1', 'agent.example.']) expect(isPrivateHost(h), h).toBe(false)
+  })
+
+  it('a pinned directoryUrl must be https unless allowInsecureDirectory', () => {
+    expect(() => new WebBotAuthVerifier({ directoryUrl: 'http://a.example/k' })).toThrow(/https/)
+    expect(() => new WebBotAuthVerifier({ directoryUrl: 'http://a.example/k', allowInsecureDirectory: true })).not.toThrow()
+  })
+
+  it('ignores a directory key spelled non-canonically (test-key dodge)', async () => {
+    const key = await generateAgentKey()
+    const x = key.publicJwk.x
+    // Flip the 2 unused low bits of the last base64url char: same bytes, other string.
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
+    const last = alphabet.indexOf(x[x.length - 1])
+    const variant = x.slice(0, -1) + alphabet[last ^ 1]
+    const f = (async () =>
+      new Response(JSON.stringify({ keys: [{ kty: 'OKP', crv: 'Ed25519', x: variant }] }), {
+        status: 200,
+      })) as unknown as typeof fetch
+    const v = new WebBotAuthVerifier({ directoryUrl: 'https://agent.example/keys', fetch: f })
+    const r = await v.verify({ headers: { host: 'site.example', ...lower(await signedHeaders(key)) } })
+    expect(r).toMatchObject({ verified: false, reason: 'unknown_key' })
+  })
+
+  it('a throwing accept() challenges instead of throwing', async () => {
+    const key = await generateAgentKey()
+    const v = new WebBotAuthVerifier({ trustedSignatureAgents: [AGENT], fetch: agentHost(key).f })
+    const d = await evaluateWebBotAuth(
+      v,
+      { headers: { host: 'site.example', ...lower(await signedHeaders(key)) } },
+      () => {
+        throw new Error('boom')
+      },
+    )
+    expect(d).toMatchObject({ skipChallenge: false, result: { verified: true } })
+  })
+
+  it('one request cannot make us fetch more than two directories', async () => {
+    const keys = await Promise.all([generateAgentKey(), generateAgentKey(), generateAgentKey()])
+    const calls: string[] = []
+    const f = (async (url: string) => {
+      calls.push(String(url))
+      return new Response('{"keys":[]}', { status: 200 })
+    }) as unknown as typeof fetch
+    const v = new WebBotAuthVerifier({ allowAnySignatureAgent: true, fetch: f })
+    const parts = await Promise.all(
+      keys.map((k, i) =>
+        signRequest({ url: SITE }, { privateJwk: k.privateJwk, signatureAgent: `https://a${i}.example`, label: `s${i}` }),
+      ),
+    )
+    const join = (name: string) => parts.map((p) => p[name]).join(', ')
+    await v.verify({
+      headers: {
+        host: 'site.example',
+        'signature-agent': join('Signature-Agent'),
+        'signature-input': join('Signature-Input'),
+        signature: join('Signature'),
+      },
+    })
+    expect(new Set(calls.map((c) => new URL(c).host)).size).toBe(2)
   })
 })

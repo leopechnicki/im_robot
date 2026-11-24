@@ -79,9 +79,7 @@ def create_imrobot_router(
     verifier = ImRobotVerifier(
         secret=secret, difficulty=difficulty, ttl=ttl, replay_guard=replay_guard
     )
-    token_issuer = ProofTokenIssuer(
-        secret=secret, issuer=issuer_name, token_ttl_ms=token_ttl_ms
-    )
+    token_issuer = ProofTokenIssuer(secret=secret, issuer=issuer_name, token_ttl_ms=token_ttl_ms)
     resolve_agent_id = agent_id_from or _default_agent_id
 
     router = APIRouter()
@@ -95,9 +93,7 @@ def create_imrobot_router(
         try:
             body = await request.json()
         except Exception:
-            return JSONResponse(
-                status_code=400, content={"valid": False, "reason": "invalid_json"}
-            )
+            return JSONResponse(status_code=400, content={"valid": False, "reason": "invalid_json"})
         challenge_obj = body.get("challenge") if isinstance(body, dict) else None
         answer = body.get("answer") if isinstance(body, dict) else None
         if not challenge_obj or not isinstance(answer, str):
@@ -168,6 +164,15 @@ def require_agent(
         from .web_bot_auth import WEB_BOT_AUTH_ACCEPT_SIGNATURE
 
         challenge_headers = {"Accept-Signature": WEB_BOT_AUTH_ACCEPT_SIGNATURE}
+        if getattr(web_bot_auth, "authorities", None) is None:
+            import warnings
+
+            warnings.warn(
+                "imrobot: web_bot_auth verifier without `authorities`: a signature an agent "
+                "made for another site can be replayed here with a spoofed Host header. "
+                'Pass WebBotAuthVerifier(authorities=["your.host"], ...).',
+                stacklevel=2,
+            )
 
     async def _dep(request: Any) -> dict[str, Any]:
         # `request` is a starlette/FastAPI Request. We use Any here (not

@@ -50,6 +50,7 @@ import {
 } from './structured-fields'
 import {
   base64ToBytes,
+  bytesToBase64Url,
   contentDigest,
   jwkThumbprint,
   KNOWN_TEST_KEY_X,
@@ -59,8 +60,14 @@ import {
 
 const DEFAULT_TAG = 'web-bot-auth'
 const DIRECTORY_TAG = 'http-message-signatures-directory'
-/** Max signature age counted from `created` (draft -01: expires SHOULD be <= 24 h after created). */
-const DEFAULT_MAX_AGE_SECONDS = 86_400
+/**
+ * Max signature age counted from `created`, whatever `expires` says. Short on
+ * purpose: a signature over `@authority` alone replays to any path on that
+ * host until it ages out (or its nonce is seen).
+ */
+const DEFAULT_MAX_AGE_SECONDS = 300
+/** Distinct key directories one request may make us fetch. */
+const MAX_DIRECTORIES_PER_REQUEST = 2
 const DEFAULT_CLOCK_SKEW_SECONDS = 60
 const DEFAULT_DIRECTORY_CACHE_MS = 300_000
 const MIN_DIRECTORY_CACHE_MS = 60_000
@@ -129,6 +136,20 @@ export interface WebBotAuthConfig {
    * this directory only; `Signature-Agent` is not used for key lookup.
    */
   directoryUrl?: string
+  /** Allow an `http:` pinned `directoryUrl` (local tests only). Default false. */
+  allowInsecureDirectory?: boolean
+  /**
+   * This server's own authorities (`example.com`, `example.com:8443`, or an
+   * origin). When set, the signed `@authority` must be one of them, so a
+   * signature an agent made for another site cannot be replayed here with a
+   * spoofed `Host`. Strongly recommended; the framework adapters warn without it.
+   */
+  authorities?: string[]
+  /**
+   * Components every accepted signature must also cover, e.g.
+   * `['@method', '@path']`. Without them a signature binds only the host.
+   */
+  requireComponents?: string[]
   /**
    * Discovery allow-list: agent identifiers (JWK Set URLs) or origins whose
    * `Signature-Agent` URLs may be fetched. An origin entry (`https://agent.example`)
@@ -147,7 +168,10 @@ export interface WebBotAuthConfig {
   expectedTag?: string | null
   /** Verify only this Signature-Input label (default: every member with the expected tag). */
   label?: string
-  /** Maximum age of a signature, counted from `created`. Default 86400 (24 h). */
+  /**
+   * Maximum age of a signature, counted from `created`. Default 300 (5 min).
+   * `expires` is honoured too, but is not otherwise capped relative to `created`.
+   */
   maxAgeSeconds?: number
   /** Allowed clock skew in seconds for `created` / `expires`. Default 60. */
   clockSkewSeconds?: number
@@ -180,6 +204,8 @@ export type WebBotAuthFailReason =
   | 'missing_param'
   | 'unsupported_component'
   | 'missing_authority'
+  | 'wrong_authority'
+  | 'missing_component'
   | 'missing_signature_agent'
   | 'untrusted_agent'
   | 'unsupported_alg'
@@ -355,21 +381,47 @@ export function parseSignatureInput(value: string, label?: string): ParsedSignat
 
 const ABSOLUTE_URL = /^[a-z][a-z0-9+.-]*:\/\//i
 
-function pathAndQuery(req: SignedHttpRequest): { path: string; query: string } {
+function pathAndQuery(req: SignedHttpRequest): { path: string; query: string; rawQuery: string } {
   let target = req.originalUrl ?? req.url ?? '/'
   if (ABSOLUTE_URL.test(target)) {
     const u = new URL(target)
-    target = u.pathname + u.search
+    const hash = target.indexOf('#')
+    const literal = hash === -1 ? target : target.slice(0, hash)
+    // URL.search drops a lone trailing '?', which @target-uri must keep.
+    target = u.pathname + (u.search || (literal.endsWith('?') ? '?' : ''))
   }
   const q = target.indexOf('?')
   const path = q === -1 ? target : target.slice(0, q)
-  return { path: path === '' ? '/' : path, query: q === -1 ? '?' : target.slice(q) }
+  const rawQuery = q === -1 ? '' : target.slice(q)
+  return { path: path === '' ? '/' : path, query: rawQuery || '?', rawQuery }
+}
+
+/** `host[:port]` lowercased, trailing dots and default ports (80/443) removed. */
+export function normalizeAuthority(value: string): string | undefined {
+  let v = value.trim().toLowerCase()
+  if (ABSOLUTE_URL.test(v)) {
+    try {
+      v = new URL(v).host
+    } catch {
+      return undefined
+    }
+  }
+  const m = /^(\[[0-9a-f:.]+\]|[a-z0-9._-]+)(?::(\d+))?$/.exec(v)
+  if (!m) return undefined
+  const host = m[1].replace(/\.+$/, '')
+  if (!host) return undefined
+  const port = m[2] && m[2] !== '80' && m[2] !== '443' ? `:${m[2]}` : ''
+  return host + port
 }
 
 function authorityOf(req: SignedHttpRequest): string | undefined {
   const raw = headerValue(req.headers, 'host') ?? req.authority
   if (!raw && req.url && ABSOLUTE_URL.test(req.url)) return new URL(req.url).host
-  return raw?.toLowerCase()
+  // RFC 9421 2.2.3: lowercase host, default port omitted (HTTP 4.2.3).
+  return raw
+    ?.trim()
+    .toLowerCase()
+    .replace(/:(?:80|443)$/, '')
 }
 
 function schemeOf(req: SignedHttpRequest): string | undefined {
@@ -403,8 +455,8 @@ function resolveComponent(item: Item, req: SignedHttpRequest): string | undefine
         const scheme = schemeOf(req)
         const authority = authorityOf(req)
         if (!scheme || !authority) return undefined
-        const { path, query } = pathAndQuery(req)
-        return `${scheme}://${authority}${path}${query === '?' ? '' : query}`
+        const { path, rawQuery } = pathAndQuery(req)
+        return `${scheme}://${authority}${path}${rawQuery}`
       }
       default:
         return undefined
@@ -555,20 +607,29 @@ function resolveSignatureAgent(parsed: ParsedSignatureInput, req: SignedHttpRequ
   return { ok: true, url }
 }
 
-/** IP-literal private / loopback / link-local hosts and localhost (draft -01 6.7). */
+/**
+ * Hosts we refuse to fetch a key directory from (draft -01 6.7): localhost and
+ * internal-only names, and every IP literal that is not public unicast. Trailing
+ * dots are ignored. Hostnames that RESOLVE to private addresses cannot be seen
+ * from portable JS; see `allowAnySignatureAgent`.
+ */
 export function isPrivateHost(hostname: string): boolean {
-  const h = hostname.toLowerCase().replace(/^\[|\]$/g, '')
+  const h = hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.+$/, '')
   if (
+    h === '' ||
     h === 'localhost' ||
     h.endsWith('.localhost') ||
     h.endsWith('.local') ||
-    h.endsWith('.internal')
+    h.endsWith('.internal') ||
+    h.endsWith('.home.arpa')
   )
     return true
   const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h)
   if (v4) {
-    const a = Number(v4[1])
-    const b = Number(v4[2])
+    const [a, b, c] = [Number(v4[1]), Number(v4[2]), Number(v4[3])]
     return (
       a === 0 ||
       a === 10 ||
@@ -576,18 +637,35 @@ export function isPrivateHost(hostname: string): boolean {
       (a === 169 && b === 254) ||
       (a === 172 && b >= 16 && b <= 31) ||
       (a === 192 && b === 168) ||
+      (a === 192 && b === 0 && (c === 0 || c === 2)) ||
+      (a === 198 && (b === 18 || b === 19)) ||
+      (a === 198 && b === 51 && c === 100) ||
+      (a === 203 && b === 0 && c === 113) ||
       (a === 100 && b >= 64 && b <= 127) ||
       a >= 224
     )
   }
   if (h.includes(':')) {
-    if (h === '::' || h === '::1') return true
-    if (/^f[cd]/.test(h) || /^fe[89ab]/.test(h)) return true
     const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(h)
     if (mapped) return isPrivateHost(mapped[1])
-    if (/^::ffff:[0-9a-f]{1,4}:[0-9a-f]{1,4}$/.test(h)) return true // mapped, hex form: refuse
+    // Only global unicast (2000::/3) is public. Inside it, refuse the ranges
+    // that embed or tunnel to another address: 6to4 2002::/16, Teredo
+    // 2001:0::/32, documentation 2001:db8::/32. ULA, link/site-local, NAT64,
+    // IPv4-compatible and mapped-hex forms all fall outside 2000::/3.
+    const groups = h.split(':')
+    const first = groups[0] === '' ? 0 : parseInt(groups[0], 16)
+    if (Number.isNaN(first) || first < 0x2000 || first > 0x3fff) return true
+    if (first === 0x2002) return true
+    if (first === 0x2001) {
+      const second = groups[1] === '' || groups[1] === undefined ? 0 : parseInt(groups[1], 16)
+      if (second === 0 || second === 0xdb8) return true
+    }
     return false
   }
+  // A last label that is all digits or hex (`127.1`, `2130706433`, `0x7f000001`)
+  // is an IP in some resolver's eyes: refuse it.
+  const last = h.split('.').pop() ?? ''
+  if (/^\d+$/.test(last) || /^0x[0-9a-f]*$/.test(last)) return true
   return false
 }
 
@@ -787,6 +865,8 @@ export class WebBotAuthVerifier {
   private readonly cache = new Map<string, DirectoryEntry>()
   private readonly inflight = new Map<string, Promise<DirectoryEntry>>()
   private readonly nonceStore: WebBotAuthNonceStore | undefined
+  private readonly authorities: Set<string> | undefined
+  private readonly requiredComponents: string[]
 
   constructor(config: WebBotAuthConfig) {
     const pinned = config.directoryUrl
@@ -796,9 +876,27 @@ export class WebBotAuthVerifier {
         'WebBotAuthVerifier: trustedSignatureAgents entries must be absolute https URLs.',
       )
     }
-    if (pinned !== undefined && pinned.trim().length === 0) {
-      throw new Error('WebBotAuthVerifier: directoryUrl is empty.')
+    if (pinned !== undefined) {
+      let u: URL
+      try {
+        u = new URL(pinned.trim())
+      } catch {
+        throw new Error('WebBotAuthVerifier: directoryUrl must be an absolute URL.')
+      }
+      if (u.protocol !== 'https:' && !(config.allowInsecureDirectory && u.protocol === 'http:')) {
+        throw new Error(
+          'WebBotAuthVerifier: directoryUrl must be https (allowInsecureDirectory is for local tests).',
+        )
+      }
     }
+    if (config.authorities !== undefined) {
+      const norm = config.authorities.map(normalizeAuthority)
+      if (norm.length === 0 || norm.some((a) => a === undefined)) {
+        throw new Error('WebBotAuthVerifier: authorities must be non-empty host[:port] values.')
+      }
+      this.authorities = new Set(norm as string[])
+    }
+    this.requiredComponents = (config.requireComponents ?? []).map((c) => c.toLowerCase())
     if (!pinned && trusted.length === 0 && !config.allowAnySignatureAgent) {
       throw new Error(
         'WebBotAuthVerifier: set directoryUrl (pinned directory), trustedSignatureAgents, or allowAnySignatureAgent.',
@@ -842,10 +940,11 @@ export class WebBotAuthVerifier {
     }
 
     let first: WebBotAuthResult | undefined
+    const directories = new Set<string>()
     for (const parsed of candidates.slice(0, MAX_SIGNATURE_CANDIDATES)) {
       let result: WebBotAuthResult
       try {
-        result = await this.verifyOne(parsed, signatures, req)
+        result = await this.verifyOne(parsed, signatures, req, directories)
       } catch {
         result = fail('malformed', { label: parsed.label })
       }
@@ -859,6 +958,7 @@ export class WebBotAuthVerifier {
     parsed: ParsedSignatureInput,
     signatures: Map<string, Member>,
     req: SignedHttpRequest,
+    directories: Set<string>,
   ): Promise<WebBotAuthResult> {
     const p = parsed.params
     const info: Partial<WebBotAuthResult> = {
@@ -875,6 +975,17 @@ export class WebBotAuthVerifier {
     if (p.alg !== undefined && p.alg !== 'ed25519') return fail('unsupported_alg', info)
     if (!parsed.components.includes('@authority') && !parsed.components.includes('@target-uri')) {
       return fail('missing_authority', info)
+    }
+    for (const c of this.requiredComponents) {
+      if (!parsed.components.includes(c)) return fail('missing_component', info)
+    }
+    // RFC 9421 2.5: a component identifier appears at most once.
+    const ids = parsed.componentItems.map(componentIdentifier)
+    if (new Set(ids).size !== ids.length) return fail('malformed', info)
+    if (this.authorities) {
+      const authority = authorityOf(req)
+      const norm = authority === undefined ? undefined : normalizeAuthority(authority)
+      if (norm === undefined || !this.authorities.has(norm)) return fail('wrong_authority', info)
     }
 
     const now = this.now()
@@ -906,6 +1017,11 @@ export class WebBotAuthVerifier {
     const base = buildSignatureBase(parsed, req)
     if (base === null) return fail('unsupported_component', info)
 
+    if (!directories.has(directoryUrl)) {
+      // Each signature may name a different agent: bound the fetches one request can cause.
+      if (directories.size >= MAX_DIRECTORIES_PER_REQUEST) return fail('directory_error', info)
+      directories.add(directoryUrl)
+    }
     let x: string | undefined
     try {
       x = await this.lookupKey(directoryUrl, p.keyid)
@@ -1024,7 +1140,11 @@ export class WebBotAuthVerifier {
     const res = (await doFetch(target.href, init)) as unknown as RawResponse
     const status = typeof res.status === 'number' ? res.status : res.ok ? 200 : 0
     // No redirects (draft -01 5.5); `redirect: 'manual'` surfaces them as 3xx / opaque status 0.
-    if (status !== 200) throw new DirectoryError(`directory status ${status}`, status)
+    if (status !== 200) {
+      // Free the connection: we never read this body.
+      void res.body?.cancel?.().catch(() => undefined)
+      throw new DirectoryError(`directory status ${status}`, status)
+    }
     const body = await readCapped(res)
     let data: unknown
     try {
@@ -1045,7 +1165,10 @@ export class WebBotAuthVerifier {
         k.kty !== 'OKP' ||
         k.crv !== 'Ed25519' ||
         typeof k.x !== 'string' ||
-        !/^[A-Za-z0-9_-]{43}$/.test(k.x)
+        !/^[A-Za-z0-9_-]{43}$/.test(k.x) ||
+        // Only the canonical spelling: a variant with stray low bits would get
+        // another thumbprint and dodge the test-key check.
+        bytesToBase64Url(base64ToBytes(k.x)) !== k.x
       ) {
         continue
       }
@@ -1115,8 +1238,18 @@ export interface WebBotAuthDecision {
 }
 
 /** Build (or reuse) the verifier for a policy config. */
+let warnedNoAuthorities = false
+
 export function webBotAuthVerifierFor(config: WebBotAuthPolicyConfig): WebBotAuthVerifier {
-  return config.verifier ?? new WebBotAuthVerifier(config)
+  if (config.verifier) return config.verifier
+  if (!config.authorities && !warnedNoAuthorities && typeof console !== 'undefined') {
+    warnedNoAuthorities = true
+    console.warn(
+      '[imrobot] webBotAuth without `authorities`: a signature an agent made for another ' +
+        'site can be replayed here with a spoofed Host header. Set authorities: ["your.host"].',
+    )
+  }
+  return new WebBotAuthVerifier(config)
 }
 
 /**
@@ -1130,6 +1263,13 @@ export async function evaluateWebBotAuth(
 ): Promise<WebBotAuthDecision> {
   const result = await verifier.verify(req)
   if (!result.verified) return { skipChallenge: false, result }
-  const ok = accept ? await accept(result) : true
+  let ok = true
+  if (accept) {
+    try {
+      ok = (await accept(result)) === true
+    } catch {
+      ok = false // a throwing rule challenges the request instead of failing it
+    }
+  }
   return { skipChallenge: ok, result }
 }

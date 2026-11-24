@@ -54,7 +54,10 @@ WEB_BOT_AUTH_ACCEPT_SIGNATURE = (
     'sig1=("@authority" "signature-agent";key="sig1");created;expires;keyid;tag="web-bot-auth"'
 )
 
-DEFAULT_MAX_AGE_SECONDS = 86_400
+# Short on purpose: a signature over @authority alone replays to any path on
+# that host until it ages out (or its nonce is seen).
+DEFAULT_MAX_AGE_SECONDS = 300
+MAX_DIRECTORIES_PER_REQUEST = 2
 DEFAULT_CLOCK_SKEW_SECONDS = 60
 DEFAULT_DIRECTORY_CACHE_SECONDS = 300.0
 MIN_DIRECTORY_CACHE_SECONDS = 60.0
@@ -316,20 +319,44 @@ def parse_signature_input(
     return next((p for p in all_ if p.label == label), None)
 
 
-def _path_and_query(req: SignedHttpRequest) -> tuple[str, str]:
+def _path_and_query(req: SignedHttpRequest) -> tuple[str, str, str]:
+    """``(path, query, raw_query)``: ``query`` is ``"?"`` when absent (for @query)."""
     target = req.url or "/"
     if _ABSOLUTE_URL.match(target):
+        literal = target.split("#", 1)[0]
         parts = urlsplit(target)
-        target = (parts.path or "/") + (f"?{parts.query}" if parts.query else "")
+        target = (parts.path or "/") + (
+            f"?{parts.query}" if parts.query else ("?" if literal.endswith("?") else "")
+        )
     path, sep, query = target.partition("?")
-    return (path or "/"), (f"?{query}" if sep else "?")
+    raw_query = f"?{query}" if sep else ""
+    return (path or "/"), (raw_query or "?"), raw_query
+
+
+_AUTHORITY_RE = re.compile(r"^(\[[0-9a-f:.]+\]|[a-z0-9._-]+)(?::(\d+))?$")
+
+
+def normalize_authority(value: str) -> Optional[str]:
+    """``host[:port]`` lowercased, trailing dots and default ports (80/443) removed."""
+    v = value.strip().lower()
+    if _ABSOLUTE_URL.match(v):
+        v = urlsplit(v).netloc
+    m = _AUTHORITY_RE.match(v)
+    if not m:
+        return None
+    host = m.group(1).rstrip(".")
+    if not host:
+        return None
+    port = m.group(2)
+    return host + (f":{port}" if port and port not in ("80", "443") else "")
 
 
 def _authority_of(req: SignedHttpRequest) -> Optional[str]:
     raw = _header(req.headers, "host") or req.authority
     if not raw and req.url and _ABSOLUTE_URL.match(req.url):
         raw = urlsplit(req.url).netloc
-    return raw.lower() if raw else None
+    # RFC 9421 2.2.3: lowercase host, default port omitted (HTTP 4.2.3).
+    return re.sub(r":(?:80|443)$", "", raw.strip().lower()) if raw else None
 
 
 def _scheme_of(req: SignedHttpRequest) -> Optional[str]:
@@ -364,8 +391,8 @@ def _resolve_component(item: _sf.Item, req: SignedHttpRequest) -> Optional[str]:
             scheme, authority = _scheme_of(req), _authority_of(req)
             if not scheme or not authority:
                 return None
-            path, query = _path_and_query(req)
-            return f"{scheme}://{authority}{path}{'' if query == '?' else query}"
+            path, _query, raw_query = _path_and_query(req)
+            return f"{scheme}://{authority}{path}{raw_query}"
         return None
     raw = _header(req.headers, name)
     if raw is None:
@@ -444,41 +471,57 @@ def _resolve_signature_agent(
         return ("fail", "malformed")
     if parts.scheme != "https" or not parts.hostname or parts.username or parts.password:
         return ("fail", "untrusted_agent")
-    return ("ok", urlunsplit(("https", parts.netloc.lower(), parts.path or "/", "", "")))
+    return ("ok", urlunsplit(("https", _netloc(value), parts.path or "/", "", "")))
+
+
+_NUMERIC_LABEL = re.compile(r"^(\d+|0x[0-9a-f]*)$")
+_V6_EMBEDDING = (
+    ipaddress.ip_network("2002::/16"),  # 6to4
+    ipaddress.ip_network("2001::/32"),  # Teredo
+    ipaddress.ip_network("2001:db8::/32"),  # documentation
+)
 
 
 def is_private_host(hostname: str) -> bool:
-    """Loopback / private / link-local / reserved IP literals and local names (draft -01 6.7)."""
-    h = hostname.lower().strip("[]")
-    if h == "localhost" or h.endswith((".localhost", ".local", ".internal")):
+    """Hosts we refuse to fetch a key directory from (draft -01 6.7).
+
+    localhost and internal-only names, any host whose last label is numeric or
+    hex (``127.1``, ``2130706433``, ``0x7f000001``: the OS resolver turns those
+    into IPs) and every IP literal that is not globally routable. Trailing dots
+    are ignored. Names that RESOLVE to private addresses are not detected; use
+    ``trusted_signature_agents`` on servers that can reach internal services.
+    """
+    h = hostname.lower().strip("[]").rstrip(".")
+    if not h or h == "localhost" or h.endswith((".localhost", ".local", ".internal", ".home.arpa")):
         return True
     try:
         ip = ipaddress.ip_address(h)
     except ValueError:
-        return False
-    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
-        ip = ip.ipv4_mapped
-    return bool(
-        ip.is_private
-        or ip.is_loopback
-        or ip.is_link_local
-        or ip.is_multicast
-        or ip.is_reserved
-        or ip.is_unspecified
-        or (isinstance(ip, ipaddress.IPv4Address) and ip in ipaddress.ip_network("100.64.0.0/10"))
-    )
+        return bool(_NUMERIC_LABEL.match(h.rsplit(".", 1)[-1]))
+    if isinstance(ip, ipaddress.IPv6Address):
+        if ip.ipv4_mapped is not None:
+            return is_private_host(str(ip.ipv4_mapped))
+        # Only global unicast 2000::/3, minus the ranges that embed another address.
+        if ip not in ipaddress.ip_network("2000::/3") or any(ip in n for n in _V6_EMBEDDING):
+            return True
+    return not ip.is_global or ip.is_multicast
+
+
+def _netloc(url: str) -> str:
+    """Lowercased netloc without the default https port (like WHATWG URL)."""
+    netloc = urlsplit(url).netloc.lower()
+    return netloc[: -len(":443")] if netloc.endswith(":443") else netloc
 
 
 def _origin(url: str) -> str:
-    p = urlsplit(url)
-    return f"{p.scheme}://{p.netloc.lower()}"
+    return f"{urlsplit(url).scheme}://{_netloc(url)}"
 
 
 def _normalize_trusted(entry: str) -> tuple[str, str, bool]:
     p = urlsplit(entry)
     if p.scheme != "https" or not p.hostname:
         raise ValueError("trusted_signature_agents entries must be absolute https URLs")
-    href = urlunsplit(("https", p.netloc.lower(), p.path or "/", "", ""))
+    href = urlunsplit(("https", _netloc(entry), p.path or "/", "", ""))
     return _origin(href), href, (p.path or "/") == "/"
 
 
@@ -501,12 +544,25 @@ def _urllib_fetch(url: str) -> DirectoryResponse:
             "User-Agent": "imrobot-web-bot-auth",
         },
     )
+    deadline = time.monotonic() + FETCH_TIMEOUT_SECONDS
     try:
+        # `timeout` bounds each socket operation; the deadline bounds the whole read,
+        # so a server dripping one byte at a time cannot hold this thread.
         with opener.open(request, timeout=FETCH_TIMEOUT_SECONDS) as resp:
-            body = resp.read(MAX_DIRECTORY_BYTES + 1)
+            chunks: list[bytes] = []
+            size = 0
+            while size <= MAX_DIRECTORY_BYTES:
+                if time.monotonic() > deadline:
+                    raise _DirectoryError("directory fetch timed out")
+                chunk = resp.read(min(8192, MAX_DIRECTORY_BYTES + 1 - size))
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                size += len(chunk)
             headers = {k.lower(): v for k, v in resp.headers.items()}
-            return DirectoryResponse(status=resp.status, headers=headers, body=body)
+            return DirectoryResponse(status=resp.status, headers=headers, body=b"".join(chunks))
     except urllib.error.HTTPError as e:
+        e.close()
         return DirectoryResponse(status=e.code, headers={}, body=b"")
 
 
@@ -622,12 +678,36 @@ class WebBotAuthVerifier:
         require_nonce: bool = False,
         reject_test_keys: bool = True,
         require_signed_directory: bool = False,
+        authorities: Optional[list[str]] = None,
+        require_components: Optional[list[str]] = None,
+        allow_insecure_directory: bool = False,
         fetch: Optional[FetchFn] = None,
         now: Optional[Callable[[], int]] = None,
     ) -> None:
+        """``authorities``: this server's own ``host[:port]`` values. When set, the
+        signed ``@authority`` must be one of them, so a signature made for another
+        site cannot be replayed here with a spoofed ``Host``. Strongly recommended.
+        ``require_components``: components every signature must also cover, e.g.
+        ``["@method", "@path"]``. ``max_age_seconds`` (default 300) caps a
+        signature's age whatever its ``expires`` says.
+        """
         _require_cryptography()
-        if directory_url is not None and not directory_url.strip():
-            raise ValueError("WebBotAuthVerifier: directory_url is empty")
+        if directory_url is not None:
+            scheme = urlsplit(directory_url.strip()).scheme
+            if scheme != "https" and not (allow_insecure_directory and scheme == "http"):
+                raise ValueError(
+                    "WebBotAuthVerifier: directory_url must be https "
+                    "(allow_insecure_directory is for local tests)"
+                )
+        self.authorities: Optional[frozenset[str]] = None
+        if authorities is not None:
+            norm = [normalize_authority(a) for a in authorities]
+            if not norm or any(a is None for a in norm):
+                raise ValueError(
+                    "WebBotAuthVerifier: authorities must be non-empty host[:port] values"
+                )
+            self.authorities = frozenset(a for a in norm if a)
+        self.require_components = [c.lower() for c in (require_components or [])]
         self._trusted = [_normalize_trusted(t) for t in (trusted_signature_agents or [])]
         if not directory_url and not self._trusted and not allow_any_signature_agent:
             raise ValueError(
@@ -653,7 +733,7 @@ class WebBotAuthVerifier:
         else:
             self._nonce_store = nonce_store
         self._cache: OrderedDict[str, _DirectoryEntry] = OrderedDict()
-        self._inflight: dict[str, asyncio.Future[_DirectoryEntry]] = {}
+        self._inflight: dict[str, asyncio.Task[_DirectoryEntry]] = {}
 
     def _now_s(self) -> int:
         return self._now() if self._now else int(time.time())
@@ -680,9 +760,10 @@ class WebBotAuthVerifier:
                 return _fail("tag_mismatch", tag=candidates[0].tag, label=candidates[0].label)
             candidates = tagged
         first: Optional[WebBotAuthResult] = None
+        directories: set[str] = set()
         for parsed in candidates[:MAX_SIGNATURE_CANDIDATES]:
             try:
-                result = await self._verify_one(parsed, signatures, req)
+                result = await self._verify_one(parsed, signatures, req, directories)
             except Exception:
                 result = _fail("malformed", label=parsed.label)
             if result.verified:
@@ -696,6 +777,7 @@ class WebBotAuthVerifier:
         p: ParsedSignatureInput,
         signatures: Mapping[str, Union[_sf.Item, _sf.InnerList]],
         req: SignedHttpRequest,
+        directories: set[str],
     ) -> WebBotAuthResult:
         info: dict[str, Any] = {
             "label": p.label,
@@ -711,6 +793,17 @@ class WebBotAuthVerifier:
             return _fail("unsupported_alg", **info)
         if "@authority" not in p.components and "@target-uri" not in p.components:
             return _fail("missing_authority", **info)
+        if any(c not in p.components for c in self.require_components):
+            return _fail("missing_component", **info)
+        # RFC 9421 2.5: a component identifier appears at most once.
+        ids = [_component_identifier(i) for i in p.component_items]
+        if len(set(ids)) != len(ids):
+            return _fail("malformed", **info)
+        if self.authorities is not None:
+            authority = _authority_of(req)
+            norm = normalize_authority(authority) if authority else None
+            if norm is None or norm not in self.authorities:
+                return _fail("wrong_authority", **info)
         now = self._now_s()
         skew, max_age = self.clock_skew_seconds, self.max_age_seconds
         if p.created > p.expires:
@@ -741,6 +834,11 @@ class WebBotAuthVerifier:
         base = build_signature_base(p, req)
         if base is None:
             return _fail("unsupported_component", **info)
+        if directory_url not in directories:
+            # Each signature may name a different agent: bound the fetches per request.
+            if len(directories) >= MAX_DIRECTORIES_PER_REQUEST:
+                return _fail("directory_error", **info)
+            directories.add(directory_url)
         try:
             x = await self._lookup_key(directory_url, p.keyid)
         except _DirectoryError:
@@ -791,12 +889,16 @@ class WebBotAuthVerifier:
         return None
 
     async def _refresh(self, url: str, previous: Optional[_DirectoryEntry]) -> _DirectoryEntry:
+        # The fetch runs in its own task that every caller shields: one caller
+        # being cancelled (client disconnect) never cancels the others.
         loop = asyncio.get_running_loop()
-        running = self._inflight.get(url)
-        if running is not None and running.get_loop() is loop:
-            return await asyncio.shield(running)
-        fut: asyncio.Future[_DirectoryEntry] = loop.create_future()
-        self._inflight[url] = fut
+        task = self._inflight.get(url)
+        if task is None or task.get_loop() is not loop:
+            task = loop.create_task(self._refresh_task(url, previous))
+            self._inflight[url] = task
+        return await asyncio.shield(task)
+
+    async def _refresh_task(self, url: str, previous: Optional[_DirectoryEntry]) -> _DirectoryEntry:
         try:
             try:
                 entry = await self._fetch_directory(url)
@@ -811,12 +913,9 @@ class WebBotAuthVerifier:
             self._cache[url] = entry
             while len(self._cache) > MAX_CACHED_DIRECTORIES:
                 self._cache.popitem(last=False)
-            fut.set_result(entry)
             return entry
         finally:
-            if not fut.done():
-                fut.cancel()
-            if self._inflight.get(url) is fut:
+            if self._inflight.get(url) is asyncio.current_task():
                 del self._inflight[url]
 
     async def _fetch_directory(self, url: str) -> _DirectoryEntry:
@@ -860,6 +959,10 @@ class WebBotAuthVerifier:
                 continue
             x = k.get("x")
             if not isinstance(x, str) or not _X_RE.match(x):
+                continue
+            # Only the canonical spelling: a variant with stray low bits would get
+            # another thumbprint and dodge the test-key check.
+            if b64url(b64decode_any(x)) != x:
                 continue
             nbf, exp = k.get("nbf"), k.get("exp")
             if isinstance(nbf, int) and not isinstance(nbf, bool) and nbf > now_s:
@@ -909,7 +1012,12 @@ async def evaluate_web_bot_auth(
     result = await verifier.verify(req)
     if not result.verified:
         return False, result
-    ok = True if accept is None else bool(await _maybe_await(accept(result)))
+    if accept is None:
+        return True, result
+    try:
+        ok = (await _maybe_await(accept(result))) is True
+    except Exception:
+        ok = False  # a raising rule challenges the request instead of failing it
     return ok, result
 
 
@@ -931,6 +1039,7 @@ __all__ = [
     "default_fetch",
     "evaluate_web_bot_auth",
     "is_private_host",
+    "normalize_authority",
     "jwk_thumbprint",
     "parse_signature_input",
     "parse_signature_inputs",
