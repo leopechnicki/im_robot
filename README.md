@@ -118,6 +118,8 @@ Needs Svelte 5 or later (the component uses runes).
 </script>
 ```
 
+The widget renders inside an open shadow root, so `document.querySelector('[data-imrobot-challenge]')` does not see it. Agents reach it through the element: `document.querySelector('imrobot-widget').shadowRoot.querySelector('[data-imrobot-challenge]')` (see [How agents interact with it](#how-agents-interact-with-it)).
+
 ### Core API (headless)
 
 ```ts
@@ -221,7 +223,7 @@ app.use('/imrobot', router.handler)
 The handler automatically routes based on HTTP method:
 - **GET** → challenge endpoint (returns a signed challenge)
 - **POST** → verify endpoint (verifies answer, returns proof token)
-- **Other methods** → 405 Method Not Allowed
+- **Other methods** → `next()` when the framework passes one (so under Express an unmatched `PUT` falls through to your other routes, usually ending in 404); 405 Method Not Allowed when it is called without `next`, e.g. `server.on('request', (req, res) => router.handler(req, res))`
 
 ### Hono / Bun
 
@@ -230,8 +232,10 @@ For Hono (Bun, Cloudflare Workers, Deno, Node), use the dedicated `imrobot/hono`
 ```ts
 import { Hono } from "hono";
 import { createHonoAgentRouter, requireAgentHono } from "imrobot/hono";
+import type { AgentProofToken } from "imrobot/server";
 
-const app = new Hono();
+// Declare the variable requireAgentHono sets, so c.get("agentProof") type-checks
+const app = new Hono<{ Variables: { agentProof: AgentProofToken } }>();
 const secret = process.env.IMROBOT_SECRET!;
 
 // Mount /imrobot/challenge (GET) and /imrobot/verify (POST) in one call
@@ -533,7 +537,9 @@ AI agents read the challenge data directly from the DOM via the `data-imrobot-ch
 3. **Submit the answer** via the input field or programmatically
 
 ```js
-// Agent reads challenge from DOM (unaffected by blur)
+// Agent reads challenge from DOM (unaffected by blur). For the Web Component
+// the widget lives in its open shadow root:
+//   document.querySelector('imrobot-widget').shadowRoot.querySelector('[data-imrobot-challenge]')
 const el = document.querySelector('[data-imrobot-challenge]')
 const challenge = JSON.parse(el.dataset.imrobotChallenge)
 
@@ -601,7 +607,7 @@ Every operation has 3–4 distinct phrasings that are randomly selected on each 
 | `xor_encode(key)`    | XOR each byte with key                | `"AB"` + key 1 → `"@C"`         |
 | `count_chars(char)`  | Count occurrences of a char           | `"aababc"` + char `"a"` → `"3"` |
 | `slice_alternate()`  | Keep every other character            | `"abcdef"` → `"ace"`            |
-| `fnv1a_hash()`       | FNV-1a hash of the string             | `"test"` → `"bc2c0be9"`         |
+| `fnv1a_hash()`       | FNV-1a hash of the string             | `"test"` → `"afd071e5"`         |
 | `length()`           | String length as string               | `"hello"` → `"5"`               |
 | `sha256_hash()`      | Deprecated name: cascaded FNV-1a, NOT SHA-256 (256-bit output) | deterministic 64-char hex |
 | `sha256()`           | Real SHA-256 of the UTF-8 bytes (opt-in, `sha256: true`) | `"abc"` → `"ba7816bf…15ad"` |
@@ -999,8 +1005,17 @@ const solveResp = await server.handleMessage(JSON.stringify({
 }))
 
 const { result: solveResult } = JSON.parse(solveResp)
-const { token } = JSON.parse(solveResult.content[0].text)
-// Use token.challengeId + token.signature for X-Agent-Proof header
+const { answer, token } = JSON.parse(solveResult.content[0].text)
+// `token` is a client-side solve receipt, NOT an X-Agent-Proof value: a server
+// guarded by requireAgent rejects it (403). To call a protected API, solve the
+// server's own signed challenge and trade it for a proof token:
+//   const signed = await (await fetch('https://site/imrobot/challenge')).json()
+//   ...solve-challenge with { challenge: signed } -> answer
+//   const { proofToken } = await (await fetch('https://site/imrobot/verify', {
+//     method: 'POST', headers: { 'Content-Type': 'application/json' },
+//     body: JSON.stringify({ challenge: signed, answer }),
+//   })).json()
+//   fetch('https://site/api/agent', { headers: { 'X-Agent-Proof': proofToken } })
 ```
 
 The MCP server has zero runtime dependencies — it implements JSON-RPC 2.0 directly and calls the same core API that agents use.
@@ -1049,7 +1064,7 @@ Highlights:
 
 - **Zero deps** for `solve_challenge`, `ImRobotVerifier`, `ProofTokenIssuer`. FastAPI is an optional `[fastapi]` extra.
 - **Cross-runtime interop** — `test_interop.py` pins JS reference outputs (FNV-1a, HMAC-SHA256, base64url) so any drift breaks CI.
-- **RFC 7519 JWTs (HS256)** — proof tokens verify with `PyJWT`, `python-jose`, or any RFC-compliant library.
+- **RFC 7519 JWTs (HS256)** — proof tokens verify with `PyJWT`, `python-jose`, or any RFC-compliant library. (Tokens issued by 0.8.0 and earlier carried a non-standard signature segment; imrobot itself still verifies them, third-party JWT libraries do not.)
 - **Python 3.9 – 3.13** supported.
 - **PyPI auto-publish** on `py-v*` tags via `.github/workflows/publish-python.yml` (OIDC trusted publishing, no long-lived tokens).
 

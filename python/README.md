@@ -150,6 +150,21 @@ httpx.get(url, headers=sign_request("GET", url, private_jwk=key.private_jwk,
 | `hmac_sign(secret, message)` | HMAC-SHA256 hex (matches JS `hmacSign`) |
 | `hmac_verify(secret, message, sig)` | Constant-time HMAC verify |
 
+`ImRobotVerifier.generate` / `.verify` and `ProofTokenIssuer.issue` / `.verify` are coroutines (`await` them, or `asyncio.run(...)` from sync code), and they return plain dicts (`TypedDict`s), so read results as `result["valid"]` and `result.get("reason")`, not `result.valid`:
+
+```python
+import asyncio
+from imrobot import ImRobotVerifier, solve_challenge
+
+async def main():
+    verifier = ImRobotVerifier(secret)
+    challenge = await verifier.generate()
+    result = await verifier.verify(challenge, solve_challenge(challenge))
+    print(result["valid"], result.get("reason"))
+
+asyncio.run(main())
+```
+
 ### `imrobot.gate`, `imrobot.langchain`, `imrobot.crewai`
 
 | Function | Purpose |
@@ -174,7 +189,7 @@ The Python and JS SDKs share the exact same wire format:
 - **FNV-1a** — bit-for-bit identical output (matches JS `Math.imul` semantics).
 - **HMAC-SHA256** — 64-char lowercase hex.
 - **Base64url** — RFC 4648 §5, no padding.
-- **JWT** — RFC 7519 HS256, standard claims + namespaced `imr` claim.
+- **JWT** — RFC 7519 HS256, standard claims + namespaced `imr` claim; the signature segment is base64url of the raw 32-byte HMAC (RFC 7515), so `PyJWT` verifies it. Tokens from 0.8.0 and earlier used base64url of the hex HMAC; `ProofTokenIssuer.verify` still accepts them.
 - **Challenge JSON** — same field names (camelCase for wire compatibility with JS: `visibleSeed`, `expiresAt`, `hmac`, `pipeline`).
 
 The `tests/test_interop.py` suite pins known JS reference outputs so any drift breaks CI.
