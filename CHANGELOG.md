@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-24
+
+0.8.0 was tagged and has a GitHub release, but it never reached npm or PyPI (both uploads were
+refused for credentials). 0.9.0 is the first npm release since 0.7.3, the first release of the
+Python SDK on PyPI, and contains everything listed under 0.8.0 below.
+
 ### Added
 
 - Web Bot Auth, first class (draft-ietf-webbotauth-httpsig-protocol-01):
@@ -102,7 +108,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- First release of the Python SDK on PyPI (`pip install imrobot`). The JS and Python SDKs now release in lockstep under one version (`package.json`, `python/pyproject.toml` and `python/src/imrobot/_version.py`); a test fails on drift.
+- Python SDK set up for PyPI (`pip install imrobot`); the upload did not go through, so the first PyPI release is 0.9.0. The JS and Python SDKs now release in lockstep under one version (`package.json`, `python/pyproject.toml` and `python/src/imrobot/_version.py`); a test fails on drift.
 - `scripts/release-plan.mjs`: the release decision as a pure, unit-tested function (`test/release-plan.test.ts`), plus `notes`, `bump` and `verify` commands used by the workflows.
 - npm and PyPI publish runs now poll the registry after publishing and fail unless the new version is actually served.
 - npm publish refuses a tarball whose files mention the removed Pollinations provider.
@@ -134,7 +140,7 @@ Correction (2026-11-24): this entry used to say "republish of 0.7.1, no source c
 ### Added
 
 - Hono adapter (`imrobot/hono`) — `createHonoAgentRouter()` + `requireAgentHono()` for Bun, Cloudflare Workers, and Deno. Shares the same `ImRobotVerifier` and `ProofTokenIssuer` as the Express middleware, so JWTs verify identically across both runtimes. (#123)
-- Python SDK source (`python/`) — companion package for LangChain / CrewAI / AutoGPT agents and FastAPI / Starlette servers. Byte-identical wire format with the JS SDK (interop tests pin FNV-1a, HMAC-SHA256, and base64url reference outputs). Python 3.9–3.13 supported. The PyPI publish workflow was added here, but the package first reached PyPI in 0.8.0. (#125)
+- Python SDK source (`python/`) — companion package for LangChain / CrewAI / AutoGPT agents and FastAPI / Starlette servers. Byte-identical wire format with the JS SDK (interop tests pin FNV-1a, HMAC-SHA256, and base64url reference outputs). Python 3.9–3.13 supported. The PyPI publish workflow was added here, but the package first reached PyPI in 0.9.0. (#125)
 - `imrobot test-agent <url>` CLI command — probes any URL for imrobot support by checking `.well-known/imrobot.json`, `data-imrobot-challenge` DOM attributes, and `<script>`/`<meta>` markers. Useful in CI scripts. Exit codes: `0` = accepts agents, `1` = no signals, `2` = network/usage error. (#122)
 - Vitest coverage tooling and Codecov badges. (#121)
 - Demo: build-time version injection replaces hard-coded version badges, with a regression suite. (#129, #130)
