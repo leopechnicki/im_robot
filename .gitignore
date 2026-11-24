@@ -15,3 +15,10 @@ leo-agents/
 
 # Vitest temp files
 vitest.config.ts.timestamp-*
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+python/dist/
+*.egg-info/
