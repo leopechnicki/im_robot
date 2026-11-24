@@ -34,7 +34,9 @@ describe('createVerifier({ analytics })', () => {
     const c = await verifier.generate()
     const forged = { ...c, difficulty: '__proto__' } as unknown as SignedChallenge
     expect((await verifier.verify(forged, solveChallenge(c))).reason).toBe('invalid_hmac')
-    expect((await verifier.verify(null as unknown as SignedChallenge, 'x')).reason).toBe('invalid_hmac')
+    expect((await verifier.verify(null as unknown as SignedChallenge, 'x')).reason).toBe(
+      'invalid_hmac',
+    )
     expect(analytics.getStats().byDifficulty.medium.failureReasons.invalid_hmac).toBe(2)
   })
 

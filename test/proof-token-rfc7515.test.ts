@@ -33,7 +33,14 @@ describe('ProofTokenIssuer -- RFC 7515 HS256 signature segment', () => {
     const now = Math.floor(Date.now() / 1000)
     const h = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
     const p = Buffer.from(
-      JSON.stringify({ iss: 'imrobot', sub: 'agent_x', iat: now, nbf: now, exp: now + 60, jti: 'j1' }),
+      JSON.stringify({
+        iss: 'imrobot',
+        sub: 'agent_x',
+        iat: now,
+        nbf: now,
+        exp: now + 60,
+        jti: 'j1',
+      }),
     ).toString('base64url')
     const token = `${h}.${p}.${rfcSignature(KEY_A, `${h}.${p}`)}`
     const r = await new ProofTokenIssuer({ secret: KEY_A }).verify(token)

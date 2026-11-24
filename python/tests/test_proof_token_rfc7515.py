@@ -45,7 +45,14 @@ class TestRfc7515Signature:
     async def test_verifies_standard_hs256_token(self):
         now = int(time.time())
         h = _b64(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
-        claims = {"iss": "imrobot", "sub": "agent_x", "iat": now, "nbf": now, "exp": now + 60, "jti": "j"}
+        claims = {
+            "iss": "imrobot",
+            "sub": "agent_x",
+            "iat": now,
+            "nbf": now,
+            "exp": now + 60,
+            "jti": "j",
+        }
         p = _b64(json.dumps(claims).encode())
         token = f"{h}.{p}.{_b64(_mac(KEY_A, f'{h}.{p}'))}"
         result = await ProofTokenIssuer(secret=KEY_A).verify(token)

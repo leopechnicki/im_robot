@@ -273,8 +273,6 @@ export class ImRobotVerifier {
  * })
  * ```
  */
-export function createVerifier(
-  config: VerifierConfig,
-): ImRobotVerifier {
+export function createVerifier(config: VerifierConfig): ImRobotVerifier {
   return new ImRobotVerifier(config)
 }

@@ -29,10 +29,19 @@ async function loadComponent() {
   const source = readFileSync(join(root, 'src', 'svelte', 'ImRobot.svelte'), 'utf-8')
   const { js } = compile(source, { generate: 'client', filename: 'ImRobot.svelte' })
   const code = js.code
-    .replace(/from 'svelte\/internal\/client'/g, `from '${fileUrl(join(svelteSrc, 'internal', 'client', 'index.js'))}'`)
-    .replace(/from 'svelte\/internal\/disclose-version'/g, `from '${fileUrl(join(svelteSrc, 'internal', 'disclose-version.js'))}'`)
+    .replace(
+      /from 'svelte\/internal\/client'/g,
+      `from '${fileUrl(join(svelteSrc, 'internal', 'client', 'index.js'))}'`,
+    )
+    .replace(
+      /from 'svelte\/internal\/disclose-version'/g,
+      `from '${fileUrl(join(svelteSrc, 'internal', 'disclose-version.js'))}'`,
+    )
     .replace(/from '\.\.\/(core\/index|styles|screenshot-shield)'/g, (_m, mod: string) => {
-      const file = mod === 'core/index' ? join(root, 'src', 'core', 'index.ts') : join(root, 'src', `${mod}.ts`)
+      const file =
+        mod === 'core/index'
+          ? join(root, 'src', 'core', 'index.ts')
+          : join(root, 'src', `${mod}.ts`)
       return `from '${file.split('\\').join('/')}'`
     })
   mkdirSync(outDir, { recursive: true })
@@ -40,7 +49,12 @@ async function loadComponent() {
   writeFileSync(outFile, code)
   const mod = await import(/* @vite-ignore */ outFile.split('\\').join('/'))
   const runtime = await import(/* @vite-ignore */ fileUrl(join(svelteSrc, 'index-client.js')))
-  return { Component: mod.default, mount: runtime.mount, unmount: runtime.unmount, flushSync: runtime.flushSync }
+  return {
+    Component: mod.default,
+    mount: runtime.mount,
+    unmount: runtime.unmount,
+    flushSync: runtime.flushSync,
+  }
 }
 
 afterAll(() => {
