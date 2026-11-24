@@ -87,6 +87,8 @@ function handleVerified(token) {
 
 ### Svelte
 
+Needs Svelte 5 or later (the component uses runes).
+
 ```svelte
 <script>
   import ImRobot from 'imrobot/svelte'
