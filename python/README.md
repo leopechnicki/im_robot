@@ -61,6 +61,45 @@ async def agent_only():
     return {"secret": "only bots see this"}
 ```
 
+## Web Bot Auth: signed agents skip the challenge
+
+`pip install "imrobot[wba]"` adds Ed25519 support (`cryptography`). A request with a valid
+[Web Bot Auth](https://datatracker.ietf.org/doc/draft-ietf-webbotauth-httpsig-protocol/) signature
+(draft -01) passes `require_agent` without a proof token. Everything else is challenged as before:
+
+```python
+from imrobot.web_bot_auth import WebBotAuthVerifier
+
+verifier = WebBotAuthVerifier(
+    trusted_signature_agents=["https://agent.example"],
+    authorities=["api.your-site.example"],  # your own host(s): stops cross-site replay
+)
+
+@app.get("/api/agent-data")
+async def agent_only(agent=Depends(require_agent(secret=secret, web_bot_auth=verifier))):
+    return agent  # {"agent_verified": True, "web_bot_auth": {...}} for a signed agent
+```
+
+Set `authorities`; without it `require_agent` warns, because a signature made for another site
+could be replayed to you with a spoofed `Host`. A signature is accepted for 5 minutes after
+`created` (`max_age_seconds`). `require_components=["@method", "@path"]` binds it to one request,
+and `require_nonce=True` makes it single-use.
+
+Signing as an agent:
+
+```python
+import httpx
+from imrobot.agent import generate_agent_key, key_directory_response, sign_request
+
+key = generate_agent_key()  # keep key.private_jwk secret
+body, headers = key_directory_response([key.private_jwk], authority="agent.example")
+# serve body + headers at https://agent.example/.well-known/http-message-signatures-directory
+
+url = "https://site.example/api/agent-data"
+httpx.get(url, headers=sign_request("GET", url, private_jwk=key.private_jwk,
+                                    signature_agent="https://agent.example"))
+```
+
 ## API surface
 
 ### `imrobot`

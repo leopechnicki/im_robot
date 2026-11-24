@@ -12,6 +12,7 @@ export default defineConfig([
       "next/index": "src/next/index.ts",
       "hono/index": "src/hono/index.ts",
       "mcp/index": "src/mcp/index.ts",
+      "agent/index": "src/agent/index.ts",
     },
     format: ["esm", "cjs"],
     dts: true,

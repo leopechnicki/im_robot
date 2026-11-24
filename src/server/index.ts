@@ -3,16 +3,34 @@ export { TurnstileVerifier, verifyTurnstileToken } from './turnstile'
 export type { TurnstileConfig, TurnstileResult } from './turnstile'
 export {
   WebBotAuthVerifier,
+  MemoryNonceStore,
   verifyWebBotAuthSignature,
+  verifyDirectoryResponse,
+  evaluateWebBotAuth,
+  webBotAuthVerifierFor,
+  signedRequestFromFetch,
   parseSignatureInput,
+  parseSignatureInputs,
   buildSignatureBase,
+  isPrivateHost,
+  normalizeAuthority,
+  WEB_BOT_AUTH_ACCEPT_SIGNATURE,
+  WELL_KNOWN_DIRECTORY_PATH,
+  DIRECTORY_MEDIA_TYPE,
 } from './web-bot-auth'
 export type {
   WebBotAuthConfig,
+  WebBotAuthPolicyConfig,
+  WebBotAuthDecision,
+  WebBotAuthNonceStore,
+  WebBotAuthOutcome,
   WebBotAuthResult,
   WebBotAuthFailReason,
   SignedHttpRequest,
+  ParsedSignatureInput,
 } from './web-bot-auth'
+export { jwkThumbprint } from './wba-crypto'
+export type { Ed25519PublicJwk } from './wba-crypto'
 export { ProofTokenIssuer, createTokenIssuer } from './proof-token'
 export { requireAgent, createAgentRouter } from './middleware'
 export { RateLimiter } from './rate-limiter'

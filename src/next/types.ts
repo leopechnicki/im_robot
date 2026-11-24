@@ -1,4 +1,5 @@
 import type { Difficulty } from '../core/types'
+import type { WebBotAuthPolicyConfig } from '../server/web-bot-auth'
 
 /**
  * Configuration for the Next.js App Router middleware.
@@ -55,6 +56,14 @@ export interface NextMiddlewareConfig {
     windowMs: number
     maxRequests: number
   }
+
+  /**
+   * Optional Web Bot Auth (draft-ietf-webbotauth-httpsig-protocol-01) on
+   * `protectedPaths`: a request with a valid signature passes without a proof
+   * token; everything else must present one (401 carries `Accept-Signature`).
+   * @example { trustedSignatureAgents: ['https://agent.example'] }
+   */
+  webBotAuth?: WebBotAuthPolicyConfig
 }
 
 /**
@@ -99,6 +108,8 @@ export interface NextRequestLike {
   url: string
   headers: {
     get(name: string): string | null
+    /** Present on NextRequest; lets Web Bot Auth see every signed header. */
+    forEach?(cb: (value: string, key: string) => void): void
   }
   json(): Promise<unknown>
   ip?: string

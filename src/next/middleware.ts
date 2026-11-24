@@ -2,6 +2,12 @@ import type { NextMiddlewareConfig, NextRequestLike } from './types'
 import { ImRobotVerifier } from '../server/verifier'
 import { ProofTokenIssuer } from '../server/proof-token'
 import { RateLimiter } from '../server/rate-limiter'
+import {
+  WEB_BOT_AUTH_ACCEPT_SIGNATURE,
+  evaluateWebBotAuth,
+  signedRequestFromFetch,
+  webBotAuthVerifierFor,
+} from '../server/web-bot-auth'
 
 /**
  * Creates a Next.js App Router middleware that:
@@ -43,6 +49,7 @@ export function createNextMiddleware(config: NextMiddlewareConfig) {
   })
   const tokenIssuer = new ProofTokenIssuer({ secret: config.secret, tokenTTL: config.tokenTTL })
   const rateLimiter = config.rateLimit ? new RateLimiter(config.rateLimit) : undefined
+  const wbaVerifier = config.webBotAuth ? webBotAuthVerifierFor(config.webBotAuth) : undefined
 
   /**
    * The middleware function.
@@ -137,14 +144,26 @@ export function createNextMiddleware(config: NextMiddlewareConfig) {
     const isProtected = protectedPaths.some((p) => pathname === p || pathname.startsWith(p + '/'))
 
     if (isProtected) {
+      if (wbaVerifier) {
+        const decision = await evaluateWebBotAuth(
+          wbaVerifier,
+          signedRequestFromFetch(req),
+          config.webBotAuth?.accept,
+        )
+        // Valid signed agent: skip the challenge and continue to the route.
+        if (decision.skipChallenge) return null
+      }
+
       const token = req.headers.get(proofHeader)
       if (!token) {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+        if (wbaVerifier) headers['Accept-Signature'] = WEB_BOT_AUTH_ACCEPT_SIGNATURE
         return new Response(
           JSON.stringify({
             error: 'Missing agent proof. Include X-Agent-Proof header with a valid token.',
             code: 'AGENT_PROOF_REQUIRED',
           }),
-          { status: 401, headers: { 'Content-Type': 'application/json' } },
+          { status: 401, headers },
         )
       }
 

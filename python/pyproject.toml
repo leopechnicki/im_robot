@@ -37,6 +37,8 @@ dependencies = []
 
 [project.optional-dependencies]
 fastapi = ["fastapi>=0.100.0", "starlette>=0.27.0"]
+# Web Bot Auth (imrobot.web_bot_auth verifier, imrobot.agent signer): Ed25519.
+wba = ["cryptography>=41"]
 dev = [
   "pytest>=8.0",
   "pytest-asyncio>=0.23",
@@ -46,6 +48,7 @@ dev = [
   "starlette>=0.27",
   "ruff>=0.5",
   "mypy>=1.10",
+  "cryptography>=41",
 ]
 
 [project.urls]

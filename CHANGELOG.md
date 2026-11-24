@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Web Bot Auth, first class (draft-ietf-webbotauth-httpsig-protocol-01):
+  - `Signature-Agent` discovery (Dictionary form plus the legacy string form).
+  - Key-directory fetch and cache: no redirects, 5 s timeout, 64 kB / 100-key caps, `Cache-Control` lifetime,
+    a negative cache, no eviction on a failed refetch, and an SSRF guard for `allowAnySignatureAgent`.
+  - `created`/`expires`/`keyid`/`tag`/`nonce` checks, a pluggable nonce store, test-key rejection,
+    verified / invalid / unverified outcomes, and optional signed key directories.
+  - Policy "valid signed agent => skip the challenge, otherwise challenge" in `requireAgent`, `requireAgentHono`,
+    `createNextMiddleware` and FastAPI `require_agent(web_bot_auth=...)`. A refusal carries `Accept-Signature`.
+  - SSRF guard: trailing dots, numeric or hex hosts (`127.1`, `0x7f000001`) and every non-global IP
+    literal (including NAT64, 6to4, Teredo and site-local IPv6) are refused. Python reads the
+    directory against an overall 5 s deadline, and one cancelled request no longer cancels other
+    requests waiting on the same directory fetch.
+  - Byte-exact test vectors from the draft (Appendix E.2.1, E.2.2, E.2.3) and from cloudflare/web-bot-auth.
+- `imrobot/agent` (npm) and `imrobot.agent` (Python): a signing client with Ed25519 keygen, `signRequest` /
+  `sign_request`, `createSignedFetch`, key-directory publishing and signed directory responses.
+- Python `imrobot.web_bot_auth` verifier. New `wba` extra (`cryptography`).
+
+### Changed
+
+- BREAKING (Web Bot Auth only): `WebBotAuthVerifier` now enforces draft -01.
+  - `created`, `expires`, `tag` and a thumbprint `keyid` are required, and `@authority` must be covered.
+  - A signature whose `keyid` is not in the directory is no longer checked against a lone key.
+  - The constructor needs `directoryUrl`, `trustedSignatureAgents` or `allowAnySignatureAgent`.
+    A pinned `directoryUrl` must be https (`allowInsecureDirectory` for local tests).
+  - `directoryUrl` is optional now. A bare-origin agent URL tries
+    `/.well-known/http-message-signatures-directory` first, then the literal URL on 404/410.
+  - `maxAgeSeconds` (default 300 s) now caps every signature's age from `created`. It used to apply
+    only to signatures without `expires`.
+  - A `Signature-Agent` header that is present but not covered by the signature fails verification.
+  - Duplicate component identifiers fail verification (RFC 9421 2.5).
+  - `@authority` is compared with the default port removed (RFC 9421 2.2.3).
+  - Directory keys must use the canonical base64url spelling.
+  - At most 2 key directories are fetched per request.
+  - Results carry an `outcome`.
+- Behaviour change: `webBotAuth` on `requireAgent`, `requireAgentHono` and `createNextMiddleware` now
+  lets a verified agent skip the challenge. `RequireAgentOptions` already had the option, but only
+  `createAgentRouter` used it, so an existing config gains this bypass. The adapters warn when
+  `authorities` is not set.
+- New `WebBotAuthVerifier` options: `authorities` (rejects a signature made for another host:
+  `wrong_authority`) and `requireComponents` (`missing_component`). Python: `authorities`,
+  `require_components`, `allow_insecure_directory`.
+- A throwing `accept` rule now challenges the request instead of rejecting the middleware promise.
+
 ## [0.8.0] - 2026-11-24
 
 ### Removed
