@@ -1142,7 +1142,7 @@ export class WebBotAuthVerifier {
     // No redirects (draft -01 5.5); `redirect: 'manual'` surfaces them as 3xx / opaque status 0.
     if (status !== 200) {
       // Free the connection: we never read this body.
-      void res.body?.cancel?.().catch(() => undefined)
+      Promise.resolve(res.body?.cancel?.()).catch(() => undefined)
       throw new DirectoryError(`directory status ${status}`, status)
     }
     const body = await readCapped(res)
@@ -1237,9 +1237,9 @@ export interface WebBotAuthDecision {
   result: WebBotAuthResult
 }
 
-/** Build (or reuse) the verifier for a policy config. */
 let warnedNoAuthorities = false
 
+/** Build (or reuse) the verifier for a policy config. */
 export function webBotAuthVerifierFor(config: WebBotAuthPolicyConfig): WebBotAuthVerifier {
   if (config.verifier) return config.verifier
   if (!config.authorities && !warnedNoAuthorities && typeof console !== 'undefined') {
