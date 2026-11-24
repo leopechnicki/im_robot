@@ -1124,7 +1124,7 @@ README or npm page, checked 2026-11-24: [BOTCHA](https://github.com/dupe-com/bot
 | **License** | MIT | MIT | MIT (client side); hosted service closed | MIT | Open standard |
 
 **Where imrobot stands.** It is the option with no service to sign up for. The whole flow runs in
-your process, on npm and PyPI, with UI components for four frameworks and adapters for Express,
+your process, on npm and PyPI, with React, Vue and Svelte components, a Web Component, and adapters for Express,
 Next.js, Hono and FastAPI. It also speaks Web Bot Auth both ways: signed agents skip the challenge,
 and agents can sign their own requests.
 
