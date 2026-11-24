@@ -10,6 +10,7 @@ instead of a JS-only library.
 from __future__ import annotations
 
 import base64
+import hashlib
 import warnings
 from typing import Any, Literal, TypedDict, Union
 
@@ -76,6 +77,17 @@ def _sync_hash256(input_str: str) -> str:
 
 
 _sha256_hash_deprecation_warned = False
+
+
+def sha256_text_hex(text: str) -> str:
+    """Real SHA-256 of the text's UTF-8 bytes, 64 lowercase hex chars (the ``sha256`` op).
+
+    Matches JS ``TextEncoder`` byte for byte: strings here can hold lone
+    surrogates (JS-style 16-bit code units), so we pair them up the way UTF-16
+    does and turn the leftovers into U+FFFD before encoding.
+    """
+    utf16 = text.encode("utf-16-le", "surrogatepass")
+    return hashlib.sha256(utf16.decode("utf-16-le", "replace").encode("utf-8")).hexdigest()
 
 
 # ---------------------------------------------------------------------------
@@ -212,6 +224,9 @@ def execute_operation(input_str: str, op: Operation) -> str:  # noqa: C901, PLR0
     if kind == "fnv1a_cascade":
         return _sync_hash256(input_str)
 
+    if kind == "sha256":
+        return sha256_text_hex(input_str)
+
     if kind == "byte_xor":
         key_arr = op["key"]
         if not key_arr:
@@ -319,7 +334,7 @@ def format_operation(op: Operation) -> str:
         "reverse", "base64_encode", "to_upper", "to_lower", "rot13", "hex_encode",
         "sort_chars", "char_code_sum", "slice_alternate", "fnv1a_hash", "length",
         "nibble_swap", "vowel_count", "consonant_extract", "run_length_encode",
-        "atbash", "fnv1a_cascade",
+        "atbash", "fnv1a_cascade", "sha256",
     }:
         return f"{kind}()"
     if kind == "substring":

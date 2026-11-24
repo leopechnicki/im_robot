@@ -24,7 +24,7 @@ export {
 export { generateChallenge, verifyAnswer, createToken } from './challenge'
 export { solveChallenge } from './solver'
 export { fnv1a } from './hash'
-export { hmacSign, hmacVerify, sha256 } from './hmac'
+export { constantTimeEqual, hmacSign, hmacVerify, sha256 } from './hmac'
 export { invisibleVerify } from './invisible'
 export type { InvisibleVerifyOptions, InvisibleVerifyResult } from './invisible'
 
