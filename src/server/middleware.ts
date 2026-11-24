@@ -4,7 +4,12 @@ import { ProofTokenIssuer } from './proof-token'
 import { RateLimiter } from './rate-limiter'
 import type { RateLimiterConfig } from './rate-limiter'
 import { TurnstileVerifier } from './turnstile'
-import { WebBotAuthVerifier } from './web-bot-auth'
+import {
+  WEB_BOT_AUTH_ACCEPT_SIGNATURE,
+  evaluateWebBotAuth,
+  webBotAuthVerifierFor,
+} from './web-bot-auth'
+import type { WebBotAuthPolicyConfig, WebBotAuthResult } from './web-bot-auth'
 import type { ChallengeReplayGuard } from './replay-guard'
 
 /**
@@ -16,8 +21,12 @@ export interface MiddlewareRequest {
   ip?: string
   method?: string
   url?: string
+  /** Express: full path when the router is mounted on a prefix. */
+  originalUrl?: string
   /** Set by requireAgent after successful verification. */
   agentProof?: unknown
+  /** Set by requireAgent when `webBotAuth` is configured: the signature check result. */
+  webBotAuth?: WebBotAuthResult
   /** Set by requireAgent after successful verification. */
   agentVerified?: boolean
 }
@@ -102,35 +111,29 @@ export interface RequireAgentOptions {
     required?: boolean
   }
   /**
-   * Optional Web Bot Auth configuration. When provided, the verify endpoint
-   * checks for an RFC 9421 HTTP Message Signature (Signature/Signature-Input
-   * headers) and stamps the result into the issued proof token.
+   * Optional Web Bot Auth (draft-ietf-webbotauth-httpsig-protocol-01).
    *
-   * Lets imrobot recognise cryptographically-signed agents (OpenAI Operator,
-   * Cloudflare signed agents, etc.) alongside the challenge flow. Non-breaking.
+   * - `requireAgent`: a request with a valid Web Bot Auth signature skips the
+   *   proof token (and therefore the challenge); `req.webBotAuth` holds the
+   *   result. Everything else must present a proof token, as before.
+   * - `createAgentRouter`: the verify endpoint stamps `web_bot_auth_verified`
+   *   into the issued proof token; `required: true` rejects unsigned agents.
+   *
+   * Pick ONE key source: `trustedSignatureAgents` (allow-list, recommended),
+   * `directoryUrl` (one pinned directory) or `allowAnySignatureAgent`.
    *
    * @example
    * ```typescript
-   * createAgentRouter({
+   * const guard = requireAgent({
    *   secret: process.env.IMROBOT_SECRET!,
-   *   webBotAuth: {
-   *     directoryUrl: 'https://my-agent.example/.well-known/http-message-signatures-directory',
-   *     required: false, // default — record but don't block
-   *   },
+   *   webBotAuth: { trustedSignatureAgents: ['https://agent.example'] },
    * })
    * ```
    */
-  webBotAuth?: {
-    /** Agent key directory URL (a JWK Set). */
-    directoryUrl: string
-    /** Max age (seconds) for signatures without an explicit `expires`. Default: 300. */
-    maxAgeSeconds?: number
-    /** Required `tag` parameter (default `'web-bot-auth'`); `null` skips the check. */
-    expectedTag?: string | null
+  webBotAuth?: WebBotAuthPolicyConfig & {
     /**
-     * Whether a valid Web Bot Auth signature is required.
-     * When false (default), a missing/invalid signature is recorded but does not block.
-     * When true, a missing or invalid signature returns HTTP 400.
+     * `createAgentRouter` only: require a valid signature on the verify call.
+     * Default false (recorded in the token, not enforced).
      */
     required?: boolean
   }
@@ -245,6 +248,7 @@ export function requireAgent(options: RequireAgentOptions) {
   const rateLimiter = options.rateLimit ? new RateLimiter(options.rateLimit) : undefined
 
   const trustProxy = options.trustProxy ?? false
+  const wbaVerifier = options.webBotAuth ? webBotAuthVerifierFor(options.webBotAuth) : undefined
 
   return async (req: MiddlewareRequest, res: MiddlewareResponse, next: NextFunction) => {
     // Bypass check
@@ -281,11 +285,22 @@ export function requireAgent(options: RequireAgentOptions) {
       res.setHeader?.('X-RateLimit-Reset', toUnixSeconds(status.resetAt))
     }
 
+    // Web Bot Auth policy: a valid signed agent skips the challenge.
+    if (wbaVerifier) {
+      const decision = await evaluateWebBotAuth(wbaVerifier, req, options.webBotAuth?.accept)
+      req.webBotAuth = decision.result
+      if (decision.skipChallenge) {
+        req.agentVerified = true
+        return next()
+      }
+    }
+
     // Extract token
     const rawHeader = req.headers[headerName]
     const token = typeof rawHeader === 'string' ? rawHeader : undefined
 
     if (!token) {
+      if (wbaVerifier) res.setHeader?.('Accept-Signature', WEB_BOT_AUTH_ACCEPT_SIGNATURE)
       return res.status(401).json({
         error: 'Missing agent proof. Include X-Agent-Proof header with a valid token.',
         code: 'AGENT_PROOF_REQUIRED',
@@ -356,13 +371,9 @@ export function createAgentRouter(options: RequireAgentOptions) {
     ? new TurnstileVerifier({ secretKey: options.turnstile.secretKey })
     : undefined
 
-  // Initialize Web Bot Auth verifier once per router (instance caches the key directory)
+  // One Web Bot Auth verifier per router (it caches key directories and nonces)
   const webBotAuthVerifier = options.webBotAuth
-    ? new WebBotAuthVerifier({
-        directoryUrl: options.webBotAuth.directoryUrl,
-        maxAgeSeconds: options.webBotAuth.maxAgeSeconds,
-        expectedTag: options.webBotAuth.expectedTag,
-      })
+    ? webBotAuthVerifierFor(options.webBotAuth)
     : undefined
 
   type VerifyRequest = MiddlewareRequest & {
@@ -498,8 +509,13 @@ export function createAgentRouter(options: RequireAgentOptions) {
         // required: false — proceed without the flag
         webBotAuthVerified = undefined
       } else {
-        const wbaResult = await webBotAuthVerifier.verify(req)
-        if (!wbaResult.verified) {
+        const decision = await evaluateWebBotAuth(
+          webBotAuthVerifier,
+          req,
+          options.webBotAuth.accept,
+        )
+        const wbaResult = decision.result
+        if (!decision.skipChallenge) {
           if (options.webBotAuth.required) {
             return res.status(400).json({
               error: 'Web Bot Auth verification failed.',
