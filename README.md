@@ -837,7 +837,7 @@ npm install @opentelemetry/api @opentelemetry/sdk-metrics @opentelemetry/exporte
 ```ts
 import { MeterProvider, PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics'
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http'
-import { ChallengeAnalytics, ChallengeOTelExporter } from 'imrobot/server'
+import { ChallengeAnalytics, ChallengeOTelExporter, createVerifier } from 'imrobot/server'
 
 const analytics = new ChallengeAnalytics()
 

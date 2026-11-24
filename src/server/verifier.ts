@@ -5,6 +5,7 @@ import { executePipeline } from '../core/operations'
 import { constantTimeEqual, hmacSign, hmacVerify } from '../core/hmac'
 import { fnv1a } from '../core/hash'
 import type { ChallengeReplayGuard } from './replay-guard'
+import type { ChallengeAnalytics } from './analytics'
 
 /** `expiresAt = timestamp + ttl` is signed and must be an integer, so ttl must be one too. */
 function checkTtl(ttl: number | undefined): number | undefined {
@@ -12,6 +13,19 @@ function checkTtl(ttl: number | undefined): number | undefined {
     throw new Error('ImRobotVerifier: ttl must be a positive integer (milliseconds)')
   }
   return ttl
+}
+
+const DIFFICULTIES: readonly string[] = ['easy', 'medium', 'hard']
+
+/** Options accepted by {@link ImRobotVerifier} / {@link createVerifier}. */
+export type VerifierConfig = ServerConfig & {
+  replayGuard?: ChallengeReplayGuard
+  /**
+   * Record every generate / verify outcome (generated, verified with solve
+   * time and the suspicious flag, failed with its reason) into this
+   * {@link ChallengeAnalytics}, e.g. the one a `ChallengeOTelExporter` reads.
+   */
+  analytics?: Pick<ChallengeAnalytics, 'recordGenerated' | 'recordVerified' | 'recordFailed'>
 }
 
 /**
@@ -44,8 +58,9 @@ export class ImRobotVerifier {
   private readonly sha256: boolean
   private readonly minSolveMs: number
   private readonly maxSolveMs?: number
+  private readonly analytics?: VerifierConfig['analytics']
 
-  constructor(config: ServerConfig & { replayGuard?: ChallengeReplayGuard }) {
+  constructor(config: VerifierConfig) {
     if (!config.secret || config.secret.trim().length < 16) {
       throw new Error('ImRobotVerifier: secret must be at least 16 non-whitespace characters')
     }
@@ -63,6 +78,7 @@ export class ImRobotVerifier {
     this.sha256 = config.sha256 === true
     this.minSolveMs = minSolveMs
     this.maxSolveMs = maxSolveMs
+    this.analytics = config.analytics
   }
 
   /**
@@ -112,6 +128,8 @@ export class ImRobotVerifier {
     const message = this.buildSignatureMessage({ ...challenge, expiresAt })
     const hmac = await hmacSign(this.secret, message)
 
+    this.analytics?.recordGenerated(difficulty)
+
     return {
       ...challenge,
       hmac,
@@ -132,6 +150,25 @@ export class ImRobotVerifier {
    * Returns a VerifyResult with `valid` boolean and failure `reason`.
    */
   async verify(challenge: SignedChallenge, answer: string): Promise<VerifyResult> {
+    const result = await this.check(challenge, answer)
+    if (this.analytics) {
+      // Before the HMAC check the difficulty is client-supplied: only a known
+      // value is trusted, anything else is counted under the default.
+      const claimed = (challenge as { difficulty?: unknown } | null)?.difficulty
+      const difficulty =
+        typeof claimed === 'string' && DIFFICULTIES.includes(claimed)
+          ? (claimed as Difficulty)
+          : this.difficulty
+      if (result.valid) {
+        this.analytics.recordVerified(difficulty, result.elapsed ?? 0, result.suspicious === true)
+      } else if (result.reason) {
+        this.analytics.recordFailed(difficulty, result.reason)
+      }
+    }
+    return result
+  }
+
+  private async check(challenge: SignedChallenge, answer: string): Promise<VerifyResult> {
     // 1. Verify HMAC — ensures the challenge hasn't been tampered with
     if (
       typeof challenge !== 'object' ||
@@ -237,7 +274,7 @@ export class ImRobotVerifier {
  * ```
  */
 export function createVerifier(
-  config: ServerConfig & { replayGuard?: ChallengeReplayGuard },
+  config: VerifierConfig,
 ): ImRobotVerifier {
   return new ImRobotVerifier(config)
 }
