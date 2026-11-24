@@ -121,6 +121,14 @@ class TestTimingGate:
         monkeypatch.setattr(server_mod, "_now_ms", lambda: c["timestamp"] - 50)
         assert (await v.verify(c, solve_challenge(c)))["valid"] is True
 
+    async def test_ttl_must_be_positive_int(self) -> None:
+        with pytest.raises(ValueError, match="ttl"):
+            create_verifier(SECRET, ttl=1500.5)  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="ttl"):
+            create_verifier(SECRET, ttl=0)
+        with pytest.raises(ValueError, match="ttl"):
+            await create_verifier(SECRET).generate(ttl=-1)
+
     def test_window_validation(self) -> None:
         with pytest.raises(ValueError):
             create_verifier(SECRET, min_solve_ms=-1)

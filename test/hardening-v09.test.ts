@@ -122,6 +122,12 @@ describe('timing gate', () => {
     expect((await v.verify(c, solveChallenge(c))).valid).toBe(true)
   })
 
+  it('ttl must be a positive integer (expiresAt is signed as an integer)', async () => {
+    expect(() => createVerifier({ secret: SECRET, ttl: 1500.5 })).toThrow('ttl')
+    expect(() => createVerifier({ secret: SECRET, ttl: 0 })).toThrow('ttl')
+    await expect(createVerifier({ secret: SECRET }).generate({ ttl: 0.5 })).rejects.toThrow('ttl')
+  })
+
   it('validates the window', () => {
     expect(() => createVerifier({ secret: SECRET, minSolveMs: -1 })).toThrow()
     expect(() => createVerifier({ secret: SECRET, minSolveMs: 500, maxSolveMs: 500 })).toThrow()

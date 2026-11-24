@@ -72,6 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The verification hash and the answer are compared in constant time. Python compares UTF-8 bytes, so
   a non-ASCII signature is refused instead of raising `TypeError`.
 - A malformed challenge object is refused with `invalid_hmac`.
+- `ttl` (constructor and `generate()` override) must be a positive integer number of milliseconds.
 
 ### Fixed
 

@@ -177,6 +177,13 @@ def _is_int(v: Any) -> bool:
     return isinstance(v, int) and not isinstance(v, bool)
 
 
+def _check_ttl(ttl: Optional[int]) -> Optional[int]:
+    # expiresAt = timestamp + ttl is signed and verify() requires an int.
+    if ttl is not None and (not _is_int(ttl) or ttl <= 0):
+        raise ValueError("ImRobotVerifier: ttl must be a positive integer (milliseconds)")
+    return ttl
+
+
 def _well_typed(c: Any) -> bool:
     if not isinstance(c, dict):
         return False
@@ -346,7 +353,7 @@ class ImRobotVerifier:
             raise ValueError(f"ImRobotVerifier: difficulty must be one of {SUPPORTED_DIFFICULTIES}")
         self._secret = secret
         self._difficulty: Difficulty = difficulty
-        self._ttl = ttl
+        self._ttl = _check_ttl(ttl)
         self._replay_guard = replay_guard
 
     def _build_signature_message(self, c: Any, expires_at: int) -> str:
@@ -378,7 +385,7 @@ class ImRobotVerifier:
         ttl: Optional[int] = None,
     ) -> SignedChallenge:
         chosen_difficulty = difficulty or self._difficulty
-        chosen_ttl = ttl if ttl is not None else self._ttl
+        chosen_ttl = _check_ttl(ttl) if ttl is not None else self._ttl
         challenge = _generate_challenge(chosen_difficulty, chosen_ttl, sha256=self._sha256)
         expires_at = challenge["timestamp"] + challenge["ttl"]
         message = self._build_signature_message(challenge, expires_at)

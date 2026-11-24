@@ -6,6 +6,14 @@ import { constantTimeEqual, hmacSign, hmacVerify } from '../core/hmac'
 import { fnv1a } from '../core/hash'
 import type { ChallengeReplayGuard } from './replay-guard'
 
+/** `expiresAt = timestamp + ttl` is signed and must be an integer, so ttl must be one too. */
+function checkTtl(ttl: number | undefined): number | undefined {
+  if (ttl !== undefined && (!Number.isSafeInteger(ttl) || ttl <= 0)) {
+    throw new Error('ImRobotVerifier: ttl must be a positive integer (milliseconds)')
+  }
+  return ttl
+}
+
 /**
  * Server-side challenge verifier with HMAC-SHA256 signing.
  *
@@ -50,7 +58,7 @@ export class ImRobotVerifier {
     }
     this.secret = config.secret
     this.difficulty = config.difficulty ?? 'medium'
-    this.ttl = config.ttl
+    this.ttl = checkTtl(config.ttl)
     this.replayGuard = config.replayGuard
     this.sha256 = config.sha256 === true
     this.minSolveMs = minSolveMs
@@ -96,7 +104,7 @@ export class ImRobotVerifier {
    */
   async generate(overrides?: { difficulty?: Difficulty; ttl?: number }): Promise<SignedChallenge> {
     const difficulty = overrides?.difficulty ?? this.difficulty
-    const ttl = overrides?.ttl ?? this.ttl
+    const ttl = checkTtl(overrides?.ttl) ?? this.ttl
 
     const challenge = generateChallenge({ difficulty, ttl, sha256: this.sha256 })
     const expiresAt = challenge.timestamp + challenge.ttl
