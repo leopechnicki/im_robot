@@ -35,6 +35,12 @@ export type Operation =
   | { op: 'consonant_extract' }
   | { op: 'run_length_encode' }
   | { op: 'atbash' }
+  /**
+   * Real SHA-256 (FIPS 180-4) of the UTF-8 bytes, 64 lowercase hex chars (v0.9).
+   * Emitted only when the server opts in with `sha256: true`; solvers older
+   * than v0.9 do not know it.
+   */
+  | { op: 'sha256' }
 
 export interface Challenge {
   version: 1
@@ -57,7 +63,10 @@ export interface Challenge {
  * Prevents tampering, replay attacks, and enables stateless verification.
  */
 export interface SignedChallenge extends Challenge {
-  /** HMAC-SHA256(secret, id + ":" + verification + ":" + expiresAt) */
+  /**
+   * HMAC-SHA256 over `v2:id:verification:expiresAt:difficulty:timestamp:seed:pipelineJSON`
+   * (v0.9). Binding `timestamp` lets the server trust it for the timing gate.
+   */
   hmac: string
   /** Absolute expiration timestamp (ms since epoch) */
   expiresAt: number
@@ -88,6 +97,11 @@ export interface ImRobotToken {
 export interface ImRobotConfig {
   difficulty?: Difficulty
   ttl?: number
+  /**
+   * Put one real SHA-256 step in every pipeline. Default false: solvers older
+   * than v0.9 cannot run it.
+   */
+  sha256?: boolean
   theme?: 'light' | 'dark'
   onVerified?: (token: ImRobotToken) => void
   onError?: (error: Error) => void
@@ -142,13 +156,38 @@ export interface ServerConfig {
   difficulty?: Difficulty
   /** Challenge TTL in milliseconds (default: per difficulty) */
   ttl?: number
+  /**
+   * Put one real SHA-256 step in every pipeline. Default false: solvers older
+   * than v0.9 cannot run it.
+   */
+  sha256?: boolean
+  /**
+   * Timing gate: reject answers that arrive sooner than this many ms after the
+   * challenge was issued (server clock; the issue time is HMAC-signed). Default 0.
+   */
+  minSolveMs?: number
+  /**
+   * Timing gate: reject answers that arrive later than this many ms after the
+   * challenge was issued. Default: none (only the TTL applies). A scripted
+   * solver answers in milliseconds plus network time; a person copying the
+   * challenge by hand needs seconds. See docs/THREAT_MODEL.md for what this
+   * does and does not stop.
+   */
+  maxSolveMs?: number
 }
 
 /** Result of server-side verification */
 export interface VerifyResult {
   valid: boolean
   /** Reason for failure, if any */
-  reason?: 'expired' | 'invalid_hmac' | 'wrong_answer' | 'tampered' | 'replay'
+  reason?:
+    | 'expired'
+    | 'invalid_hmac'
+    | 'wrong_answer'
+    | 'tampered'
+    | 'replay'
+    | 'too_fast'
+    | 'too_slow'
   /** Elapsed time in ms (from challenge creation to verification) */
   elapsed?: number
   /** Whether the response was suspiciously slow */

@@ -131,18 +131,30 @@ function getOpsForDifficulty(difficulty: Difficulty) {
   }
 }
 
-function buildPipeline(seed: string, difficulty: Difficulty): Operation[] {
+/**
+ * Any UTF-16 surrogate. The sha256 step prefers a position without one, so the
+ * input is plain text. Not required for correctness: TextEncoder and the Python
+ * port both hash a lone surrogate as U+FFFD (tested on both sides).
+ */
+const SURROGATE = /[\uD800-\uDFFF]/
+
+function buildPipeline(seed: string, difficulty: Difficulty, sha256 = false): Operation[] {
   const { ops, count } = getOpsForDifficulty(difficulty)
   const numOps = randomInt(count[0], count[1])
   const pipeline: Operation[] = []
   let currentValue = seed
+  // With sha256 on, exactly one real SHA-256 step goes in at a random position,
+  // moved later while the value there holds surrogates. If no position is free
+  // it goes last (see SURROGATE).
+  let shaAt = sha256 ? randomInt(0, numOps - 1) : -1
 
   for (let i = 0; i < numOps; i++) {
-    const factory = pickRandom(ops)
-    const op = factory(currentValue)
+    if (i === shaAt && SURROGATE.test(currentValue)) shaAt++
+    const op: Operation = i === shaAt ? { op: 'sha256' } : pickRandom(ops)(currentValue)
     pipeline.push(op)
     currentValue = executePipeline(currentValue, [op])
   }
+  if (sha256 && !pipeline.some((o) => o.op === 'sha256')) pipeline.push({ op: 'sha256' })
 
   return pipeline
 }
@@ -158,7 +170,7 @@ export function generateChallenge(config?: Partial<ImRobotConfig>, _depth = 0): 
   const nonce = randomHex(getNonceLength(difficulty))
   const seed = visibleSeed + nonce
 
-  const pipeline = buildPipeline(seed, difficulty)
+  const pipeline = buildPipeline(seed, difficulty, config?.sha256 === true)
 
   let answer: string
   try {

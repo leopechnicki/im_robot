@@ -37,6 +37,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Examples: `examples/claude-agent-sdk.ts` (in-process tools and stdio MCP),
   `examples/pass-gate.ts`, `examples/demo-site.ts`, `python/examples/langchain_agent.py`,
   `python/examples/crewai_agent.py`.
+- Timing gate: `minSolveMs` / `maxSolveMs` on `createVerifier` (Python `min_solve_ms` / `max_solve_ms`).
+  The solve time is measured on the server clock from the signed issue time. New `VerifyResult`
+  reasons `too_fast` and `too_slow`. Both are off by default.
+- `sha256` operation: a real SHA-256 of the UTF-8 bytes (pure JS, FIPS 180-4; Python `hashlib`).
+  `sha256: true` on the verifier puts exactly one in every pipeline. It is opt-in because solvers
+  older than 0.9 cannot run it.
+- `constantTimeEqual` (`imrobot/core`) and Python `constant_time_equal`.
+- `docs/THREAT_MODEL.md`: what the checks prove, and what a human running the open-source solver can
+  still do.
 
 ### Changed
 
@@ -63,6 +72,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `wrong_authority`) and `requireComponents` (`missing_component`). Python: `authorities`,
   `require_components`, `allow_insecure_directory`.
 - A throwing `accept` rule now challenges the request instead of rejecting the middleware promise.
+- BREAKING (server SDK): the challenge HMAC uses message format `v2`, which also signs the issue time
+  and the seed. Before, a client could back-date `timestamp`. Challenges issued by 0.8 or earlier fail
+  with `invalid_hmac` after the upgrade, until their TTL runs out (seconds). Upgrade every verifier
+  that shares a secret together (JS and Python services included): while 0.8 and 0.9 run side by
+  side, a challenge issued by one and verified by the other fails. The JS and Python 0.9 verifiers
+  are interoperable.
+- Signed challenge fields must have their real types (integer `timestamp` / `expiresAt`, string
+  `id` / `seed` / `verification` / `difficulty`), otherwise `invalid_hmac`. Python used to answer a
+  string timestamp with a `TypeError` (HTTP 500 in an adapter).
+- The verification hash and the answer are compared in constant time. Python compares UTF-8 bytes, so
+  a non-ASCII signature is refused instead of raising `TypeError`.
+- A malformed challenge object is refused with `invalid_hmac`.
+- `ttl` (constructor and `generate()` override) must be a positive integer number of milliseconds.
+
+### Fixed
+
+- README: the HATCHA comparison said HATCHA is closed source, needs the monday.com CDN and uses image
+  recognition. Its public README says MIT, self-hosted, text and math challenges. The table is
+  rewritten from that README.
 
 ## [0.8.0] - 2026-11-24
 

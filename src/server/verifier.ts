@@ -2,9 +2,17 @@ import type { SignedChallenge, ServerConfig, Difficulty, VerifyResult } from '..
 import { SUSPICIOUS_THRESHOLD_MS } from '../core/types'
 import { generateChallenge } from '../core/challenge'
 import { executePipeline } from '../core/operations'
-import { hmacSign, hmacVerify } from '../core/hmac'
+import { constantTimeEqual, hmacSign, hmacVerify } from '../core/hmac'
 import { fnv1a } from '../core/hash'
 import type { ChallengeReplayGuard } from './replay-guard'
+
+/** `expiresAt = timestamp + ttl` is signed and must be an integer, so ttl must be one too. */
+function checkTtl(ttl: number | undefined): number | undefined {
+  if (ttl !== undefined && (!Number.isSafeInteger(ttl) || ttl <= 0)) {
+    throw new Error('ImRobotVerifier: ttl must be a positive integer (milliseconds)')
+  }
+  return ttl
+}
 
 /**
  * Server-side challenge verifier with HMAC-SHA256 signing.
@@ -33,30 +41,60 @@ export class ImRobotVerifier {
   private readonly difficulty: Difficulty
   private readonly ttl?: number
   private readonly replayGuard?: ChallengeReplayGuard
+  private readonly sha256: boolean
+  private readonly minSolveMs: number
+  private readonly maxSolveMs?: number
 
   constructor(config: ServerConfig & { replayGuard?: ChallengeReplayGuard }) {
     if (!config.secret || config.secret.trim().length < 16) {
       throw new Error('ImRobotVerifier: secret must be at least 16 non-whitespace characters')
     }
+    const { minSolveMs = 0, maxSolveMs } = config
+    if (!Number.isFinite(minSolveMs) || minSolveMs < 0) {
+      throw new Error('ImRobotVerifier: minSolveMs must be a non-negative number')
+    }
+    if (maxSolveMs !== undefined && (!Number.isFinite(maxSolveMs) || maxSolveMs <= minSolveMs)) {
+      throw new Error('ImRobotVerifier: maxSolveMs must be a number greater than minSolveMs')
+    }
     this.secret = config.secret
     this.difficulty = config.difficulty ?? 'medium'
-    this.ttl = config.ttl
+    this.ttl = checkTtl(config.ttl)
     this.replayGuard = config.replayGuard
+    this.sha256 = config.sha256 === true
+    this.minSolveMs = minSolveMs
+    this.maxSolveMs = maxSolveMs
   }
 
   /**
-   * Build the message string that gets HMAC-signed.
-   * Includes all critical fields to prevent any tampering.
+   * Build the message string that gets HMAC-signed (format v2, imrobot 0.9).
+   * Covers every field verify() trusts: the issue time (timing gate), the seed
+   * and the pipeline (answer re-execution), expiry and difficulty.
+   *
+   * Fields are joined with ':' and not length-prefixed. That is safe because
+   * verify() only accepts integer times, `id` and `seed` are generated as hex,
+   * `difficulty` is a fixed word, `verification` is hex and the pipeline JSON
+   * comes last, so no field can absorb a neighbour. Keep it that way, or move
+   * to a length-prefixed v3.
    */
-  private buildSignatureMessage(
-    id: string,
-    verification: string,
-    expiresAt: number,
-    difficulty: Difficulty,
-    pipeline?: unknown[],
-  ): string {
-    const base = `${id}:${verification}:${expiresAt}:${difficulty}`
-    return pipeline ? `${base}:${JSON.stringify(pipeline)}` : base
+  private buildSignatureMessage(c: {
+    id: string
+    verification: string
+    expiresAt: number
+    difficulty: Difficulty
+    timestamp: number
+    seed: string
+    pipeline: unknown[]
+  }): string {
+    return [
+      'v2',
+      c.id,
+      c.verification,
+      c.expiresAt,
+      c.difficulty,
+      c.timestamp,
+      c.seed,
+      JSON.stringify(c.pipeline),
+    ].join(':')
   }
 
   /**
@@ -66,18 +104,12 @@ export class ImRobotVerifier {
    */
   async generate(overrides?: { difficulty?: Difficulty; ttl?: number }): Promise<SignedChallenge> {
     const difficulty = overrides?.difficulty ?? this.difficulty
-    const ttl = overrides?.ttl ?? this.ttl
+    const ttl = checkTtl(overrides?.ttl) ?? this.ttl
 
-    const challenge = generateChallenge({ difficulty, ttl })
+    const challenge = generateChallenge({ difficulty, ttl, sha256: this.sha256 })
     const expiresAt = challenge.timestamp + challenge.ttl
 
-    const message = this.buildSignatureMessage(
-      challenge.id,
-      challenge.verification,
-      expiresAt,
-      challenge.difficulty,
-      challenge.pipeline,
-    )
+    const message = this.buildSignatureMessage({ ...challenge, expiresAt })
     const hmac = await hmacSign(this.secret, message)
 
     return {
@@ -93,19 +125,30 @@ export class ImRobotVerifier {
    * Checks in order:
    * 1. HMAC signature validity (challenge not tampered)
    * 2. Expiration (challenge not expired)
-   * 3. Answer correctness
+   * 3. Timing gate (`minSolveMs` / `maxSolveMs`, measured from the signed issue time)
+   * 4. Answer correctness (constant-time compares)
+   * 5. Replay guard
    *
    * Returns a VerifyResult with `valid` boolean and failure `reason`.
    */
   async verify(challenge: SignedChallenge, answer: string): Promise<VerifyResult> {
     // 1. Verify HMAC — ensures the challenge hasn't been tampered with
-    const message = this.buildSignatureMessage(
-      challenge.id,
-      challenge.verification,
-      challenge.expiresAt,
-      challenge.difficulty,
-      challenge.pipeline,
-    )
+    if (
+      typeof challenge !== 'object' ||
+      challenge === null ||
+      typeof challenge.hmac !== 'string' ||
+      typeof answer !== 'string' ||
+      !Array.isArray(challenge.pipeline) ||
+      typeof challenge.id !== 'string' ||
+      typeof challenge.verification !== 'string' ||
+      typeof challenge.difficulty !== 'string' ||
+      typeof challenge.seed !== 'string' ||
+      !Number.isSafeInteger(challenge.timestamp) ||
+      !Number.isSafeInteger(challenge.expiresAt)
+    ) {
+      return { valid: false, reason: 'invalid_hmac' }
+    }
+    const message = this.buildSignatureMessage(challenge)
     const hmacValid = await hmacVerify(this.secret, message, challenge.hmac)
     if (!hmacValid) {
       return { valid: false, reason: 'invalid_hmac' }
@@ -117,16 +160,27 @@ export class ImRobotVerifier {
       return { valid: false, reason: 'expired' }
     }
 
-    // 3. Verify the answer against the HMAC-protected verification hash.
+    // 3. Timing gate, on the server clock against the HMAC-signed issue time.
+    const elapsed = now - challenge.timestamp
+    // The floor only applies when set: with the default 0, a slightly negative
+    // elapsed (clock skew between instances) must not be refused.
+    if (this.minSolveMs > 0 && elapsed < this.minSolveMs) {
+      return { valid: false, reason: 'too_fast', elapsed }
+    }
+    if (this.maxSolveMs !== undefined && elapsed > this.maxSolveMs) {
+      return { valid: false, reason: 'too_slow', elapsed }
+    }
+
+    // 4. Verify the answer against the HMAC-protected verification hash.
     // This catches pipeline tampering: the verification field is fnv1a(answer + ':' + id),
     // signed by the HMAC. Even if an attacker swaps the pipeline, the verification
     // won't match their new answer.
     const expectedVerification = fnv1a(answer + ':' + challenge.id)
-    if (expectedVerification !== challenge.verification) {
+    if (!constantTimeEqual(expectedVerification, challenge.verification)) {
       return { valid: false, reason: 'wrong_answer' }
     }
 
-    // 4. Re-execute the pipeline as a secondary check
+    // Re-execute the pipeline as a secondary check
     let expectedAnswer: string
     try {
       expectedAnswer = executePipeline(challenge.seed, challenge.pipeline)
@@ -134,7 +188,7 @@ export class ImRobotVerifier {
       return { valid: false, reason: 'tampered' }
     }
 
-    if (answer !== expectedAnswer) {
+    if (!constantTimeEqual(answer, expectedAnswer)) {
       return { valid: false, reason: 'tampered' }
     }
 
@@ -146,7 +200,6 @@ export class ImRobotVerifier {
       }
     }
 
-    const elapsed = now - challenge.timestamp
     return {
       valid: true,
       elapsed,
