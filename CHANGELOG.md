@@ -7,33 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-24
+
 ### Removed
 
-- BREAKING: removed the Pollinations image provider and `PollinationsProviderConfig` export. `ImageChallengePool` now throws at construction when `provider` is missing or its `type` is unsupported (including `'pollinations'`), instead of producing a silently empty pool. Use `picsum`, `static`, or `custom` (bring your own generator).
+- BREAKING: removed the Pollinations image provider and `PollinationsProviderConfig` export. `ImageChallengePool` now throws at construction when `provider` is missing or its `type` is unsupported (including `'pollinations'`), instead of producing a silently empty pool. Use `picsum`, `static`, or `custom` (bring your own generator). (#136)
+
+### Added
+
+- First release of the Python SDK on PyPI (`pip install imrobot`). The JS and Python SDKs now release in lockstep under one version (`package.json`, `python/pyproject.toml` and `python/src/imrobot/_version.py`); a test fails on drift.
+- `scripts/release-plan.mjs`: the release decision as a pure, unit-tested function (`test/release-plan.test.ts`), plus `notes`, `bump` and `verify` commands used by the workflows.
+- npm and PyPI publish runs now poll the registry after publishing and fail unless the new version is actually served.
+- npm publish refuses a tarball whose files mention the removed Pollinations provider.
+- `RELEASING.md`: how a release happens, the one-time registry setup, and what a red Auto Release means.
+
+### Fixed
+
+- Auto Release (Friday) reported success every week from 2026-10-02 to 2026-11-20 and published nothing. The bump PR for 0.7.4 (#135) had been closed, so `package.json` stayed at 0.7.3; the workflow saw that tag v0.7.3 already existed, printed a warning, saw the stale bump branch, and exited 0. It now fails (job `guard`) while main has unreleased commits behind an already-released version, and recreates a stale bump branch and its PR instead of skipping.
+- Every release published to npm twice: the release App's token starts `release: published` runs, so `publish.yml` ran from the release event and again through `workflow_call`, and the second run failed with E403 (v0.7.3, run 36708042343). `publish.yml` no longer listens to the release event.
+- A tag that existed without its npm or PyPI publish was never healed; the planner now finishes it on the next run.
+- Release notes come from this file's section for the version instead of a raw commit list (commit list is the fallback, with a warning).
+- Python sdist now ships the `LICENSE` file it declared.
+
+### Changed
+
+- `vitest` and `@vitest/coverage-v8` bumped to ^4.1.12 (advisory fix), plus grouped dev-dependency bumps. (#137, #138)
+- `publish.yml` upgrades npm to >= 11.5.1 so npm trusted publishing (OIDC) can replace the `NPM_TOKEN` secret once a trusted publisher is configured on npmjs.com.
+
+## [0.7.3] - 2026-09-30
+
+### Changed
+
+- Dev-dependency bumps only (#132); version bump (#131). No source changes vs 0.7.2.
+
+## [0.7.2] - 2026-07-17
+
+Correction (2026-11-24): this entry used to say "republish of 0.7.1, no source changes". The v0.7.2 tag was cut from main on 2026-07-17 and the npm package contains everything below.
 
 ### Added
 
 - Hono adapter (`imrobot/hono`) — `createHonoAgentRouter()` + `requireAgentHono()` for Bun, Cloudflare Workers, and Deno. Shares the same `ImRobotVerifier` and `ProofTokenIssuer` as the Express middleware, so JWTs verify identically across both runtimes. (#123)
-- Python SDK (`pip install imrobot`) — companion package for LangChain / CrewAI / AutoGPT agents and FastAPI / Starlette servers. Byte-identical wire format with the JS SDK (interop tests pin FNV-1a, HMAC-SHA256, and base64url reference outputs). Python 3.9–3.13 supported. PyPI auto-publish via OIDC trusted publishing. (#125)
+- Python SDK source (`python/`) — companion package for LangChain / CrewAI / AutoGPT agents and FastAPI / Starlette servers. Byte-identical wire format with the JS SDK (interop tests pin FNV-1a, HMAC-SHA256, and base64url reference outputs). Python 3.9–3.13 supported. The PyPI publish workflow was added here, but the package first reached PyPI in 0.8.0. (#125)
 - `imrobot test-agent <url>` CLI command — probes any URL for imrobot support by checking `.well-known/imrobot.json`, `data-imrobot-challenge` DOM attributes, and `<script>`/`<meta>` markers. Useful in CI scripts. Exit codes: `0` = accepts agents, `1` = no signals, `2` = network/usage error. (#122)
 - Vitest coverage tooling and Codecov badges. (#121)
+- Demo: build-time version injection replaces hard-coded version badges, with a regression suite. (#129, #130)
 
 ### Changed
 
 - `formatOperation({ op: 'sha256_hash' })` documentation updated to make clear the operation uses cascaded FNV-1a, not RFC 6234 SHA-256. Wire format unchanged. (#124)
 - Demo site: accessibility and responsive polish — improved ARIA labels, focus management, mobile navigation, and layout at small viewports. (#119)
+- Version bump (`package.json` 0.7.1 → 0.7.2). (#118)
 
 ### Fixed
 
 - Web component (`<imrobot-widget>`): the "✓ Verified" and "✗ Failed" status spans were rendering visibly stacked in the widget footer at initial idle state, before the user had attempted verification. The spans carried `hidden = true`, but the `.imrobot-status` class rule set `display: flex` with higher CSS specificity than the browser's UA `[hidden] { display: none }` — so the hide never took effect. Added an explicit `.imrobot-status[hidden] { display: none }` rule that re-asserts hiding for both status spans regardless of parent flex layout. Three new regression tests in `test/web-component.test.ts` lock in the fix (initial idle hides both, wrong answer shows only failed, correct answer shows only verified) by asserting `getComputedStyle(...).display` — not just the `hidden` attribute.
-
-## [0.7.2] - 2026-07-12
-
-Republish of `0.7.1` after the auto-release publish guard landed in `#117`. No source changes vs `0.7.1`; the bump exists so that Friday's Auto Release workflow could ship the fixed publish pipeline as a clean version on npm.
-
-### Changed
-
-- Version bump only (`package.json` 0.7.1 → 0.7.2). (#118)
 
 ## [0.7.1] - 2026-07-03
 
@@ -49,6 +76,11 @@ Republish of `0.7.1` after the auto-release publish guard landed in `#117`. No s
 
 ### Added
 
+- Documented 2026-11-24, shipped in this release but missing from the notes:
+  - Web Bot Auth verifier (`WebBotAuthVerifier`, `verifyWebBotAuthSignature` in `imrobot/server`): RFC 9421 HTTP Message Signatures with Ed25519 keys from a key directory, usable as an Express middleware mode. (#87)
+  - MCP server (`imrobot/mcp`): `generate-challenge`, `solve-challenge`, `verify-answer`, `create-token`, `get-discovery-document` tools. (#93)
+  - `RedisReplayStore`: Redis-backed replay guard for multi-instance deployments. (#93)
+  - `ChallengeOTelExporter`: OpenTelemetry metrics for challenge analytics. (#93)
 - `./next` package subpath is now actually shipped: added to `exports`, wired into `tsup` entrypoints, and declared as an optional peer dependency. `import { createNextMiddleware, createNextApiHandler } from 'imrobot/next'` now resolves against the built `dist/next` bundle instead of falling through to the root export. (#110)
 - Dist-level regression tests that import `imrobot/core` and `imrobot/next` from the compiled output to catch missing subpath exports before publish. (#111)
 - Pollinations.ai and Picsum AI image providers are officially documented as shipped in the README and provider matrix. (#111)

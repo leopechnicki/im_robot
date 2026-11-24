@@ -1,8 +1,9 @@
 name: Publish Python SDK
 
 # Publishes the imrobot Python package to PyPI when a tag matching
-# `py-v*` is pushed (e.g. `py-v0.7.2`). Kept separate from the JS
-# tag namespace so the two SDKs release independently.
+# `py-v*` is pushed (e.g. `py-v0.8.0`). Auto Release pushes that tag on the
+# same commit as the npm tag `v<version>`: the JS and Python SDKs release in
+# lockstep (scripts/release-plan.mjs refuses to release on version drift).
 on:
   push:
     tags:
@@ -63,3 +64,10 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: python/dist/
+      # A green run means PyPI really serves the version, not just that the
+      # upload step returned 0. Needs a PyPI trusted publisher for this repo,
+      # workflow publish-python.yml, environment "pypi" (see python/RELEASING.md).
+      - name: Verify PyPI serves the new version
+        if: startsWith(github.ref, 'refs/tags/py-v')
+        working-directory: .
+        run: node scripts/release-plan.mjs verify --pypi "${GITHUB_REF_NAME#py-v}" --timeout-s 600

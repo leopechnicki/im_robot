@@ -1,18 +1,28 @@
 name: Publish to npm
 
+# Called by auto-release.yml (workflow_call) or run by hand (workflow_dispatch).
+#
+# It used to ALSO listen to `release: published`. The release is created with
+# the release App's token, which does start workflow runs, so every release
+# published twice: the release-event run shipped it and the workflow_call run
+# then failed with E403 (run 36708042343, v0.7.3). One trigger path now.
+
 on:
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Git tag to publish (e.g. v0.6.4). Defaults to HEAD if not set.'
+        description: 'Git tag to publish (e.g. v0.8.0). Defaults to the selected ref.'
         required: false
         default: ''
   workflow_call:
     inputs:
       tag:
         description: 'Git tag to publish'
+        required: false
+        type: string
+        default: ''
+      version:
+        description: 'Version expected on npm afterwards (verified)'
         required: false
         type: string
         default: ''
@@ -32,8 +42,9 @@ jobs:
     steps:
       - name: Resolve ref
         id: ref
+        env:
+          TAG: ${{ inputs.tag }}
         run: |
-          TAG="${{ inputs.tag }}"
           if [ -n "$TAG" ]; then
             echo "ref=$TAG" >> "$GITHUB_OUTPUT"
           else
@@ -51,13 +62,35 @@ jobs:
           cache: npm
           registry-url: https://registry.npmjs.org
 
+      # npm >= 11.5.1 can authenticate with npm trusted publishing (OIDC) and
+      # only falls back to NPM_TOKEN when no trusted publisher is configured.
+      - name: Upgrade npm
+        run: npm install -g npm@^11.5.1 && npm --version
+
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
       - run: npm run build
 
+      - name: Refuse to publish a banned provider
+        run: |
+          set -euo pipefail
+          npm pack --dry-run --json > pack.json
+          FILES=$(node -e "const p=require('./pack.json')[0];console.log(p.files.map(f=>f.path).join('\n'))")
+          HITS=$(echo "$FILES" | xargs grep -il 'pollinations' || true)
+          if [ -n "$HITS" ]; then
+            echo "::error::published files mention the removed Pollinations provider:"; echo "$HITS"; exit 1
+          fi
+
       - name: Publish to npm
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Verify npm serves the new version
+        run: |
+          set -euo pipefail
+          VERSION="${{ inputs.version }}"
+          [ -n "$VERSION" ] || VERSION=$(node -p "require('./package.json').version")
+          node scripts/release-plan.mjs verify --npm "$VERSION" --timeout-s 600
