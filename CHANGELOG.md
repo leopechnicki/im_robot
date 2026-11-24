@@ -14,7 +14,7 @@ the registries' trusted publishers were set up (npm fell back to a token that ne
 password, PyPI had no publisher). 0.9.1 is the first 0.9.x on both registries and contains everything
 listed under 0.9.0 below.
 
-Found by a consumer smoke test of the published 0.8.0 (npm and PyPI) in throwaway projects.
+New in 0.9.1, found by a consumer smoke test of the published 0.8.0 (npm and PyPI) in throwaway projects.
 
 ### Fixed
 
