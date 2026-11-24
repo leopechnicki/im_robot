@@ -61,3 +61,21 @@ curl -s https://pypi.org/pypi/imrobot/json | python -c "import json,sys; print(j
 node scripts/release-plan.mjs verify --npm X.Y.Z --timeout-s 60
 node scripts/release-plan.mjs verify --pypi X.Y.Z --timeout-s 60
 ```
+
+## Consumer smoke test (after every release)
+
+Registry checks prove an upload, not that a consumer can use it. In a throwaway
+directory (delete it afterwards):
+
+```bash
+npm init -y && npm i imrobot@X.Y.Z jose
+# issue with ProofTokenIssuer (imrobot/server), verify with jose.jwtVerify(token, secret, { algorithms: ['HS256'] })
+python -m venv venv && venv/bin/pip install imrobot==X.Y.Z PyJWT
+# issue with imrobot.ProofTokenIssuer, verify with jwt.decode(token, secret, algorithms=["HS256"])
+```
+
+Both must pass, and the signature segment must be 43 characters (base64url of the
+32 raw HMAC bytes). Also compare `npm view imrobot@X.Y.Z readme` with the tag's
+`README.md`. `pypi.org/pypi/imrobot/json` is CDN-cached for up to 15 minutes; right
+after a release use `pypi.org/pypi/imrobot/X.Y.Z/json`. 0.9.1 passed all of this on
+2026-11-24.
