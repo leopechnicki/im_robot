@@ -421,6 +421,68 @@ const doc = buildDiscoveryDocument({ challengePath: '/imrobot' })
 // Serve `doc` as JSON at /.well-known/imrobot.json
 ```
 
+### Web Bot Auth: signed agents skip the challenge
+
+imrobot verifies [Web Bot Auth](https://datatracker.ietf.org/doc/draft-ietf-webbotauth-httpsig-protocol/)
+signatures (draft-ietf-webbotauth-httpsig-protocol-01, on RFC 9421 HTTP Message Signatures).
+An agent that signs its requests with an Ed25519 key published in a key directory is
+recognised cryptographically, so the challenge is skipped for it. Everything else is challenged as before.
+
+What the verifier checks:
+
+- `Signature-Agent` names the agent's key directory. It must be covered by the signature and use https.
+- `created` and `expires` are required. `keyid` must be the key's RFC 7638 thumbprint, `tag` must be
+  `web-bot-auth`, and `@authority` must be covered.
+- A `nonce` that was already seen is refused (in-memory store by default; plug in a shared one across workers).
+- Key directories are fetched without following redirects, with a 5 s timeout and a 64 kB size cap.
+  They are cached for the server's `Cache-Control` max-age, clamped to 60 s .. 24 h.
+  A failed refetch keeps the cached keys.
+- The RFC 9421 test keys are refused by default.
+
+Choose which agents you trust. An allow-list is the safe default:
+
+```ts
+import { requireAgent } from 'imrobot/server'
+
+app.use('/api/agent', requireAgent({
+  secret: process.env.IMROBOT_SECRET!,
+  webBotAuth: { trustedSignatureAgents: ['https://agent.example'] },
+}))
+// req.webBotAuth -> { verified: true, keyid, agent, ... } for a signed agent
+```
+
+The same option exists on `requireAgentHono` (`c.get('webBotAuth')`) and on `createNextMiddleware`
+(for `protectedPaths`). A refused request gets a 401 with an `Accept-Signature` header describing the
+signature we expect.
+
+Other key sources:
+
+- `directoryUrl`: pin one directory.
+- `allowAnySignatureAgent: true`: accept any public https agent. Private and loopback hosts are refused.
+  DNS is not resolved, so put this behind an egress firewall.
+
+`accept(result)` can still veto a verified agent.
+
+**Signing as an agent** (`imrobot/agent`):
+
+```ts
+import { generateAgentKey, createSignedFetch, createKeyDirectoryHandler } from 'imrobot/agent'
+
+const key = await generateAgentKey()            // store key.privateJwk as a secret
+// Publish your directory at https://agent.example/.well-known/http-message-signatures-directory
+export const GET = createKeyDirectoryHandler({ privateJwks: [key.privateJwk] })
+
+const signedFetch = createSignedFetch({
+  privateJwk: key.privateJwk,
+  signatureAgent: 'https://agent.example',
+})
+await signedFetch('https://site.example/api/agent/data')
+```
+
+Python has the same pieces: `imrobot.web_bot_auth.WebBotAuthVerifier`,
+`imrobot.fastapi.require_agent(..., web_bot_auth=verifier)` and `imrobot.agent.sign_request`.
+Install them with `pip install "imrobot[wba]"`.
+
 ## Screenshot protection
 
 The challenge text is **blurred by default** and only revealed when the user hovers over it. This defeats screenshot-based attacks (screen capture tools, CDP screenshots, PrintScreen) since the captured image shows only blurred content.

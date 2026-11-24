@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Web Bot Auth, first class (draft-ietf-webbotauth-httpsig-protocol-01):
+  - `Signature-Agent` discovery (Dictionary form plus the legacy string form).
+  - Key-directory fetch and cache: no redirects, 5 s timeout, 64 kB / 100-key caps, `Cache-Control` lifetime,
+    a negative cache, no eviction on a failed refetch, and an SSRF guard for `allowAnySignatureAgent`.
+  - `created`/`expires`/`keyid`/`tag`/`nonce` checks, a pluggable nonce store, test-key rejection,
+    verified / invalid / unverified outcomes, and optional signed key directories.
+  - Policy "valid signed agent => skip the challenge, otherwise challenge" in `requireAgent`, `requireAgentHono`,
+    `createNextMiddleware` and FastAPI `require_agent(web_bot_auth=...)`. A refusal carries `Accept-Signature`.
+  - Byte-exact test vectors from the draft (Appendix E.2.1, E.2.2, E.2.3) and from cloudflare/web-bot-auth.
+- `imrobot/agent` (npm) and `imrobot.agent` (Python): a signing client with Ed25519 keygen, `signRequest` /
+  `sign_request`, `createSignedFetch`, key-directory publishing and signed directory responses.
+- Python `imrobot.web_bot_auth` verifier. New `wba` extra (`cryptography`).
+
+### Changed
+
+- BREAKING (Web Bot Auth only): `WebBotAuthVerifier` now enforces draft -01.
+  - `created`, `expires`, `tag` and a thumbprint `keyid` are required, and `@authority` must be covered.
+  - A signature whose `keyid` is not in the directory is no longer checked against a lone key.
+  - The constructor needs `directoryUrl`, `trustedSignatureAgents` or `allowAnySignatureAgent`.
+  - Results carry an `outcome`.
+
 ## [0.8.0] - 2026-11-24
 
 ### Removed

@@ -136,10 +136,20 @@ def require_agent(
     key_id: Optional[str] = None,
     previous_secrets: Optional[list[dict[str, str]]] = None,
     bypass: Optional[Callable[[Any], Awaitable[bool]]] = None,
+    web_bot_auth: Optional[Any] = None,
+    web_bot_auth_accept: Optional[Callable[[Any], Any]] = None,
 ) -> Callable[..., Awaitable[dict[str, Any]]]:
     """FastAPI dependency that enforces a valid ``X-Agent-Proof`` token.
 
     Returns the decoded JWT payload as a dict — inject with ``Depends``.
+
+    ``web_bot_auth``: an :class:`imrobot.web_bot_auth.WebBotAuthVerifier`. A request
+    carrying a valid Web Bot Auth signature (draft-ietf-webbotauth-httpsig-protocol-01)
+    skips the proof token; the dependency then returns
+    ``{"agent_verified": True, "web_bot_auth": {...}}`` and sets
+    ``request.state.web_bot_auth``. Everything else needs a proof token as before,
+    and the 401 carries ``Accept-Signature``. ``web_bot_auth_accept(result)`` can
+    veto a verified agent (sync or async).
     """
     _fastapi, _ = _import_fastapi()
     HTTPException = _fastapi.HTTPException
@@ -153,6 +163,12 @@ def require_agent(
         previous_secrets=previous_secrets,
     )
 
+    challenge_headers: Optional[dict[str, str]] = None
+    if web_bot_auth is not None:
+        from .web_bot_auth import WEB_BOT_AUTH_ACCEPT_SIGNATURE
+
+        challenge_headers = {"Accept-Signature": WEB_BOT_AUTH_ACCEPT_SIGNATURE}
+
     async def _dep(request: Any) -> dict[str, Any]:
         # `request` is a starlette/FastAPI Request. We use Any here (not
         # Request) because the FastAPI import is closure-scoped for optional
@@ -161,6 +177,17 @@ def require_agent(
             skip = await bypass(request)
             if skip:
                 return {"agent_verified": True, "bypassed": True}
+        if web_bot_auth is not None:
+            from dataclasses import asdict
+
+            from .web_bot_auth import evaluate_web_bot_auth, signed_request_from_starlette
+
+            skip_challenge, wba = await evaluate_web_bot_auth(
+                web_bot_auth, signed_request_from_starlette(request), web_bot_auth_accept
+            )
+            request.state.web_bot_auth = wba
+            if skip_challenge:
+                return {"agent_verified": True, "web_bot_auth": asdict(wba)}
         token = request.headers.get(header_name)
         if not token:
             raise HTTPException(
@@ -169,6 +196,7 @@ def require_agent(
                     "error": "agent_proof_required",
                     "message": f"Missing {header_name} header — call /imrobot/verify first.",
                 },
+                headers=challenge_headers,
             )
         result = await token_issuer.verify(token)
         if not result.get("valid") or "payload" not in result:
