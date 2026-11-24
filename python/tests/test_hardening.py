@@ -113,6 +113,14 @@ class TestTimingGate:
         ok = await v.verify(c, answer)
         assert ok["valid"] is True and ok["elapsed"] == 1_000
 
+    async def test_default_floor_tolerates_clock_skew(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        v = create_verifier(SECRET)
+        c = await v.generate()
+        monkeypatch.setattr(server_mod, "_now_ms", lambda: c["timestamp"] - 50)
+        assert (await v.verify(c, solve_challenge(c)))["valid"] is True
+
     def test_window_validation(self) -> None:
         with pytest.raises(ValueError):
             create_verifier(SECRET, min_solve_ms=-1)
@@ -134,6 +142,23 @@ class TestHmacV2:
         answer = solve_challenge(c)
         c["seed"] = c["seed"] + "0"
         assert (await v.verify(c, answer))["reason"] == "invalid_hmac"
+
+    async def test_signed_fields_keep_their_types(self) -> None:
+        v = create_verifier(SECRET)
+        c = await v.generate()
+        answer = solve_challenge(c)
+        for key in ("timestamp", "expiresAt"):
+            bad = dict(c)
+            bad[key] = str(c[key])  # signs the same text; must not reach the arithmetic
+            assert (await v.verify(bad, answer))["reason"] == "invalid_hmac"  # type: ignore[arg-type]
+        bad = dict(c)
+        bad["timestamp"] = True
+        assert (await v.verify(bad, answer))["reason"] == "invalid_hmac"  # type: ignore[arg-type]
+
+    def test_astral_counts_as_surrogate_like_js(self) -> None:
+        assert server_mod._has_surrogate("a\U0001f916")
+        assert server_mod._has_surrogate("a\ud800")
+        assert not server_mod._has_surrogate("plain ż")
 
     async def test_malformed_challenge_refused(self) -> None:
         v = create_verifier(SECRET)

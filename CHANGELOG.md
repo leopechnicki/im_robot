@@ -62,8 +62,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A throwing `accept` rule now challenges the request instead of rejecting the middleware promise.
 - BREAKING (server SDK): the challenge HMAC uses message format `v2`, which also signs the issue time
   and the seed. Before, a client could back-date `timestamp`. Challenges issued by 0.8 or earlier fail
-  with `invalid_hmac` after the upgrade, until their TTL runs out (seconds). The JS and Python
-  verifiers stay interoperable.
+  with `invalid_hmac` after the upgrade, until their TTL runs out (seconds). Upgrade every verifier
+  that shares a secret together (JS and Python services included): while 0.8 and 0.9 run side by
+  side, a challenge issued by one and verified by the other fails. The JS and Python 0.9 verifiers
+  are interoperable.
+- Signed challenge fields must have their real types (integer `timestamp` / `expiresAt`, string
+  `id` / `seed` / `verification` / `difficulty`), otherwise `invalid_hmac`. Python used to answer a
+  string timestamp with a `TypeError` (HTTP 500 in an adapter).
 - The verification hash and the answer are compared in constant time. Python compares UTF-8 bytes, so
   a non-ASCII signature is refused instead of raising `TypeError`.
 - A malformed challenge object is refused with `invalid_hmac`.

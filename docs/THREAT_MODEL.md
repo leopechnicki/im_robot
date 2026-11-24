@@ -16,14 +16,14 @@ A valid answer proves that **something executed the challenge pipeline**, inside
 
 ### A human with our open-source solver passes
 
-The solver ships in the same package (`solveChallenge`, `npx imrobot solve`, `imrobot.solve_challenge`). A person who copies the challenge into it and pastes the answer back has "run code", and that is exactly what imrobot checks. **No reverse CAPTCHA can tell "a bot" from "a human driving a bot"**, and that includes ours, HATCHA, BOTCHA and Turingate. Their puzzles are open source too.
+The solver ships in the same package (`solveChallenge`, `npx imrobot solve`, `imrobot.solve_challenge`). A person who copies the challenge into it and pastes the answer back has "run code", and that is exactly what imrobot checks. **No reverse CAPTCHA can tell "a bot" from "a human driving a bot"**, and that includes ours and every other reverse CAPTCHA whose puzzles are public.
 
 What raises the cost of doing it by hand:
 
 | Control | Effect on a human with a script | Effect on a real agent |
 |---|---|---|
-| `maxSolveMs` (for example 5-8 s) | A manual copy, run and paste round trip often takes longer than this | None, agents answer in milliseconds |
-| `sha256: true` | No shortcut by hand. SHA-256 needs code | None |
+| `maxSolveMs` | A manual copy, run and paste round trip often takes longer than an agent does | An agent that calls the solver in code answers in milliseconds. An LLM that reads the challenge and calls a tool needs one or two model turns, often 2-10 s. Set the window from your own agents' measured solve times |
+| `sha256: true` | Little. Any person can run `sha256sum` or the solver | Excludes LLM agents that have no code tool: they cannot compute SHA-256 by reasoning in text. Agents that run the solver are not affected |
 | Short `ttl` | Same as `maxSolveMs`, but coarser | None |
 | Replay guard | One answer cannot be shared or reused | None |
 
@@ -31,7 +31,7 @@ None of these stops a human who **automates the round trip**, for example a brow
 
 ### A fast answer is not proof of a bot, and a slow one is not proof of a human
 
-`minSolveMs` rejects answers that arrive before your floor, for clients that are faster than any real agent you expect. That rarely matters; most deployments should leave it at `0`. `suspicious: true` (slower than the difficulty's threshold) is a hint for your logs, not a verdict.
+`minSolveMs` rejects answers that arrive before your floor, for clients that are faster than any real agent you expect. That rarely matters; most deployments should leave it at `0`. If you run several instances, the issue time comes from one clock and the check from another, so keep any floor well above the clock skew between them. `suspicious: true` (slower than the difficulty's threshold) is a hint for your logs, not a verdict.
 
 ### An LLM acting as a proxy for a human
 

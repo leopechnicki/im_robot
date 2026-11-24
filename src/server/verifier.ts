@@ -61,6 +61,12 @@ export class ImRobotVerifier {
    * Build the message string that gets HMAC-signed (format v2, imrobot 0.9).
    * Covers every field verify() trusts: the issue time (timing gate), the seed
    * and the pipeline (answer re-execution), expiry and difficulty.
+   *
+   * Fields are joined with ':' and not length-prefixed. That is safe because
+   * verify() only accepts integer times, `id` and `seed` are generated as hex,
+   * `difficulty` is a fixed word, `verification` is hex and the pipeline JSON
+   * comes last, so no field can absorb a neighbour. Keep it that way, or move
+   * to a length-prefixed v3.
    */
   private buildSignatureMessage(c: {
     id: string
@@ -124,7 +130,13 @@ export class ImRobotVerifier {
       challenge === null ||
       typeof challenge.hmac !== 'string' ||
       typeof answer !== 'string' ||
-      !Array.isArray(challenge.pipeline)
+      !Array.isArray(challenge.pipeline) ||
+      typeof challenge.id !== 'string' ||
+      typeof challenge.verification !== 'string' ||
+      typeof challenge.difficulty !== 'string' ||
+      typeof challenge.seed !== 'string' ||
+      !Number.isSafeInteger(challenge.timestamp) ||
+      !Number.isSafeInteger(challenge.expiresAt)
     ) {
       return { valid: false, reason: 'invalid_hmac' }
     }
@@ -142,7 +154,9 @@ export class ImRobotVerifier {
 
     // 3. Timing gate, on the server clock against the HMAC-signed issue time.
     const elapsed = now - challenge.timestamp
-    if (elapsed < this.minSolveMs) {
+    // The floor only applies when set: with the default 0, a slightly negative
+    // elapsed (clock skew between instances) must not be refused.
+    if (this.minSolveMs > 0 && elapsed < this.minSolveMs) {
       return { valid: false, reason: 'too_fast', elapsed }
     }
     if (this.maxSolveMs !== undefined && elapsed > this.maxSolveMs) {

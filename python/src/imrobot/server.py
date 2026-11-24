@@ -168,7 +168,24 @@ def _factories_for(difficulty: Difficulty) -> tuple[list[Any], tuple[int, int]]:
 
 
 def _has_surrogate(text: str) -> bool:
-    return any(0xD800 <= ord(ch) <= 0xDFFF for ch in text)
+    r"""Same test as the JS ``/[\uD800-\uDFFF]/``: a surrogate code point, or an
+    astral character (a surrogate pair in JS)."""
+    return any(0xD800 <= ord(ch) <= 0xDFFF or ord(ch) > 0xFFFF for ch in text)
+
+
+def _is_int(v: Any) -> bool:
+    return isinstance(v, int) and not isinstance(v, bool)
+
+
+def _well_typed(c: Any) -> bool:
+    if not isinstance(c, dict):
+        return False
+    return (
+        all(isinstance(c.get(k), str) for k in ("id", "verification", "difficulty", "seed", "hmac"))
+        and isinstance(c.get("pipeline"), list)
+        and _is_int(c.get("timestamp"))
+        and _is_int(c.get("expiresAt"))
+    )
 
 
 def _build_pipeline(seed: str, difficulty: Difficulty, sha256: bool = False) -> list[Operation]:
@@ -176,10 +193,14 @@ def _build_pipeline(seed: str, difficulty: Difficulty, sha256: bool = False) -> 
     num_ops = _random_int(lo, hi)
     pipeline: list[Operation] = []
     current = seed
-    # With sha256 on, exactly one real SHA-256 step goes in at a random position.
+    # With sha256 on, exactly one real SHA-256 step goes in at a random position,
+    # moved later while the value there holds surrogates. If no position is free
+    # it goes last: still correct, both runtimes hash lone surrogates as U+FFFD.
     sha_at = _random_int(0, num_ops - 1) if sha256 else -1
     for i in range(num_ops):
-        if i == sha_at and not _has_surrogate(current):
+        if i == sha_at and _has_surrogate(current):
+            sha_at += 1
+        if i == sha_at:
             op: Operation = {"op": "sha256"}
         else:
             op = _pick(factories)(current)
@@ -332,7 +353,10 @@ class ImRobotVerifier:
         """HMAC message format v2 (imrobot 0.9), identical to the JS verifier.
 
         Covers every field verify() trusts: issue time (timing gate), seed and
-        pipeline (answer re-execution), expiry and difficulty.
+        pipeline (answer re-execution), expiry and difficulty. Fields are joined
+        with ':' unprefixed; safe because verify() only accepts integer times,
+        id/seed/verification are hex, difficulty is a fixed word and the pipeline
+        JSON comes last. Keep it that way, or move to a length-prefixed v3.
         """
         return ":".join(
             [
@@ -367,7 +391,11 @@ class ImRobotVerifier:
         return signed
 
     async def verify(self, challenge: SignedChallenge, answer: str) -> VerifyResult:
-        # 1. HMAC — challenge not tampered
+        # 1. HMAC — challenge not tampered. Signed fields must have their real
+        # types: "1700000000000" would sign like 1700000000000 and then break the
+        # arithmetic below.
+        if not _well_typed(challenge):
+            return {"valid": False, "reason": "invalid_hmac"}
         try:
             message = self._build_signature_message(challenge, challenge["expiresAt"])
         except (KeyError, TypeError, ValueError):
@@ -384,7 +412,9 @@ class ImRobotVerifier:
 
         # 3. Timing gate, server clock against the HMAC-signed issue time.
         elapsed = now - challenge["timestamp"]
-        if elapsed < self._min_solve_ms:
+        # Only when set: with the default 0, a slightly negative elapsed (clock
+        # skew between instances) must not be refused.
+        if self._min_solve_ms > 0 and elapsed < self._min_solve_ms:
             return {"valid": False, "reason": "too_fast", "elapsed": elapsed}
         if self._max_solve_ms is not None and elapsed > self._max_solve_ms:
             return {"valid": False, "reason": "too_slow", "elapsed": elapsed}

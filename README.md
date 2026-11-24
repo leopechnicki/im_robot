@@ -598,7 +598,7 @@ Every operation has 3â€“4 distinct phrasings that are randomly selected on 
 | `slice_alternate()`  | Keep every other character            | `"abcdef"` â†’ `"ace"`            |
 | `fnv1a_hash()`       | FNV-1a hash of the string             | `"test"` â†’ `"bc2c0be9"`         |
 | `length()`           | String length as string               | `"hello"` â†’ `"5"`               |
-| `sha256_hash()`      | Cascaded FNV-1a hash (256-bit output) | deterministic 64-char hex       |
+| `sha256_hash()`      | Deprecated name: cascaded FNV-1a, NOT SHA-256 (256-bit output) | deterministic 64-char hex |
 | `sha256()`           | Real SHA-256 of the UTF-8 bytes (opt-in, `sha256: true`) | `"abc"` → `"ba7816bf…15ad"` |
 | `byte_xor(key[])`    | XOR each byte with key array          | byte-level encryption           |
 | `hash_chain(rounds)` | Iterated FNV-1a hash                  | cascaded hashing                |
@@ -677,7 +677,7 @@ const verifier = createVerifier({
 
 The solve time is measured on the server clock, from the issue time that the HMAC signs, so a client cannot back-date it. Both bounds are off by default (`minSolveMs: 0`, no `maxSolveMs`). `maxSolveMs` is a tighter window than the TTL: a person copying the challenge into a script and pasting the answer back usually takes longer than a bot does. It does not stop someone who automates that whole round trip. [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) says plainly what these checks do and do not prove.
 
-`sha256: true` adds an operation that is practical in code and impractical by hand. Solvers older than 0.9 do not know the `sha256` op, so turn it on once your agents run imrobot 0.9 or later.
+`sha256: true` adds an operation that an LLM cannot do without a code tool, so it shuts out agents that only reason in text. Solvers older than 0.9 do not know the `sha256` op, so turn it on once your agents run imrobot 0.9 or later. With several instances, keep `minSolveMs` well above the clock skew between them (it is measured across two clocks).
 
 Python has the same options: `create_verifier(secret, min_solve_ms=50, max_solve_ms=8000, sha256=True)`.
 
@@ -1044,16 +1044,16 @@ Use those when you want the opposite: protect your service from bots and allow o
 | **License / hosting** | MIT, self-hosted | MIT, self-hosted (npm packages, no hosted service required) |
 | **Packages** | `imrobot` (npm, one package with subpath exports), `imrobot` (PyPI) | `@mondaycom/hatcha-react`, `@mondaycom/hatcha-server` (`hatcha-core` underneath), JS only |
 | **Server verification** | HMAC-SHA256 signed, stateless | HMAC signed, stateless (no database) |
-| **Challenge type** | Randomised pipeline of 25+ string, byte and hash operations (optional real SHA-256 step) | Five fixed kinds: big multiplication, string reverse, character count, sort, binary to ASCII |
+| **Challenge type** | Randomised pipeline of 25+ string, byte and hash operations (optional real SHA-256 step) | Five built-in kinds (big multiplication, string reverse, character count, sort, binary to ASCII); custom kinds can be registered |
 | **Time limit** | Per-difficulty TTL plus an optional solve-time window (`minSolveMs` / `maxSolveMs`) | 30 s |
 | **Frontends** | React, Vue, Svelte, Web Component, headless core | React component |
 | **Server adapters** | Express, Next.js, Hono, FastAPI | Next.js App Router, Express |
-| **Token after success** | Standard JWT (RFC 7519, HS256) | Not documented |
+| **Token after success** | Standard JWT (RFC 7519, HS256) | Opaque HMAC-signed token (format not specified for downstream use) |
 | **Replay protection** | `ChallengeReplayGuard` (in memory) + `RedisReplayStore` | Not documented |
 | **Web Bot Auth (signed agents skip the challenge)** | Yes, verifier + signing client | Not documented |
 | **CLI / MCP** | `npx imrobot challenge\|solve\|verify\|benchmark`, `imrobot/mcp` | Not documented |
 
-**Key difference:** both are free and self-hosted. HATCHA is a small, focused React + server pair with five fixed puzzle kinds. imrobot covers more stacks (Python, Vue, Svelte, Hono, FastAPI), randomises the pipeline per challenge, and adds JWTs, replay stores, Web Bot Auth and a timing gate. Neither one can stop a human who runs an open-source solver; see [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
+**Key difference:** both are free and self-hosted. HATCHA is a small, focused React + server pair with five built-in puzzle kinds. imrobot covers more stacks (Python, Vue, Svelte, Hono, FastAPI), randomises the pipeline per challenge, and adds JWTs, replay stores, Web Bot Auth and a timing gate. Neither one can stop a human who runs an open-source solver; see [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
 
 ## Contributing
 

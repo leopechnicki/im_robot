@@ -36,6 +36,14 @@ describe('sha256 (pure JS, FIPS 180-4)', () => {
     }
   })
 
+  it('hashes a lone surrogate as U+FFFD, like the Python port', () => {
+    expect(sha256Hex('a\uD800b')).toBe(
+      createHash('sha256')
+        .update(new Uint8Array([0x61, 0xef, 0xbf, 0xbd, 0x62]))
+        .digest('hex'),
+    )
+  })
+
   it('hashes raw bytes', () => {
     const bytes = new Uint8Array([0, 1, 2, 255])
     expect(sha256BytesHex(bytes)).toBe(createHash('sha256').update(bytes).digest('hex'))
@@ -107,6 +115,13 @@ describe('timing gate', () => {
     expect(ok.elapsed).toBe(1_000)
   })
 
+  it('with the default floor, clock skew (negative elapsed) is not refused', async () => {
+    const v = createVerifier({ secret: SECRET })
+    const c = await v.generate()
+    vi.spyOn(Date, 'now').mockReturnValue(c.timestamp - 50)
+    expect((await v.verify(c, solveChallenge(c))).valid).toBe(true)
+  })
+
   it('validates the window', () => {
     expect(() => createVerifier({ secret: SECRET, minSolveMs: -1 })).toThrow()
     expect(() => createVerifier({ secret: SECRET, minSolveMs: 500, maxSolveMs: 500 })).toThrow()
@@ -144,6 +159,14 @@ describe('HMAC v2 covers timestamp and seed', () => {
         )
       ).reason,
     ).toBe('invalid_hmac')
+  })
+
+  it('signed fields must keep their types (a string timestamp signs the same text)', async () => {
+    const { c, answer, v } = await fresh()
+    const asString = { ...c, timestamp: String(c.timestamp) } as unknown as SignedChallenge
+    expect((await v.verify(asString, answer)).reason).toBe('invalid_hmac')
+    const expiresString = { ...c, expiresAt: String(c.expiresAt) } as unknown as SignedChallenge
+    expect((await v.verify(expiresString, answer)).reason).toBe('invalid_hmac')
   })
 
   it('a malformed challenge is refused, not thrown', async () => {

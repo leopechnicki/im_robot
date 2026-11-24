@@ -131,7 +131,11 @@ function getOpsForDifficulty(difficulty: Difficulty) {
   }
 }
 
-/** Any UTF-16 surrogate: kept out of sha256 inputs so every runtime hashes the same bytes. */
+/**
+ * Any UTF-16 surrogate. The sha256 step prefers a position without one, so the
+ * input is plain text. Not required for correctness: TextEncoder and the Python
+ * port both hash a lone surrogate as U+FFFD (tested on both sides).
+ */
 const SURROGATE = /[\uD800-\uDFFF]/
 
 function buildPipeline(seed: string, difficulty: Difficulty, sha256 = false): Operation[] {
@@ -139,14 +143,14 @@ function buildPipeline(seed: string, difficulty: Difficulty, sha256 = false): Op
   const numOps = randomInt(count[0], count[1])
   const pipeline: Operation[] = []
   let currentValue = seed
-  // With sha256 on, exactly one real SHA-256 step goes in at a random position.
-  const shaAt = sha256 ? randomInt(0, numOps - 1) : -1
+  // With sha256 on, exactly one real SHA-256 step goes in at a random position,
+  // moved later while the value there holds surrogates. If no position is free
+  // it goes last (see SURROGATE).
+  let shaAt = sha256 ? randomInt(0, numOps - 1) : -1
 
   for (let i = 0; i < numOps; i++) {
-    const op: Operation =
-      i === shaAt && !SURROGATE.test(currentValue)
-        ? { op: 'sha256' }
-        : pickRandom(ops)(currentValue)
+    if (i === shaAt && SURROGATE.test(currentValue)) shaAt++
+    const op: Operation = i === shaAt ? { op: 'sha256' } : pickRandom(ops)(currentValue)
     pipeline.push(op)
     currentValue = executePipeline(currentValue, [op])
   }
