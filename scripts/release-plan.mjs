@@ -41,8 +41,9 @@ export function nextPatch(version) {
  * @param {string} s.pyVersion         python/pyproject.toml [project].version
  * @param {string} s.pyModuleVersion   python/src/imrobot/_version.py __version__
  * @param {boolean} s.tagExists        git tag v<npmVersion> exists
+ * @param {boolean} [s.tagIsAncestor]  v<npmVersion> is an ancestor of HEAD (only read when tagExists)
  * @param {boolean} s.pyTagExists      git tag py-v<npmVersion> exists
- * @param {string|null} s.lastTag      newest v* tag reachable from HEAD (null = none)
+ * @param {string|null} s.lastTag      v<npmVersion> when it exists, else the nearest v* tag reachable from HEAD (null = none)
  * @param {string[]} s.commitSubjects  subjects of commits lastTag..HEAD (all commits if no tag)
  * @param {boolean} s.npmPublished     npm serves imrobot@<npmVersion>
  * @param {boolean} s.pypiPublished    PyPI serves imrobot==<npmVersion>
@@ -91,6 +92,14 @@ export function planRelease(s) {
 
   // Tag already exists: heal half-finished releases, then refuse to stay silent
   // about commits that no release will ever pick up.
+  if (s.tagIsAncestor === false) {
+    plan.errors.push(
+      `${plan.tag} exists but is not an ancestor of HEAD (tag on another branch, or main was rewritten). ` +
+        `Releasing from here would be a guess; bump package.json past ${version} or fix the tag.`,
+    )
+    plan.summary = 'BLOCKED: ' + plan.errors.join(' ')
+    return plan
+  }
   plan.publishNpm = !s.npmPublished
   plan.pushPyTag = !s.pyTagExists && !s.pypiPublished
   if (s.pyTagExists && !s.pypiPublished) {
@@ -99,7 +108,7 @@ export function planRelease(s) {
         `Fix it and re-run that workflow.`,
     )
   }
-  // The commits counted here are lastTag..HEAD; lastTag is the existing tag for this version.
+  // commitSubjects is v<version>..HEAD here (gatherState counts from this version's own tag).
   if (releasable.length > 0) {
     plan.openBumpPr = true
     plan.errors.push(
@@ -134,11 +143,49 @@ export function bumpVersionText({ pkg, py, mod }, version) {
   const pkgJson = JSON.parse(pkg)
   pkgJson.version = version
   const newPkg = JSON.stringify(pkgJson, null, 2) + '\n'
-  const newPy = py.replace(/(^\[project\]\s*$[\s\S]*?^version\s*=\s*")[^"]+(")/m, `$1${version}$2`)
-  const newMod = mod.replace(/^(__version__\s*=\s*")[^"]+(")/m, `$1${version}$2`)
-  if (newPy === py && !py.includes(`version = "${version}"`)) throw new Error('pyproject.toml: [project] version not found')
-  if (newMod === mod && !mod.includes(`"${version}"`)) throw new Error('_version.py: __version__ not found')
+
+  const lines = py.split('\n')
+  const { start, end } = projectTableRange(lines)
+  const vIdx = lines.findIndex((l, i) => i > start && i < end && PY_VERSION_RE.test(l))
+  if (start === -1 || vIdx === -1) throw new Error('pyproject.toml: no static version in the [project] table')
+  lines[vIdx] = lines[vIdx].replace(PY_VERSION_RE, `$1${version}$3`)
+  const newPy = lines.join('\n')
+
+  const newMod = mod.replace(MOD_VERSION_RE, `$1${version}$3`)
+  const check = parseVersions({ pkg: newPkg, py: newPy, mod: newMod })
+  if (check.npmVersion !== version || check.pyVersion !== version || check.pyModuleVersion !== version) {
+    throw new Error(`bump to ${version} did not take: ${JSON.stringify(check)}`)
+  }
   return { pkg: newPkg, py: newPy, mod: newMod }
+}
+
+const PY_VERSION_RE = /^(version\s*=\s*")([^"]+)(")/
+const MOD_VERSION_RE = /^(__version__\s*=\s*")([^"]+)(")/m
+
+/** Line range [start, end) of the [project] table body; start = -1 when absent. */
+function projectTableRange(lines) {
+  const start = lines.findIndex((l) => /^\[project\]\s*$/.test(l))
+  if (start === -1) return { start: -1, end: -1 }
+  let end = lines.findIndex((l, i) => i > start && /^\[/.test(l))
+  if (end === -1) end = lines.length
+  return { start, end }
+}
+
+/** Versions from the three sources' text. Pure. */
+export function parseVersions({ pkg, py, mod }) {
+  const npmVersion = JSON.parse(pkg).version
+  const lines = py.split(/\r?\n/)
+  const { start, end } = projectTableRange(lines)
+  let pyVersion = null
+  for (let i = start + 1; start !== -1 && i < end; i++) {
+    const m = PY_VERSION_RE.exec(lines[i])
+    if (m) {
+      pyVersion = m[2]
+      break
+    }
+  }
+  const pyModuleVersion = MOD_VERSION_RE.exec(mod)?.[2] ?? null
+  return { npmVersion, pyVersion: pyVersion ?? '(missing)', pyModuleVersion: pyModuleVersion ?? '(missing)' }
 }
 
 // ---------------------------------------------------------------- IO helpers
@@ -159,13 +206,11 @@ function tryGit(args, cwd) {
 }
 
 export function readVersions(root) {
-  const npmVersion = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')).version
-  const pyproject = readFileSync(path.join(root, 'python', 'pyproject.toml'), 'utf8')
-  const projectBlock = /^\[project\]\s*$([\s\S]*?)(?=^\[)/m.exec(pyproject)
-  const pyVersion = projectBlock && /^version\s*=\s*"([^"]+)"/m.exec(projectBlock[1])?.[1]
-  const mod = readFileSync(path.join(root, 'python', 'src', 'imrobot', '_version.py'), 'utf8')
-  const pyModuleVersion = /^__version__\s*=\s*"([^"]+)"/m.exec(mod)?.[1]
-  return { npmVersion, pyVersion: pyVersion ?? '(missing)', pyModuleVersion: pyModuleVersion ?? '(missing)' }
+  return parseVersions({
+    pkg: readFileSync(path.join(root, 'package.json'), 'utf8'),
+    py: readFileSync(path.join(root, 'python', 'pyproject.toml'), 'utf8'),
+    mod: readFileSync(path.join(root, 'python', 'src', 'imrobot', '_version.py'), 'utf8'),
+  })
 }
 
 /** GET a registry URL; 404 -> null, other non-200 or network error -> throw (never guess). */
@@ -188,12 +233,18 @@ export async function pypiHasVersion(version) {
 
 async function gatherState(root) {
   const v = readVersions(root)
-  const lastTag = tryGit(['describe', '--tags', '--abbrev=0', '--match', 'v[0-9]*'], root)
-  const range = lastTag ? [`${lastTag}..HEAD`] : ['HEAD']
+  const versionTag = `v${v.npmVersion}`
+  const tagExists = tryGit(['rev-parse', '-q', '--verify', `refs/tags/${versionTag}`], root) !== null
+  // Behind an existing tag, count from THAT tag, not from whatever v* tag is nearest.
+  const tagIsAncestor =
+    tagExists && tryGit(['merge-base', '--is-ancestor', `refs/tags/${versionTag}`, 'HEAD'], root) !== null
+  const lastTag = tagExists ? versionTag : tryGit(['describe', '--tags', '--abbrev=0', '--match', 'v[0-9]*'], root)
+  const range = lastTag && (!tagExists || tagIsAncestor) ? [`${lastTag}..HEAD`] : ['HEAD']
   const log = git(['log', '--no-merges', '--format=%s', ...range], root)
   return {
     ...v,
-    tagExists: tryGit(['rev-parse', '-q', '--verify', `refs/tags/v${v.npmVersion}`], root) !== null,
+    tagExists,
+    tagIsAncestor,
     pyTagExists: tryGit(['rev-parse', '-q', '--verify', `refs/tags/py-v${v.npmVersion}`], root) !== null,
     lastTag,
     commitSubjects: log ? log.split('\n') : [],

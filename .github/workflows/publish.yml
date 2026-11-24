@@ -44,11 +44,12 @@ jobs:
         id: ref
         env:
           TAG: ${{ inputs.tag }}
+          REF: ${{ github.ref }}
         run: |
           if [ -n "$TAG" ]; then
             echo "ref=$TAG" >> "$GITHUB_OUTPUT"
           else
-            echo "ref=${{ github.ref }}" >> "$GITHUB_OUTPUT"
+            echo "ref=$REF" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: actions/checkout@v4
@@ -76,12 +77,17 @@ jobs:
       - name: Refuse to publish a banned provider
         run: |
           set -euo pipefail
-          npm pack --dry-run --json > pack.json
-          FILES=$(node -e "const p=require('./pack.json')[0];console.log(p.files.map(f=>f.path).join('\n'))")
-          HITS=$(echo "$FILES" | xargs grep -il 'pollinations' || true)
-          if [ -n "$HITS" ]; then
-            echo "::error::published files mention the removed Pollinations provider:"; echo "$HITS"; exit 1
-          fi
+          npm pack --dry-run --json > "$RUNNER_TEMP/pack.json"
+          node -e "
+            const fs = require('fs');
+            const files = require(process.argv[1])[0].files.map((f) => f.path);
+            const hits = files.filter((f) => /pollinations/i.test(fs.readFileSync(f, 'latin1')));
+            console.log('scanned ' + files.length + ' packaged files');
+            if (hits.length) {
+              console.error('::error::published files mention the removed Pollinations provider: ' + hits.join(', '));
+              process.exit(1);
+            }
+          " "$RUNNER_TEMP/pack.json"
 
       - name: Publish to npm
         run: npm publish --provenance --access public
@@ -89,8 +95,9 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Verify npm serves the new version
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
-          VERSION="${{ inputs.version }}"
           [ -n "$VERSION" ] || VERSION=$(node -p "require('./package.json').version")
           node scripts/release-plan.mjs verify --npm "$VERSION" --timeout-s 600

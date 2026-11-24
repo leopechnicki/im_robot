@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore -- plain ESM script, no type declarations
-import { bumpVersionText, changelogSection, nextPatch, planRelease, readVersions } from '../scripts/release-plan.mjs'
+import { bumpVersionText, changelogSection, nextPatch, parseVersions, planRelease, readVersions } from '../scripts/release-plan.mjs'
 
 const base = {
   npmVersion: '0.8.0',
@@ -102,6 +102,13 @@ describe('planRelease', () => {
     expect(p.errors[0]).toMatch(/version drift/)
   })
 
+  it('blocks when the version tag exists but is not an ancestor of HEAD', () => {
+    const p = planRelease({ ...base, tagExists: true, tagIsAncestor: false, pyTagExists: true, npmPublished: true, pypiPublished: true })
+    expect(p.publishNpm).toBe(false)
+    expect(p.pushPyTag).toBe(false)
+    expect(p.errors[0]).toMatch(/not an ancestor of HEAD/)
+  })
+
   it('releases when there is no previous tag at all', () => {
     const p = planRelease({ ...base, lastTag: null, commitSubjects: ['chore: bump version to 0.8.0'] })
     expect(p.createRelease).toBe(true)
@@ -154,5 +161,28 @@ describe('bumpVersionText', () => {
     expect(out.py).toContain('version = "0.8.1"')
     expect(out.py).toContain('target-version = "py39"')
     expect(out.mod).toContain('__version__ = "0.8.1"')
+  })
+
+  it('only touches the [project] table, also when it is the last table', () => {
+    const pkg = '{"version": "0.8.0"}'
+    const mod = '__version__ = "0.8.0"\n'
+    const py = '[tool.x]\nversion = "9.9.9"\n\n[project]\nname = "imrobot"\nversion = "0.8.0"\n'
+    const out = bumpVersionText({ pkg, py, mod }, '0.8.1')
+    expect(out.py).toContain('[tool.x]\nversion = "9.9.9"')
+    expect(parseVersions(out).pyVersion).toBe('0.8.1')
+  })
+
+  it('refuses a dynamic [project] version instead of rewriting another table', () => {
+    const pkg = '{"version": "0.8.0"}'
+    const mod = '__version__ = "0.8.0"\n'
+    const py = '[project]\nname = "imrobot"\ndynamic = ["version"]\n\n[tool.hatch.version]\nversion = "0.8.0"\n'
+    expect(() => bumpVersionText({ pkg, py, mod }, '0.8.1')).toThrow(/no static version/)
+  })
+
+  it('refuses when _version.py has no __version__', () => {
+    const py = '[project]\nversion = "0.8.0"\n'
+    expect(() => bumpVersionText({ pkg: '{"version": "0.8.0"}', py, mod: 'VERSION = "0.8.0"\n' }, '0.8.1')).toThrow(
+      /did not take/,
+    )
   })
 })

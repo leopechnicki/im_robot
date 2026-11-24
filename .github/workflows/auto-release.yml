@@ -26,12 +26,17 @@ concurrency:
 
 jobs:
   release:
+    # Release only what main holds: a dispatch from another branch must not tag it.
+    # Skipped here = red run (the guard requires release == success).
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.plan.outputs.version }}
       tag: ${{ steps.plan.outputs.tag }}
       publish_npm: ${{ steps.plan.outputs.publish_npm }}
       push_py_tag: ${{ steps.plan.outputs.push_py_tag }}
+      open_bump_pr: ${{ steps.plan.outputs.open_bump_pr }}
+      next_version: ${{ steps.plan.outputs.next_version }}
       blocked: ${{ steps.plan.outputs.blocked }}
       blocked_reason: ${{ steps.plan.outputs.blocked_reason }}
     steps:
@@ -90,12 +95,43 @@ jobs:
           git push origin "refs/tags/${PY_TAG}"
           echo "::notice::pushed ${PY_TAG}; PyPI publish runs in the 'Publish Python SDK' workflow."
 
+  publish:
+    needs: release
+    if: needs.release.outputs.publish_npm == 'true'
+    uses: ./.github/workflows/publish.yml
+    with:
+      tag: ${{ needs.release.outputs.tag }}
+      version: ${{ needs.release.outputs.version }}
+    secrets: inherit
+
+  # Own job so a failing bump PR can never hold back the npm publish.
+  bump:
+    needs: release
+    if: needs.release.outputs.open_bump_pr == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
       - name: Open (or reopen) the version-bump PR
-        if: steps.plan.outputs.open_bump_pr == 'true'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          NEXT_VERSION: ${{ steps.plan.outputs.next_version }}
-          TAG: ${{ steps.plan.outputs.tag }}
+          NEXT_VERSION: ${{ needs.release.outputs.next_version }}
+          TAG: ${{ needs.release.outputs.tag }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
@@ -126,18 +162,9 @@ jobs:
             --base main \
             --head "$BRANCH"
 
-  publish:
-    needs: release
-    if: needs.release.outputs.publish_npm == 'true'
-    uses: ./.github/workflows/publish.yml
-    with:
-      tag: ${{ needs.release.outputs.tag }}
-      version: ${{ needs.release.outputs.version }}
-    secrets: inherit
-
   # Last word on the run's colour. Green = released or nothing to release.
   guard:
-    needs: [release, publish]
+    needs: [release, publish, bump]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -145,12 +172,16 @@ jobs:
         env:
           RELEASE_RESULT: ${{ needs.release.result }}
           PUBLISH_RESULT: ${{ needs.publish.result }}
+          BUMP_RESULT: ${{ needs.bump.result }}
           BLOCKED: ${{ needs.release.outputs.blocked }}
           REASON: ${{ needs.release.outputs.blocked_reason }}
         run: |
-          echo "release=${RELEASE_RESULT} publish=${PUBLISH_RESULT} blocked=${BLOCKED}"
+          echo "release=${RELEASE_RESULT} publish=${PUBLISH_RESULT} bump=${BUMP_RESULT} blocked=${BLOCKED}"
           if [ "$RELEASE_RESULT" != "success" ]; then
-            echo "::error::release job ${RELEASE_RESULT}"; exit 1
+            echo "::error::release job ${RELEASE_RESULT} (runs on main only)"; exit 1
+          fi
+          if [ "$BUMP_RESULT" = "failure" ] || [ "$BUMP_RESULT" = "cancelled" ]; then
+            echo "::error::version-bump PR job ${BUMP_RESULT}"; exit 1
           fi
           if [ "$PUBLISH_RESULT" = "failure" ] || [ "$PUBLISH_RESULT" = "cancelled" ]; then
             echo "::error::npm publish ${PUBLISH_RESULT}"; exit 1
