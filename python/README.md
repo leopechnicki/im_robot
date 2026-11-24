@@ -61,6 +61,38 @@ async def agent_only():
     return {"secret": "only bots see this"}
 ```
 
+## Agent frameworks: LangChain and CrewAI
+
+`pass_gate` does the whole agent side in one call (standard library only):
+
+```python
+from imrobot.gate import pass_gate, GateError
+
+gate = pass_gate("https://site.example", agent_id="my-agent")   # or: await apass_gate(...)
+headers = {gate.proof_header: gate.proof_token}
+```
+
+As tools for an agent framework (`imrobot_pass_gate(url)` and `imrobot_solve_challenge(challenge)`;
+both return JSON strings and never raise):
+
+```python
+# pip install "imrobot[langchain]"
+from imrobot.langchain import get_langchain_tools
+agent = create_agent(model="anthropic:claude-opus-5-5", tools=get_langchain_tools(agent_id="my-agent"))
+
+# pip install "imrobot[crewai]"
+from imrobot.crewai import get_crewai_tools
+agent = Agent(role="...", goal="...", backstory="...", tools=get_crewai_tools(agent_id="my-crew"))
+```
+
+Full scripts: [`examples/langchain_agent.py`](examples/langchain_agent.py),
+[`examples/crewai_agent.py`](examples/crewai_agent.py).
+
+Private, loopback and link-local hosts are refused unless you pass `allow_private_hosts=True` (local
+development). Only http(s), same-origin discovery endpoints, no redirects, 10 s timeout per request,
+256 kB per response. `GateError.code` is one of `invalid_url`, `private_host`, `network`, `timeout`,
+`bad_response`, `unsupported_challenge`, `rejected`.
+
 ## Web Bot Auth: signed agents skip the challenge
 
 `pip install "imrobot[wba]"` adds Ed25519 support (`cryptography`). A request with a valid
@@ -115,6 +147,16 @@ httpx.get(url, headers=sign_request("GET", url, private_jwk=key.private_jwk,
 | `InMemoryReplayGuard(capacity)` | Bounded replay-attack guard |
 | `hmac_sign(secret, message)` | HMAC-SHA256 hex (matches JS `hmacSign`) |
 | `hmac_verify(secret, message, sig)` | Constant-time HMAC verify |
+
+### `imrobot.gate`, `imrobot.langchain`, `imrobot.crewai`
+
+| Function | Purpose |
+|---|---|
+| `pass_gate(url, *, agent_id, timeout, allow_private_hosts)` | Discover, solve, verify; returns `PassGateResult` (raises `GateError`) |
+| `apass_gate(...)` | Async `pass_gate` |
+| `pass_gate_tool(url, ...)` / `solve_challenge_tool(challenge)` | Tool bodies: JSON string out, never raise |
+| `get_langchain_tools(...)` | Both tools as LangChain `StructuredTool`s |
+| `get_crewai_tools(...)`, `ImRobotPassGateTool`, `ImRobotSolveChallengeTool` | Both tools as CrewAI `BaseTool`s |
 
 ### `imrobot.fastapi`
 

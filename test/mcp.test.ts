@@ -87,7 +87,7 @@ describe('IMRobotMCPServer', () => {
       const result = response.result as { tools: Array<{ name: string }> }
 
       expect(result.tools).toBeInstanceOf(Array)
-      expect(result.tools.length).toBe(5)
+      expect(result.tools.length).toBe(6)
 
       const names = result.tools.map((t) => t.name)
       expect(names).toContain('generate-challenge')
@@ -95,6 +95,7 @@ describe('IMRobotMCPServer', () => {
       expect(names).toContain('verify-answer')
       expect(names).toContain('create-token')
       expect(names).toContain('get-discovery-document')
+      expect(names).toContain('pass-gate')
     })
 
     it('tool definitions have required schema fields', async () => {

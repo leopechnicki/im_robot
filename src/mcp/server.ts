@@ -44,6 +44,7 @@ import {
   TOOL_DEFINITIONS,
   toolGenerateChallenge,
   toolSolveChallenge,
+  toolPassGate,
   toolVerifyAnswer,
   toolCreateToken,
   toolGetDiscoveryDocument,
@@ -160,10 +161,10 @@ export class IMRobotMCPServer {
     return ok<MCPToolsListResult>(id, { tools: TOOL_DEFINITIONS })
   }
 
-  private handleToolsCall(
+  private async handleToolsCall(
     id: string | number,
     params: Record<string, unknown>,
-  ): JsonRpcResponse<MCPToolCallResult> {
+  ): Promise<JsonRpcResponse<MCPToolCallResult>> {
     const name = params.name as string
     const args = (params.arguments ?? {}) as Record<string, unknown>
 
@@ -176,7 +177,7 @@ export class IMRobotMCPServer {
     }
 
     try {
-      const result = this.callTool(name, args)
+      const result = await this.callTool(name, args)
       return ok<MCPToolCallResult>(id, textContent(JSON.stringify(result, null, 2)))
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -184,7 +185,7 @@ export class IMRobotMCPServer {
     }
   }
 
-  private callTool(name: string, args: Record<string, unknown>): unknown {
+  private async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
     const a = args as unknown
     switch (name) {
       case 'generate-challenge':
@@ -198,6 +199,9 @@ export class IMRobotMCPServer {
 
       case 'create-token':
         return toolCreateToken(a as Parameters<typeof toolCreateToken>[0])
+
+      case 'pass-gate':
+        return toolPassGate(a as Parameters<typeof toolPassGate>[0], this.config)
 
       case 'get-discovery-document':
         return toolGetDiscoveryDocument(
@@ -230,18 +234,23 @@ export class IMRobotMCPServer {
       terminal: false,
     })
 
-    rl.on('line', async (line: string) => {
+    // pass-gate does network I/O: answer every request already read before exiting.
+    const pending = new Set<Promise<void>>()
+    rl.on('line', (line: string) => {
       const trimmed = line.trim()
       if (!trimmed) return
 
-      const response = await this.handleMessage(trimmed)
-      if (response) {
-        process.stdout.write(response + '\n')
-      }
+      const task = this.handleMessage(trimmed).then((response) => {
+        if (response) {
+          process.stdout.write(response + '\n')
+        }
+      })
+      pending.add(task)
+      void task.finally(() => pending.delete(task))
     })
 
     rl.on('close', () => {
-      process.exit(0)
+      void Promise.allSettled([...pending]).then(() => process.exit(0))
     })
   }
 }

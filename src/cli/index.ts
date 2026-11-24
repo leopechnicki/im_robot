@@ -5,6 +5,7 @@ import { createVerifier } from '../server/verifier'
 import type { Difficulty } from '../core/types'
 import { CLI_VERSION } from './version'
 import { cmdTestAgent } from './test-agent'
+import { createMCPServer } from '../mcp/server'
 
 const HELP = `
 imrobot — Reverse-CAPTCHA CLI for AI Agent Verification
@@ -18,6 +19,7 @@ Commands:
   verify       Verify an answer against a challenge
   benchmark    Run a performance benchmark
   test-agent   Probe a URL to check whether it accepts AI agents via imrobot
+  mcp          Run the imrobot MCP server on stdio (for Claude, Cursor, any MCP client)
   info         Show project information
 
 Options:
@@ -25,6 +27,7 @@ Options:
   --count <n>                       Number of iterations for benchmark (default: 100)
   --secret <string>                 HMAC secret for server-mode verification
   --json                            Print machine-readable JSON output (test-agent)
+  --allow-private-hosts             Let the MCP pass-gate tool reach localhost / private IPs (mcp)
   --help                            Show this help message
 
 Examples:
@@ -34,6 +37,7 @@ Examples:
   npx imrobot verify --secret my-secret-at-least-16-chars
   npx imrobot test-agent https://example.com
   npx imrobot test-agent example.com --json
+  npx -y imrobot mcp
 `
 
 function parseArgs(args: string[]): Record<string, string> {
@@ -206,6 +210,14 @@ async function main() {
 
   if (args.help === 'true' || command === 'help') {
     console.log(HELP)
+    return
+  }
+
+  // mcp speaks JSON-RPC on stdout: nothing else may be printed there.
+  if (command === 'mcp') {
+    await createMCPServer({
+      gate: { allowPrivateHosts: args['allow-private-hosts'] === 'true' },
+    }).start()
     return
   }
 

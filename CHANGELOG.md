@@ -25,6 +25,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `imrobot/agent` (npm) and `imrobot.agent` (Python): a signing client with Ed25519 keygen, `signRequest` /
   `sign_request`, `createSignedFetch`, key-directory publishing and signed directory responses.
 - Python `imrobot.web_bot_auth` verifier. New `wba` extra (`cryptography`).
+- Agent frameworks: `passGate` (npm `imrobot/agent`) and `pass_gate` / `apass_gate` (Python
+  `imrobot.gate`) pass a site's gate in one call: discovery or the default mount, solve, verify,
+  proof token. Private hosts are refused unless `allowPrivateHosts`, only same-origin discovery
+  endpoints, no redirects, 10 s timeout, 256 kB response cap, stable `GateError` codes.
+- Agent tools `imrobot_pass_gate` and `imrobot_solve_challenge`: `imrobotTools()` (framework-neutral,
+  JSON Schema), `imrobot.langchain.get_langchain_tools()` and `imrobot.crewai.get_crewai_tools()`.
+  New Python extras `langchain` and `crewai`.
+- `npx imrobot mcp` runs the MCP server over stdio, with a new `pass-gate` tool
+  (`--allow-private-hosts` for local sites).
+- Examples: `examples/claude-agent-sdk.ts` (in-process tools and stdio MCP),
+  `examples/pass-gate.ts`, `examples/demo-site.ts`, `python/examples/langchain_agent.py`,
+  `python/examples/crewai_agent.py`.
 
 ### Changed
 
