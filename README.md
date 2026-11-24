@@ -1064,7 +1064,7 @@ Highlights:
 
 - **Zero deps** for `solve_challenge`, `ImRobotVerifier`, `ProofTokenIssuer`. FastAPI is an optional `[fastapi]` extra.
 - **Cross-runtime interop** — `test_interop.py` pins JS reference outputs (FNV-1a, HMAC-SHA256, base64url) so any drift breaks CI.
-- **RFC 7519 JWTs (HS256)** — proof tokens verify with `PyJWT`, `python-jose`, or any RFC-compliant library. (Tokens issued by 0.8.0 and earlier carried a non-standard signature segment; imrobot itself still verifies them, third-party JWT libraries do not.)
+- **RFC 7519 JWTs (HS256)** — proof tokens verify with `PyJWT`, `python-jose`, or any RFC-compliant library. (Tokens issued by 0.9.0 and earlier carried a non-standard signature segment; imrobot itself still verifies them, third-party JWT libraries do not.)
 - **Python 3.9 – 3.13** supported.
 - **PyPI auto-publish** on `py-v*` tags via `.github/workflows/publish-python.yml` (OIDC trusted publishing, no long-lived tokens).
 

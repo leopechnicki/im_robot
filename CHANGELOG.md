@@ -14,7 +14,7 @@ Found by a consumer smoke test of the published 0.8.0 (npm and PyPI) in throwawa
 - Proof tokens are now real RFC 7515 / RFC 7519 HS256 JWTs: the signature segment is base64url of the
   32 raw HMAC bytes (43 chars). 0.8.0 encoded the hex string (86 chars), so `jose`, `jsonwebtoken` and
   `PyJWT` rejected the tokens the docs said they accept. Both SDKs still verify the old form.
-  **Mixed deployments:** a server on 0.8.0 or earlier rejects tokens issued by this version, so upgrade
+  **Mixed deployments:** a verifier on 0.9.0 or earlier (JS or Python) rejects tokens issued by this version, so upgrade
   every verifier before (or together with) the issuers.
 - `createVerifier({ analytics })` records generated / verified / failed outcomes. 0.8.0 ignored the option
   (every `ChallengeOTelExporter` counter stayed at 0) and the README snippet did not type-check.

@@ -69,5 +69,8 @@ describe('ProofTokenIssuer -- RFC 7515 HS256 signature segment', () => {
     const wrongLegacy = `${h}.${p}.${Buffer.from(wrongHex).toString('base64url')}`
     expect((await issuer.verify(wrongLegacy)).reason).toBe('invalid_signature')
     expect((await issuer.verify(`${h}.${p}.not*base64`)).reason).toBe('malformed')
+    // 64 bytes that are not UTF-8: malformed in both SDKs (Python decode raises)
+    const notUtf8 = Buffer.alloc(64, 0xff).toString('base64url')
+    expect((await issuer.verify(`${h}.${p}.${notUtf8}`)).reason).toBe('malformed')
   })
 })

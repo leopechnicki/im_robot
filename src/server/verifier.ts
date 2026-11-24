@@ -24,6 +24,10 @@ export type VerifierConfig = ServerConfig & {
    * Record every generate / verify outcome (generated, verified with solve
    * time and the suspicious flag, failed with its reason) into this
    * {@link ChallengeAnalytics}, e.g. the one a `ChallengeOTelExporter` reads.
+   * For a failure before the HMAC check the difficulty is the one the client
+   * claims (only easy/medium/hard are accepted, else the default), so a
+   * forger can shift per-difficulty failure counts; totals stay exact. An
+   * analytics object that throws never changes the verification result.
    */
   analytics?: Pick<ChallengeAnalytics, 'recordGenerated' | 'recordVerified' | 'recordFailed'>
 }
@@ -128,7 +132,7 @@ export class ImRobotVerifier {
     const message = this.buildSignatureMessage({ ...challenge, expiresAt })
     const hmac = await hmacSign(this.secret, message)
 
-    this.analytics?.recordGenerated(difficulty)
+    this.record(() => this.analytics?.recordGenerated(difficulty))
 
     return {
       ...challenge,
@@ -159,13 +163,25 @@ export class ImRobotVerifier {
         typeof claimed === 'string' && DIFFICULTIES.includes(claimed)
           ? (claimed as Difficulty)
           : this.difficulty
-      if (result.valid) {
-        this.analytics.recordVerified(difficulty, result.elapsed ?? 0, result.suspicious === true)
-      } else if (result.reason) {
-        this.analytics.recordFailed(difficulty, result.reason)
-      }
+      const analytics = this.analytics
+      this.record(() => {
+        if (result.valid) {
+          analytics.recordVerified(difficulty, result.elapsed ?? 0, result.suspicious === true)
+        } else if (result.reason) {
+          analytics.recordFailed(difficulty, result.reason)
+        }
+      })
     }
     return result
+  }
+
+  /** Metrics must never change a verification outcome: swallow analytics errors. */
+  private record(fn: () => void): void {
+    try {
+      fn()
+    } catch {
+      // ignored on purpose
+    }
   }
 
   private async check(challenge: SignedChallenge, answer: string): Promise<VerifyResult> {

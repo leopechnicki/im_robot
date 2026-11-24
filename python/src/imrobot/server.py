@@ -479,8 +479,8 @@ _B64URL_CHARS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0
 def _signature_segment_to_hex(segment: str) -> str:
     """Return the 64-char hex HMAC carried by a JWS signature segment.
 
-    RFC 7515 form (issued since 0.8.1, and by every standard JWT library):
-    base64url of the 32 raw HMAC bytes. Legacy form (imrobot <= 0.8.0):
+    RFC 7515 form (issued in releases after 0.9.0, and by every standard JWT
+    library): base64url of the 32 raw HMAC bytes. Legacy form (imrobot <= 0.9.0):
     base64url of the 64-char hex string; still accepted so tokens issued by
     older servers keep verifying.
     """

@@ -48,4 +48,16 @@ describe('createVerifier({ analytics })', () => {
     expect((await verifier.verify(c, solveChallenge(c))).reason).toBe('expired')
     expect(analytics.getStats().byDifficulty.medium.expired).toBe(1)
   })
+
+  it('a throwing analytics object never changes the result', async () => {
+    const boom = () => {
+      throw new Error('metrics backend down')
+    }
+    const analytics = { recordGenerated: boom, recordVerified: boom, recordFailed: boom }
+    const verifier = createVerifier({ secret: KEY, analytics })
+    const c = await verifier.generate()
+    expect((await verifier.verify(c, solveChallenge(c))).valid).toBe(true)
+    const d = await verifier.generate()
+    expect((await verifier.verify(d, 'nope')).reason).toBe('wrong_answer')
+  })
 })

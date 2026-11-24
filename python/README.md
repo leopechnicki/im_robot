@@ -189,7 +189,7 @@ The Python and JS SDKs share the exact same wire format:
 - **FNV-1a** — bit-for-bit identical output (matches JS `Math.imul` semantics).
 - **HMAC-SHA256** — 64-char lowercase hex.
 - **Base64url** — RFC 4648 §5, no padding.
-- **JWT** — RFC 7519 HS256, standard claims + namespaced `imr` claim; the signature segment is base64url of the raw 32-byte HMAC (RFC 7515), so `PyJWT` verifies it. Tokens from 0.8.0 and earlier used base64url of the hex HMAC; `ProofTokenIssuer.verify` still accepts them.
+- **JWT** — RFC 7519 HS256, standard claims + namespaced `imr` claim; the signature segment is base64url of the raw 32-byte HMAC (RFC 7515), so `PyJWT` verifies it. Tokens from 0.9.0 and earlier used base64url of the hex HMAC; `ProofTokenIssuer.verify` still accepts them, but a 0.9.0-or-earlier verifier rejects the new form, so upgrade verifiers first.
 - **Challenge JSON** — same field names (camelCase for wire compatibility with JS: `visibleSeed`, `expiresAt`, `hmac`, `pipeline`).
 
 The `tests/test_interop.py` suite pins known JS reference outputs so any drift breaks CI.

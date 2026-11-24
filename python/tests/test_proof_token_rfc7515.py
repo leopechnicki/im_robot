@@ -76,3 +76,5 @@ class TestRfc7515Signature:
         wrong_legacy = f"{h}.{p}.{_b64(_mac(KEY_B, f'{h}.{p}').hex().encode())}"
         assert (await issuer.verify(wrong_legacy))["reason"] == "invalid_signature"
         assert (await issuer.verify(f"{h}.{p}.not*base64"))["reason"] == "malformed"
+        not_utf8 = _b64(bytes([0xFF]) * 64)
+        assert (await issuer.verify(f"{h}.{p}.{not_utf8}"))["reason"] == "malformed"

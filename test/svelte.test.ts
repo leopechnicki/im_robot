@@ -12,7 +12,7 @@
  * transformed) and is deleted afterwards.
  */
 import { describe, it, expect, afterAll } from 'vitest'
-import { mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { compile } from 'svelte/compiler'
@@ -28,22 +28,28 @@ function fileUrl(p: string): string {
 async function loadComponent() {
   const source = readFileSync(join(root, 'src', 'svelte', 'ImRobot.svelte'), 'utf-8')
   const { js } = compile(source, { generate: 'client', filename: 'ImRobot.svelte' })
-  const code = js.code
-    .replace(
-      /from 'svelte\/internal\/client'/g,
-      `from '${fileUrl(join(svelteSrc, 'internal', 'client', 'index.js'))}'`,
-    )
-    .replace(
-      /from 'svelte\/internal\/disclose-version'/g,
-      `from '${fileUrl(join(svelteSrc, 'internal', 'disclose-version.js'))}'`,
-    )
-    .replace(/from '\.\.\/(core\/index|styles|screenshot-shield)'/g, (_m, mod: string) => {
-      const file =
-        mod === 'core/index'
-          ? join(root, 'src', 'core', 'index.ts')
-          : join(root, 'src', `${mod}.ts`)
-      return `from '${file.split('\\').join('/')}'`
-    })
+  // Rewrite every import specifier to something this test can load:
+  // svelte runtime entries -> the client build in node_modules (loaded by
+  // Node), relative imports -> the TypeScript source (transformed by Vite).
+  // Anything else fails loudly instead of with an obscure resolve error.
+  const svelteEntries: Record<string, string> = {
+    'svelte/internal/client': join(svelteSrc, 'internal', 'client', 'index.js'),
+    'svelte/internal/disclose-version': join(svelteSrc, 'internal', 'disclose-version.js'),
+    'svelte/internal/flags/legacy': join(svelteSrc, 'internal', 'flags', 'legacy.js'),
+  }
+  const componentDir = join(root, 'src', 'svelte')
+  const code = js.code.replace(/(from |import )'([^']+)'/g, (_m, kw: string, spec: string) => {
+    if (spec in svelteEntries) return `${kw}'${fileUrl(svelteEntries[spec])}'`
+    if (spec.startsWith('.')) {
+      const base = resolve(componentDir, spec)
+      const file = ['.ts', '.tsx', '.js', '/index.ts']
+        .map((ext) => base + ext)
+        .find((f) => existsSync(f))
+      if (!file) throw new Error(`svelte.test: cannot resolve ${spec} from ImRobot.svelte`)
+      return `${kw}'${file.split('\\').join('/')}'`
+    }
+    throw new Error(`svelte.test: unexpected import '${spec}' in compiled ImRobot.svelte`)
+  })
   mkdirSync(outDir, { recursive: true })
   const outFile = join(outDir, 'ImRobot.compiled.js')
   writeFileSync(outFile, code)
@@ -59,6 +65,8 @@ async function loadComponent() {
 
 afterAll(() => {
   rmSync(outDir, { recursive: true, force: true })
+  const parent = join(outDir, '..')
+  if (existsSync(parent) && readdirSync(parent).length === 0) rmSync(parent, { recursive: true })
 })
 
 describe('Svelte 5 widget', () => {

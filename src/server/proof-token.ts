@@ -76,14 +76,15 @@ function bytesToHex(bytes: Uint8Array): string {
 /**
  * Turn a JWS signature segment into the 64-char hex HMAC it carries.
  * RFC 7515 form: base64url of the 32 raw HMAC bytes (what imrobot issues
- * since 0.8.1, and what jose / PyJWT / jsonwebtoken produce).
- * Legacy form (imrobot <= 0.8.0): base64url of the 64-char hex string;
+ * in releases after 0.9.0, and what jose / PyJWT / jsonwebtoken produce).
+ * Legacy form (imrobot <= 0.9.0): base64url of the 64-char hex string;
  * still accepted so tokens issued by older servers keep verifying.
+ * Invalid UTF-8 in a legacy segment throws (-> `malformed`), as in Python.
  */
 function signatureSegmentToHex(segment: string): string {
   const bytes = base64urlToBytes(segment)
   if (bytes.length === 32) return bytesToHex(bytes)
-  return new TextDecoder().decode(bytes)
+  return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
 }
 
 /** Constraint-bounded clock skew tolerance for token exp/nbf checks. */
