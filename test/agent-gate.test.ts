@@ -4,6 +4,7 @@ import {
   imrobotTools,
   passGate,
   solveChallengeInput,
+  SOLVE_LIMITS,
   PASS_GATE_TOOL_NAME,
   SOLVE_TOOL_NAME,
 } from '../src/agent'
@@ -221,6 +222,47 @@ describe('passGate', () => {
     })
   })
 
+  it('times out on a body that stalls after the headers', async () => {
+    const fetchFn: FetchFn = async (input) => {
+      if (input.endsWith('/.well-known/imrobot.json')) return new Response(null, { status: 404 })
+      // Headers arrive, then one byte and nothing more (a slow-loris body).
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode('{'))
+        },
+      })
+      return new Response(body, { status: 200 })
+    }
+    const started = Date.now()
+    await expect(passGate(SITE, { fetch: fetchFn, timeoutMs: 50 })).rejects.toMatchObject({
+      code: 'timeout',
+    })
+    expect(Date.now() - started).toBeLessThan(2000)
+  })
+
+  it('refuses a hostile pipeline instead of hanging or allocating', async () => {
+    for (const pipeline of [
+      [{ op: 'repeat', times: 500_000_000 }],
+      [{ op: 'hash_chain', rounds: 10_000_000_000 }],
+      [{ op: 'pad_start', length: 1e9, fill: 'x' }],
+      [{ op: 'replace', search: '', replacement: 'x'.repeat(100_000) }],
+      [{ op: 'byte_xor', key: new Array(5000).fill(1) }],
+      // Each step doubles: refused once a value passes the limit.
+      new Array(30).fill({ op: 'repeat', times: 2 }),
+      new Array(40).fill({ op: 'reverse' }),
+    ]) {
+      const fetchFn: FetchFn = async (input) => {
+        if (input.endsWith('/.well-known/imrobot.json')) return new Response(null, { status: 404 })
+        return Response.json({ id: 'x', seed: 'abcdefgh', pipeline })
+      }
+      const started = Date.now()
+      await expect(passGate(SITE, { fetch: fetchFn })).rejects.toMatchObject({
+        code: 'unsupported_challenge',
+      })
+      expect(Date.now() - started).toBeLessThan(2000)
+    }
+  })
+
   it('rejects a non-challenge body', async () => {
     const fetchFn: FetchFn = async (input) => {
       if (input.endsWith('/.well-known/imrobot.json')) return new Response(null, { status: 404 })
@@ -237,6 +279,17 @@ describe('solveChallengeInput', () => {
     const c = await createVerifier({ secret: SECRET }).generate()
     expect(solveChallengeInput(c)).toBe(solveChallenge(c))
     expect(solveChallengeInput(JSON.stringify(c))).toBe(solveChallenge(c))
+  })
+
+  it('solves real pipelines of every difficulty within SOLVE_LIMITS', async () => {
+    for (const difficulty of ['easy', 'medium', 'hard'] as const) {
+      const v = createVerifier({ secret: SECRET, difficulty, sha256: true })
+      for (let i = 0; i < 30; i++) {
+        const c = await v.generate()
+        expect(solveChallengeInput(c)).toBe(solveChallenge(c))
+      }
+    }
+    expect(SOLVE_LIMITS.maxOperations).toBeGreaterThanOrEqual(8)
   })
 
   it('names an unknown operation', () => {

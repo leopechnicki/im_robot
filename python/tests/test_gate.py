@@ -12,6 +12,7 @@ import pytest
 
 from imrobot.gate import (
     DEFAULT_PROOF_HEADER,
+    SOLVE_LIMITS,
     GateError,
     apass_gate,
     pass_gate,
@@ -151,6 +152,81 @@ def test_timeout(site: Site) -> None:
         pass_gate(site.url, allow_private_hosts=True, timeout=0.3)
     assert e.value.code == "timeout"
     assert time.monotonic() - t0 < 1.4
+
+
+def test_timeout_on_trickled_body(site: Site) -> None:
+    def trickle(h: BaseHTTPRequestHandler) -> None:
+        h.send_response(200)
+        h.send_header("Content-Length", "100")
+        h.end_headers()
+        try:
+            for _ in range(40):  # one byte every 0.1 s, under the 0.5 s socket timeout
+                h.wfile.write(b" ")
+                h.wfile.flush()
+                time.sleep(0.1)
+        except OSError:
+            pass  # the client gave up, as it should
+
+    site.overrides["/imrobot/challenge"] = trickle
+    t0 = time.monotonic()
+    with pytest.raises(GateError) as e:
+        pass_gate(site.url, allow_private_hosts=True, timeout=0.5)
+    assert e.value.code == "timeout"
+    assert time.monotonic() - t0 < 2.0
+
+
+@pytest.mark.parametrize(
+    "pipeline",
+    [
+        [{"op": "repeat", "times": 500_000_000}],
+        [{"op": "hash_chain", "rounds": 10_000_000_000}],
+        [{"op": "pad_start", "length": 10**9, "fill": "x"}],
+        [{"op": "replace", "search": "", "replacement": "x" * 100_000}],
+        [{"op": "byte_xor", "key": [1] * 5000}],
+        [{"op": "repeat", "times": 2}] * 30,
+        [{"op": "reverse"}] * 40,
+        [{"op": "repeat", "times": 2.5}],
+    ],
+)
+def test_hostile_pipeline_refused(site: Site, pipeline: list[Any]) -> None:
+    site.overrides["/imrobot/challenge"] = lambda h: h._send(  # type: ignore[attr-defined]
+        200, {"id": "x", "seed": "abcdefgh", "pipeline": pipeline}
+    )
+    t0 = time.monotonic()
+    with pytest.raises(GateError) as e:
+        _local(site.url)
+    assert e.value.code == "unsupported_challenge"
+    assert time.monotonic() - t0 < 2.0
+
+
+def test_real_pipelines_fit_the_limits() -> None:
+    from imrobot import ImRobotVerifier
+    from imrobot.core import solve_challenge
+
+    for difficulty in ("easy", "medium", "hard"):
+        v = ImRobotVerifier("g" * 32, difficulty=difficulty, sha256=True)
+        for _ in range(30):
+            c = asyncio.run(v.generate())
+            assert solve_challenge_input(c) == solve_challenge(c)
+    assert SOLVE_LIMITS["max_operations"] >= 8
+
+
+def test_http_errors_map_to_gate_errors(site: Site) -> None:
+    with pytest.raises(GateError) as e:
+        _local(site.url + "/a b/challenge")  # http.client refuses the space
+    assert e.value.code == "invalid_url"
+
+    def truncated(h: BaseHTTPRequestHandler) -> None:
+        h.send_response(200)
+        h.send_header("Content-Length", "100")
+        h.end_headers()
+        h.wfile.write(b'{"id":')
+        h.close_connection = True
+
+    site.overrides["/imrobot/challenge"] = truncated
+    with pytest.raises(GateError) as e:
+        _local(site.url)
+    assert e.value.code in ("network", "bad_response")
 
 
 def test_non_challenge_body(site: Site) -> None:

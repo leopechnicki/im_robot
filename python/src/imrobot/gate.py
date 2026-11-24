@@ -17,14 +17,22 @@ It is what the LangChain and CrewAI tools (``imrobot.langchain``,
 - private, loopback and link-local hosts are refused unless you opt in with
   ``allow_private_hosts=True`` (a model can be talked into calling internal URLs);
 - responses are size capped and time limited, and only the parsed result is
-  returned, never the raw body.
+  returned, never the raw body;
+- the challenge comes from an untrusted server, so it is solved step by step
+  under :data:`SOLVE_LIMITS` instead of trusting its parameters.
 
-Standard library only (``urllib``).
+Host names are not resolved: a public name that resolves (or rebinds) to a
+private address is not caught. In production, run agents behind an egress
+filter or an allow-list of sites.
+
+Standard library only (``urllib``). Like any ``urllib`` client it honours the
+``HTTP(S)_PROXY`` / ``NO_PROXY`` environment variables.
 """
 
 from __future__ import annotations
 
 import asyncio
+import http.client
 import json
 import socket
 import time
@@ -34,7 +42,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 from urllib.parse import urljoin, urlsplit
 
-from .core import solve_challenge
+from .core import execute_operation
 from .web_bot_auth import is_private_host
 
 DISCOVERY_PATH = "/.well-known/imrobot.json"
@@ -43,6 +51,17 @@ DEFAULT_VERIFY_PATH = "/imrobot/verify"
 DEFAULT_PROOF_HEADER = "X-Agent-Proof"
 DEFAULT_TIMEOUT = 10.0
 MAX_BODY_BYTES = 256 * 1024
+
+#: Bounds for solving a challenge from an untrusted server. imrobot servers send
+#: at most 8 operations, ``repeat`` 2-3 times and ``hash_chain`` 2-5 rounds, so
+#: these are far above anything real; they stop a hostile site from making the
+#: agent allocate gigabytes or spin forever. Same values as ``SOLVE_LIMITS`` in npm.
+SOLVE_LIMITS: dict[str, int] = {
+    "max_operations": 32,
+    "max_value_length": 256 * 1024,
+    "max_hash_rounds": 10_000,
+    "max_key_length": 1024,
+}
 
 PASS_GATE_TOOL_NAME = "imrobot_pass_gate"
 SOLVE_TOOL_NAME = "imrobot_solve_challenge"
@@ -180,10 +199,13 @@ def _request(
                 raise GateError("bad_response", f"{origin}: response too large", status=status)
             chunks: list[bytes] = []
             total = 0
+            # read1: return whatever arrived (one recv), so a body trickled a byte at a
+            # time still hits the deadline. Worst case is deadline + one socket timeout.
+            read = getattr(resp, "read1", resp.read)
             while True:
                 if time.monotonic() > deadline:
                     raise GateError("timeout", f"{origin}: no answer within {timeout:g} s")
-                chunk = resp.read(16 * 1024)
+                chunk = read(16 * 1024)
                 if not chunk:
                     break
                 total += len(chunk)
@@ -201,6 +223,12 @@ def _request(
         raise GateError("network", f"{origin}: {exc.reason}") from exc
     except OSError as exc:
         raise GateError("network", f"{origin}: {exc}") from exc
+    except http.client.InvalidURL as exc:  # e.g. a space or control character in the path
+        raise GateError("invalid_url", f"{origin}: {exc}") from exc
+    except http.client.HTTPException as exc:  # IncompleteRead, bad status line, ...
+        raise GateError("network", f"{origin}: {type(exc).__name__}: {exc}") from exc
+    except ValueError as exc:  # urllib refusing the URL itself
+        raise GateError("invalid_url", f"{origin}: {exc}") from exc
 
 
 def _json(resp: _Response, what: str) -> Any:
@@ -260,19 +288,77 @@ def _as_challenge(value: Any) -> dict[str, Any]:
     return value
 
 
+def _too_big(what: str) -> GateError:
+    return GateError("unsupported_challenge", f"refusing to solve: {what}")
+
+
+def _count(value: Any, what: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value != int(value):
+        raise _too_big(f"{what} is not a whole number")
+    return int(value)
+
+
+def _check_step(value: str, op: dict[str, Any]) -> None:
+    """Reject a step whose parameters would blow up time or memory (see SOLVE_LIMITS)."""
+    limit = SOLVE_LIMITS["max_value_length"]
+    kind = op.get("op")
+    if kind == "repeat":
+        times = _count(op.get("times"), "repeat.times")
+        if times < 0 or len(value) * times > limit:
+            raise _too_big("repeat too large")
+    elif kind == "pad_start":
+        if _count(op.get("length"), "pad_start.length") > limit:
+            raise _too_big("pad_start.length too large")
+    elif kind == "replace":
+        search, replacement = op.get("search"), op.get("replacement")
+        if not isinstance(search, str) or not isinstance(replacement, str):
+            raise _too_big("replace needs string search and replacement")
+        hits = len(value) + 1 if search == "" else len(value) // len(search)
+        if len(value) + hits * len(replacement) > limit:
+            raise _too_big("replace result too large")
+    elif kind == "hash_chain":
+        if _count(op.get("rounds"), "hash_chain.rounds") > SOLVE_LIMITS["max_hash_rounds"]:
+            raise _too_big(f"hash_chain.rounds over {SOLVE_LIMITS['max_hash_rounds']}")
+    elif kind == "byte_xor":
+        key = op.get("key")
+        if not isinstance(key, list) or len(key) > SOLVE_LIMITS["max_key_length"]:
+            raise _too_big(f"byte_xor.key longer than {SOLVE_LIMITS['max_key_length']}")
+
+
+def _bounded_solve(c: dict[str, Any]) -> str:
+    """Solve under SOLVE_LIMITS, one operation at a time."""
+    pipeline = c["pipeline"]
+    if len(pipeline) > SOLVE_LIMITS["max_operations"]:
+        raise _too_big(f"{len(pipeline)} operations (limit {SOLVE_LIMITS['max_operations']})")
+    value: str = c["seed"]
+    if len(value) > SOLVE_LIMITS["max_value_length"]:
+        raise _too_big("seed too long")
+    for op in pipeline:
+        if not isinstance(op, dict):
+            raise _too_big("an operation is not an object")
+        _check_step(value, op)
+        try:
+            value = execute_operation(value, op)  # type: ignore[arg-type]
+        except (ValueError, KeyError, TypeError, IndexError, OverflowError) as exc:
+            raise GateError("unsupported_challenge", f"cannot solve this challenge: {exc}") from exc
+        if len(value) > SOLVE_LIMITS["max_value_length"]:
+            raise _too_big("an intermediate value is too large")
+    return value
+
+
 def solve_challenge_input(challenge: Any) -> str:
-    """Solve a challenge dict (or its JSON text). Raises GateError on an unknown operation."""
+    """Solve a challenge dict (or its JSON text) under :data:`SOLVE_LIMITS`.
+
+    Raises GateError (``unsupported_challenge``) on an unknown operation or a
+    pipeline over the limits.
+    """
     value = challenge
     if isinstance(value, str):
         try:
             value = json.loads(value)
         except ValueError as exc:
             raise GateError("bad_response", "challenge is not valid JSON") from exc
-    c = _as_challenge(value)
-    try:
-        return solve_challenge(c)
-    except (ValueError, KeyError, TypeError, IndexError) as exc:
-        raise GateError("unsupported_challenge", f"cannot solve this challenge: {exc}") from exc
+    return _bounded_solve(_as_challenge(value))
 
 
 def pass_gate(
@@ -425,6 +511,7 @@ __all__ = [
     "apass_gate",
     "pass_gate",
     "pass_gate_tool",
+    "SOLVE_LIMITS",
     "solve_challenge_input",
     "solve_challenge_tool",
 ]

@@ -28,7 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Agent frameworks: `passGate` (npm `imrobot/agent`) and `pass_gate` / `apass_gate` (Python
   `imrobot.gate`) pass a site's gate in one call: discovery or the default mount, solve, verify,
   proof token. Private hosts are refused unless `allowPrivateHosts`, only same-origin discovery
-  endpoints, no redirects, 10 s timeout, 256 kB response cap, stable `GateError` codes.
+  endpoints, no redirects, 10 s timeout (headers and body), 256 kB response cap, stable `GateError`
+  codes. The site's challenge is solved under `SOLVE_LIMITS` (Python `SOLVE_LIMITS`), so a hostile
+  pipeline is refused instead of hanging the agent.
 - Agent tools `imrobot_pass_gate` and `imrobot_solve_challenge`: `imrobotTools()` (framework-neutral,
   JSON Schema), `imrobot.langchain.get_langchain_tools()` and `imrobot.crewai.get_crewai_tools()`.
   New Python extras `langchain` and `crewai`.

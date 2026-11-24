@@ -240,11 +240,17 @@ export class IMRobotMCPServer {
       const trimmed = line.trim()
       if (!trimmed) return
 
-      const task = this.handleMessage(trimmed).then((response) => {
-        if (response) {
-          process.stdout.write(response + '\n')
-        }
-      })
+      const task = this.handleMessage(trimmed)
+        .then((response) => {
+          if (response) {
+            process.stdout.write(response + '\n')
+          }
+        })
+        .catch((error: unknown) => {
+          // handleMessage answers every failure itself; this only guards stdout.
+          const message = error instanceof Error ? error.message : String(error)
+          process.stderr.write(`imrobot mcp: ${message}\n`)
+        })
       pending.add(task)
       void task.finally(() => pending.delete(task))
     })

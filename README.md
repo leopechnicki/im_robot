@@ -915,11 +915,18 @@ Defaults that matter when a model picks the URL:
   local development.
 - Only http(s). Endpoints from the discovery document must be paths on the same origin. Redirects
   are not followed.
-- Each request times out after 10 s and a response is capped at 256 kB.
+- Each request times out after 10 s (headers and body) and a response is capped at 256 kB.
+- The challenge comes from the site, so it is solved under `SOLVE_LIMITS` (at most 32 operations,
+  256 k characters per value, 10 000 `hash_chain` rounds). A hostile pipeline is refused with
+  `unsupported_challenge` instead of hanging the agent.
+- Host names are not resolved: a public name that points (or rebinds) to a private address gets
+  through. In production, run agents behind an egress filter or an allow-list of sites.
 - Errors carry a stable code: `invalid_url`, `private_host`, `network`, `timeout`, `bad_response`,
   `unsupported_challenge`, `rejected` (with the server's `reason`).
 
 To also send Web Bot Auth signatures, pass a signed fetch: `passGate(url, { fetch: createSignedFetch(...) })`.
+A custom fetch must honour `redirect: 'manual'` (not follow redirects), or the same-origin checks no
+longer hold.
 
 Try it locally: `npx tsx examples/demo-site.ts`, then
 `npx tsx examples/pass-gate.ts http://127.0.0.1:8787 --allow-private-hosts`.

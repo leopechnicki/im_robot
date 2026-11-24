@@ -353,6 +353,7 @@ export {
   DISCOVERY_PATH,
   GateError,
   passGate,
+  SOLVE_LIMITS,
   solveChallengeInput,
 } from './gate'
 export type { GateErrorCode, PassGateOptions, PassGateResult } from './gate'

@@ -40,11 +40,23 @@ Examples:
   npx -y imrobot mcp
 `
 
+/** Flags that never take a value (only an explicit `true` / `false` after them). */
+const BOOLEAN_FLAGS = new Set(['allow-private-hosts', 'json', 'help'])
+
 function parseArgs(args: string[]): Record<string, string> {
   const parsed: Record<string, string> = {}
   const positionals: string[] = []
   for (let i = 0; i < args.length; i++) {
-    if (args[i].startsWith('--') && i + 1 < args.length && !args[i + 1].startsWith('--')) {
+    const name = args[i].startsWith('--') ? args[i].slice(2) : ''
+    if (BOOLEAN_FLAGS.has(name)) {
+      const next = args[i + 1]
+      if (next === 'true' || next === 'false') {
+        parsed[name] = next
+        i++
+      } else {
+        parsed[name] = 'true'
+      }
+    } else if (args[i].startsWith('--') && i + 1 < args.length && !args[i + 1].startsWith('--')) {
       parsed[args[i].slice(2)] = args[i + 1]
       i++
     } else if (args[i].startsWith('--')) {

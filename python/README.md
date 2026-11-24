@@ -90,7 +90,9 @@ Full scripts: [`examples/langchain_agent.py`](examples/langchain_agent.py),
 
 Private, loopback and link-local hosts are refused unless you pass `allow_private_hosts=True` (local
 development). Only http(s), same-origin discovery endpoints, no redirects, 10 s timeout per request,
-256 kB per response. `GateError.code` is one of `invalid_url`, `private_host`, `network`, `timeout`,
+256 kB per response. The challenge is solved under `SOLVE_LIMITS`, so a hostile pipeline is refused
+instead of hanging the agent. Host names are not resolved (use an egress filter in production), and
+`HTTP(S)_PROXY` from the environment is honoured, as in any `urllib` client. `GateError.code` is one of `invalid_url`, `private_host`, `network`, `timeout`,
 `bad_response`, `unsupported_challenge`, `rejected`.
 
 ## Web Bot Auth: signed agents skip the challenge
