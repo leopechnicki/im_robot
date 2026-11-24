@@ -473,6 +473,25 @@ def _b64url_decode_bytes(data: str) -> bytes:
     return base64.urlsafe_b64decode((data + pad).encode("ascii"))
 
 
+_B64URL_CHARS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
+
+
+def _signature_segment_to_hex(segment: str) -> str:
+    """Return the 64-char hex HMAC carried by a JWS signature segment.
+
+    RFC 7515 form (issued since 0.8.1, and by every standard JWT library):
+    base64url of the 32 raw HMAC bytes. Legacy form (imrobot <= 0.8.0):
+    base64url of the 64-char hex string; still accepted so tokens issued by
+    older servers keep verifying.
+    """
+    if not set(segment) <= _B64URL_CHARS:
+        raise ValueError("invalid base64url")
+    raw = _b64url_decode_bytes(segment)
+    if len(raw) == 32:
+        return raw.hex()
+    return raw.decode("utf-8")
+
+
 class AgentProofToken(TypedDict, total=False):
     iss: str
     sub: str
@@ -589,10 +608,10 @@ class ProofTokenIssuer:
         payload_b64 = _b64url_encode(json.dumps(payload, separators=_JSON_COMPACT_SEPARATORS))
         signing_input = f"{header_b64}.{payload_b64}"
 
-        # JS signs the hex string of the HMAC (not the raw bytes). We match that
-        # exactly so tokens issued by either SDK verify on both sides.
+        # RFC 7515 section 5.1: the signature segment is base64url(raw HMAC
+        # bytes), the same as PyJWT / jose / jsonwebtoken and the JS SDK.
         signature_hex = hmac_sign(self._secret, signing_input)
-        signature_b64 = _b64url_encode(signature_hex)
+        signature_b64 = _b64url_encode(bytes.fromhex(signature_hex))
 
         return f"{signing_input}.{signature_b64}"
 
@@ -620,7 +639,7 @@ class ProofTokenIssuer:
 
         signing_input = f"{header_b64}.{payload_b64}"
         try:
-            signature_hex = _b64url_decode_str(signature_b64)
+            signature_hex = _signature_segment_to_hex(signature_b64)
         except Exception:
             return {"valid": False, "reason": "malformed"}
 
