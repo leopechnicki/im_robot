@@ -1,3 +1,3 @@
 """Single source of truth for the package version (mirrors package.json for the JS SDK)."""
 
-__version__ = "0.9.1"
+__version__ = "0.9.2"
