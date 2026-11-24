@@ -344,3 +344,24 @@ export function createKeyDirectoryHandler(options: {
     })
   }
 }
+
+// Passing an imrobot challenge, and tool definitions for agent frameworks.
+export {
+  DEFAULT_CHALLENGE_PATH,
+  DEFAULT_PROOF_HEADER,
+  DEFAULT_VERIFY_PATH,
+  DISCOVERY_PATH,
+  GateError,
+  passGate,
+  SOLVE_LIMITS,
+  solveChallengeInput,
+} from './gate'
+export type { GateErrorCode, PassGateOptions, PassGateResult } from './gate'
+export {
+  imrobotTools,
+  PASS_GATE_DESCRIPTION,
+  PASS_GATE_TOOL_NAME,
+  SOLVE_DESCRIPTION,
+  SOLVE_TOOL_NAME,
+} from './tools'
+export type { ImRobotTool, ToolInputSchema } from './tools'

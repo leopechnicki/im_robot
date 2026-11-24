@@ -11,6 +11,7 @@ import { buildDiscoveryDocument } from '../server/discovery'
 import { executePipeline } from '../core/operations'
 import type { Difficulty } from '../core/types'
 import type { DiscoveryConfig } from '../server/discovery'
+import { passGate, type PassGateOptions, type PassGateResult } from '../agent/gate'
 
 /** Config passed to the MCP server at creation time */
 export interface MCPServerConfig {
@@ -18,6 +19,27 @@ export interface MCPServerConfig {
   defaultDifficulty?: Difficulty
   /** Discovery document config (used by get-discovery-document tool) */
   discovery?: DiscoveryConfig
+  /** Options for the pass-gate tool (signed fetch, agentId, `allowPrivateHosts`, timeout). */
+  gate?: PassGateOptions
+}
+
+// ---------------------------------------------------------------------------
+// Tool: pass-gate (agent side: solve a real site's challenge over HTTP)
+// ---------------------------------------------------------------------------
+
+export interface PassGateInput {
+  url?: unknown
+}
+
+/** Discover, solve and verify against a site; returns the proof token. */
+export async function toolPassGate(
+  input: PassGateInput,
+  config: MCPServerConfig,
+): Promise<PassGateResult> {
+  if (typeof input.url !== 'string' || input.url.length === 0) {
+    throw new Error('pass-gate requires a "url" string')
+  }
+  return passGate(input.url, config.gate)
 }
 
 // ---------------------------------------------------------------------------
@@ -342,6 +364,23 @@ export const TOOL_DEFINITIONS: MCPTool[] = [
         },
       },
       required: ['challenge', 'answer', 'startTime'],
+    },
+  },
+  {
+    name: 'pass-gate',
+    description:
+      'Pass the imrobot reverse-CAPTCHA of a real website. Give the site URL, a page on it, or its ' +
+      'challenge endpoint. Finds the challenge (via /.well-known/imrobot.json), solves it and returns ' +
+      'a proof token plus the header to send it in (usually X-Agent-Proof) on your next requests.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        url: {
+          type: 'string',
+          description: 'Site URL, page URL or challenge endpoint (http or https).',
+        },
+      },
+      required: ['url'],
     },
   },
   {

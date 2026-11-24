@@ -365,6 +365,9 @@ npx imrobot info
 # Probe any URL to check if it accepts AI agents via imrobot
 npx imrobot test-agent https://example.com
 npx imrobot test-agent example.com --json    # machine-readable output
+
+# Run the MCP server over stdio (tools for Claude Code, Claude Desktop, Cursor, ...)
+npx -y imrobot mcp
 ```
 
 `test-agent` looks for (in order of confidence):
@@ -874,6 +877,60 @@ process.on('SIGTERM', () => otelExporter.stop())
 
 `@opentelemetry/api` is an optional peer dependency — the exporter uses the interface types only and does not hard-import the SDK.
 
+## Agent frameworks (Claude Agent SDK, LangChain, CrewAI)
+
+The agent side in one call: give it a site, get a proof token back. It reads the site's
+`/.well-known/imrobot.json` (or uses the default `/imrobot/challenge` mount), solves the challenge in
+code and posts the answer.
+
+```ts
+import { passGate } from 'imrobot/agent'
+
+const { proofToken, proofHeader } = await passGate('https://site.example', { agentId: 'my-agent' })
+await fetch('https://site.example/api/data', { headers: { [proofHeader]: proofToken } })
+```
+
+```python
+from imrobot.gate import pass_gate          # standard library only
+
+gate = pass_gate("https://site.example", agent_id="my-agent")
+httpx.get("https://site.example/api/data", headers={gate.proof_header: gate.proof_token})
+```
+
+The same thing as model tools, `imrobot_pass_gate(url)` and `imrobot_solve_challenge(challenge)`.
+They return JSON strings and never throw, so a model can read what went wrong:
+
+| Framework | Use | Example |
+|---|---|---|
+| Claude Agent SDK | `imrobotTools()` from `imrobot/agent`, wrapped with `tool()` + `createSdkMcpServer()`; or the stdio server `npx -y imrobot mcp` | [`examples/claude-agent-sdk.ts`](examples/claude-agent-sdk.ts) |
+| Claude Code, Claude Desktop, Cursor (any MCP client) | `npx -y imrobot mcp` (tool `pass-gate`) | [MCP server](#mcp-server-model-context-protocol) |
+| LangChain / LangGraph (Python) | `from imrobot.langchain import get_langchain_tools`, `pip install "imrobot[langchain]"` | [`python/examples/langchain_agent.py`](python/examples/langchain_agent.py) |
+| CrewAI | `from imrobot.crewai import get_crewai_tools`, `pip install "imrobot[crewai]"` | [`python/examples/crewai_agent.py`](python/examples/crewai_agent.py) |
+| Anything else (Vercel AI SDK, LangChain.js, OpenAI tools, ...) | `imrobotTools()`: `{ name, description, inputSchema, execute }` with a plain JSON Schema | - |
+
+Defaults that matter when a model picks the URL:
+
+- Private, loopback and link-local hosts are refused (an LLM can be talked into calling internal
+  services). `allowPrivateHosts` / `allow_private_hosts=True` / `--allow-private-hosts` lifts that for
+  local development.
+- Only http(s). Endpoints from the discovery document must be paths on the same origin. Redirects
+  are not followed.
+- Each request times out after 10 s (headers and body) and a response is capped at 256 kB.
+- The challenge comes from the site, so it is solved under `SOLVE_LIMITS` (at most 32 operations,
+  256 k characters per value, 10 000 `hash_chain` rounds). A hostile pipeline is refused with
+  `unsupported_challenge` instead of hanging the agent.
+- Host names are not resolved: a public name that points (or rebinds) to a private address gets
+  through. In production, run agents behind an egress filter or an allow-list of sites.
+- Errors carry a stable code: `invalid_url`, `private_host`, `network`, `timeout`, `bad_response`,
+  `unsupported_challenge`, `rejected` (with the server's `reason`).
+
+To also send Web Bot Auth signatures, pass a signed fetch: `passGate(url, { fetch: createSignedFetch(...) })`.
+A custom fetch must honour `redirect: 'manual'` (not follow redirects), or the same-origin checks no
+longer hold.
+
+Try it locally: `npx tsx examples/demo-site.ts`, then
+`npx tsx examples/pass-gate.ts http://127.0.0.1:8787 --allow-private-hosts`.
+
 ## MCP server (Model Context Protocol)
 
 imrobot ships a native MCP server that lets AI agents auto-discover and complete verification challenges without any custom integration code. Agents call the tools directly; no HTTP endpoints required.
@@ -885,18 +942,27 @@ import { createMCPServer } from 'imrobot/mcp'
 createMCPServer({ defaultDifficulty: 'medium' }).start()
 ```
 
-Add to your `claude_desktop_config.json`:
+Or run it from the CLI, no code: `npx -y imrobot mcp`. Claude Code:
+
+```bash
+claude mcp add imrobot -- npx -y imrobot mcp
+```
+
+Claude Desktop, Cursor and other MCP clients (`claude_desktop_config.json` and similar):
 
 ```json
 {
   "mcpServers": {
     "imrobot": {
-      "command": "node",
-      "args": ["-e", "import('imrobot/mcp').then(m => m.createMCPServer().start())"]
+      "command": "npx",
+      "args": ["-y", "imrobot", "mcp"]
     }
   }
 }
 ```
+
+`pass-gate` refuses private, loopback and link-local hosts. For a site on your own machine, add
+`--allow-private-hosts` to the args.
 
 ### Available MCP tools
 
@@ -907,6 +973,7 @@ Add to your `claude_desktop_config.json`:
 | `verify-answer` | Check if a computed answer is correct |
 | `create-token` | Create a proof token after solving |
 | `get-discovery-document` | Fetch the imrobot discovery document |
+| `pass-gate` | Pass a real site's gate: discover its endpoints, solve, return the proof token (`{ url }`) |
 
 ### Programmatic usage (no stdio)
 

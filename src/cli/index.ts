@@ -5,6 +5,7 @@ import { createVerifier } from '../server/verifier'
 import type { Difficulty } from '../core/types'
 import { CLI_VERSION } from './version'
 import { cmdTestAgent } from './test-agent'
+import { createMCPServer } from '../mcp/server'
 
 const HELP = `
 imrobot — Reverse-CAPTCHA CLI for AI Agent Verification
@@ -18,6 +19,7 @@ Commands:
   verify       Verify an answer against a challenge
   benchmark    Run a performance benchmark
   test-agent   Probe a URL to check whether it accepts AI agents via imrobot
+  mcp          Run the imrobot MCP server on stdio (for Claude, Cursor, any MCP client)
   info         Show project information
 
 Options:
@@ -25,6 +27,7 @@ Options:
   --count <n>                       Number of iterations for benchmark (default: 100)
   --secret <string>                 HMAC secret for server-mode verification
   --json                            Print machine-readable JSON output (test-agent)
+  --allow-private-hosts             Let the MCP pass-gate tool reach localhost / private IPs (mcp)
   --help                            Show this help message
 
 Examples:
@@ -34,13 +37,26 @@ Examples:
   npx imrobot verify --secret my-secret-at-least-16-chars
   npx imrobot test-agent https://example.com
   npx imrobot test-agent example.com --json
+  npx -y imrobot mcp
 `
+
+/** Flags that never take a value (only an explicit `true` / `false` after them). */
+const BOOLEAN_FLAGS = new Set(['allow-private-hosts', 'json', 'help'])
 
 function parseArgs(args: string[]): Record<string, string> {
   const parsed: Record<string, string> = {}
   const positionals: string[] = []
   for (let i = 0; i < args.length; i++) {
-    if (args[i].startsWith('--') && i + 1 < args.length && !args[i + 1].startsWith('--')) {
+    const name = args[i].startsWith('--') ? args[i].slice(2) : ''
+    if (BOOLEAN_FLAGS.has(name)) {
+      const next = args[i + 1]
+      if (next === 'true' || next === 'false') {
+        parsed[name] = next
+        i++
+      } else {
+        parsed[name] = 'true'
+      }
+    } else if (args[i].startsWith('--') && i + 1 < args.length && !args[i + 1].startsWith('--')) {
       parsed[args[i].slice(2)] = args[i + 1]
       i++
     } else if (args[i].startsWith('--')) {
@@ -206,6 +222,14 @@ async function main() {
 
   if (args.help === 'true' || command === 'help') {
     console.log(HELP)
+    return
+  }
+
+  // mcp speaks JSON-RPC on stdout: nothing else may be printed there.
+  if (command === 'mcp') {
+    await createMCPServer({
+      gate: { allowPrivateHosts: args['allow-private-hosts'] === 'true' },
+    }).start()
     return
   }
 

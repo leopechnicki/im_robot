@@ -25,6 +25,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `imrobot/agent` (npm) and `imrobot.agent` (Python): a signing client with Ed25519 keygen, `signRequest` /
   `sign_request`, `createSignedFetch`, key-directory publishing and signed directory responses.
 - Python `imrobot.web_bot_auth` verifier. New `wba` extra (`cryptography`).
+- Agent frameworks: `passGate` (npm `imrobot/agent`) and `pass_gate` / `apass_gate` (Python
+  `imrobot.gate`) pass a site's gate in one call: discovery or the default mount, solve, verify,
+  proof token. Private hosts are refused unless `allowPrivateHosts`, only same-origin discovery
+  endpoints, no redirects, 10 s timeout (headers and body), 256 kB response cap, stable `GateError`
+  codes. The site's challenge is solved under `SOLVE_LIMITS` (Python `SOLVE_LIMITS`), so a hostile
+  pipeline is refused instead of hanging the agent.
+- Agent tools `imrobot_pass_gate` and `imrobot_solve_challenge`: `imrobotTools()` (framework-neutral,
+  JSON Schema), `imrobot.langchain.get_langchain_tools()` and `imrobot.crewai.get_crewai_tools()`.
+  New Python extras `langchain` and `crewai`.
+- `npx imrobot mcp` runs the MCP server over stdio, with a new `pass-gate` tool
+  (`--allow-private-hosts` for local sites).
+- Examples: `examples/claude-agent-sdk.ts` (in-process tools and stdio MCP),
+  `examples/pass-gate.ts`, `examples/demo-site.ts`, `python/examples/langchain_agent.py`,
+  `python/examples/crewai_agent.py`.
 - Timing gate: `minSolveMs` / `maxSolveMs` on `createVerifier` (Python `min_solve_ms` / `max_solve_ms`).
   The solve time is measured on the server clock from the signed issue time. New `VerifyResult`
   reasons `too_fast` and `too_slow`. Both are off by default.
