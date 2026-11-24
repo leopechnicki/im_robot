@@ -1,18 +1,28 @@
 name: Publish to npm
 
+# Called by auto-release.yml (workflow_call) or run by hand (workflow_dispatch).
+#
+# It used to ALSO listen to `release: published`. The release is created with
+# the release App's token, which does start workflow runs, so every release
+# published twice: the release-event run shipped it and the workflow_call run
+# then failed with E403 (run 36708042343, v0.7.3). One trigger path now.
+
 on:
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Git tag to publish (e.g. v0.6.4). Defaults to HEAD if not set.'
+        description: 'Git tag to publish (e.g. v0.8.0). Defaults to the selected ref.'
         required: false
         default: ''
   workflow_call:
     inputs:
       tag:
         description: 'Git tag to publish'
+        required: false
+        type: string
+        default: ''
+      version:
+        description: 'Version expected on npm afterwards (verified)'
         required: false
         type: string
         default: ''
@@ -32,12 +42,14 @@ jobs:
     steps:
       - name: Resolve ref
         id: ref
+        env:
+          TAG: ${{ inputs.tag }}
+          REF: ${{ github.ref }}
         run: |
-          TAG="${{ inputs.tag }}"
           if [ -n "$TAG" ]; then
             echo "ref=$TAG" >> "$GITHUB_OUTPUT"
           else
-            echo "ref=${{ github.ref }}" >> "$GITHUB_OUTPUT"
+            echo "ref=$REF" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: actions/checkout@v4
@@ -51,13 +63,41 @@ jobs:
           cache: npm
           registry-url: https://registry.npmjs.org
 
+      # npm >= 11.5.1 can authenticate with npm trusted publishing (OIDC) and
+      # only falls back to NPM_TOKEN when no trusted publisher is configured.
+      - name: Upgrade npm
+        run: npm install -g npm@^11.5.1 && npm --version
+
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
       - run: npm run build
 
+      - name: Refuse to publish a banned provider
+        run: |
+          set -euo pipefail
+          npm pack --dry-run --json > "$RUNNER_TEMP/pack.json"
+          node -e "
+            const fs = require('fs');
+            const files = require(process.argv[1])[0].files.map((f) => f.path);
+            const hits = files.filter((f) => /pollinations/i.test(fs.readFileSync(f, 'latin1')));
+            console.log('scanned ' + files.length + ' packaged files');
+            if (hits.length) {
+              console.error('::error::published files mention the removed Pollinations provider: ' + hits.join(', '));
+              process.exit(1);
+            }
+          " "$RUNNER_TEMP/pack.json"
+
       - name: Publish to npm
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Verify npm serves the new version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          [ -n "$VERSION" ] || VERSION=$(node -p "require('./package.json').version")
+          node scripts/release-plan.mjs verify --npm "$VERSION" --timeout-s 600

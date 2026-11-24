@@ -1,5 +1,15 @@
 name: Auto Release (Friday)
 
+# Releases whatever main holds under the version in package.json, to npm
+# (publish.yml) and PyPI (publish-python.yml via the py-v<version> tag).
+#
+# The decision lives in scripts/release-plan.mjs (unit-tested in
+# test/release-plan.test.ts). The run is GREEN only when main is fully
+# released or a release was just made. Unreleased commits behind an
+# already-released version turn it RED (job "guard") after the bump PR has
+# been (re)opened -- the 2026-10/11 silent no-op (closed bump PR #135, tag
+# v0.7.3 already there, warning + exit 0 for eight Fridays) cannot recur.
+
 on:
   schedule:
     - cron: '0 12 * * 5'
@@ -10,19 +20,30 @@ permissions:
   pull-requests: write
   id-token: write
 
+concurrency:
+  group: auto-release
+  cancel-in-progress: false
+
 jobs:
   release:
+    # Release only what main holds: a dispatch from another branch must not tag it.
+    # Skipped here = red run (the guard requires release == success).
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     outputs:
-      release_created: ${{ steps.create_release.outputs.release_created }}
-      release_tag: ${{ steps.create_release.outputs.release_tag }}
-      already_published: ${{ steps.npm_check.outputs.already_published }}
+      version: ${{ steps.plan.outputs.version }}
+      tag: ${{ steps.plan.outputs.tag }}
+      publish_npm: ${{ steps.plan.outputs.publish_npm }}
+      push_py_tag: ${{ steps.plan.outputs.push_py_tag }}
+      open_bump_pr: ${{ steps.plan.outputs.open_bump_pr }}
+      next_version: ${{ steps.plan.outputs.next_version }}
+      blocked: ${{ steps.plan.outputs.blocked }}
+      blocked_reason: ${{ steps.plan.outputs.blocked_reason }}
     steps:
-      # Mint a short-lived GitHub App installation token. The bump branch/PR
-      # MUST be created with a non-GITHUB_TOKEN identity: GitHub does not start
-      # workflow runs for events triggered by the default GITHUB_TOKEN, which
-      # left the required "CI / Node 20|22" checks permanently pending and every
-      # auto-bump PR un-mergeable. See PR #89 for one-time App setup instructions.
+      # The tag, the py tag and the bump PR MUST be created with a non-GITHUB_TOKEN
+      # identity: GitHub starts no workflow runs for events made by GITHUB_TOKEN, so
+      # the bump PR's required CI checks and the py-v* tag's PyPI publish would
+      # never start. See PR #89 for the one-time App setup.
       - name: Generate GitHub App token
         id: app-token
         uses: actions/create-github-app-token@v1
@@ -39,143 +60,135 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          registry-url: https://registry.npmjs.org
 
-      - name: Check if package.json version is already published on npm
-        id: npm_check
-        run: |
-          set -euo pipefail
-          PKG_NAME=$(node -p "require('./package.json').name")
-          PKG_VERSION=$(node -p "require('./package.json').version")
-          echo "Package: ${PKG_NAME}@${PKG_VERSION}"
-          # Query npm registry for all published versions. If the current
-          # package.json version is already listed, downstream publish.yml would
-          # hit E403 ("cannot publish over the previously published version").
-          # Skip the reusable publish job in that case so this workflow stays
-          # idempotent when re-run (schedule + workflow_dispatch on the same
-          # HEAD, or after a manual publish already shipped the version).
-          if npm view "$PKG_NAME" versions --json 2>/dev/null \
-              | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const v=JSON.parse(d||'[]');process.exit(v.includes(process.argv[1])?0:1)})" "$PKG_VERSION"; then
-            echo "already_published=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::${PKG_NAME}@${PKG_VERSION} is already published on npm — publish job will be skipped."
-          else
-            echo "already_published=false" >> "$GITHUB_OUTPUT"
-            echo "${PKG_NAME}@${PKG_VERSION} is not yet on npm — publish job will run."
-          fi
+      - name: Plan the release
+        id: plan
+        run: node scripts/release-plan.mjs plan
 
-      - name: Check for new commits since last tag
-        id: check
-        run: |
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [ -z "$LAST_TAG" ]; then
-            echo "No previous tag found, will create initial release"
-            echo "has_changes=true" >> "$GITHUB_OUTPUT"
-          else
-            COMMITS=$(git rev-list "${LAST_TAG}..HEAD" --count)
-            echo "Commits since $LAST_TAG: $COMMITS"
-            if [ "$COMMITS" -gt 0 ]; then
-              echo "has_changes=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "has_changes=false" >> "$GITHUB_OUTPUT"
-            fi
-          fi
-
-      - name: Create release
-        if: steps.check.outputs.has_changes == 'true'
-        id: create_release
+      - name: Create tag + GitHub release
+        if: steps.plan.outputs.create_release == 'true'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          TAG: ${{ steps.plan.outputs.tag }}
+          VERSION: ${{ steps.plan.outputs.version }}
         run: |
           set -euo pipefail
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Read current version from package.json (source of truth)
-          CURRENT=$(node -p "require('./package.json').version")
-          RELEASE_VERSION="v${CURRENT}"
-          echo "Release version: $RELEASE_VERSION"
-
-          # Compute next dev version for the bump PR
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
-          NEXT_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
-          echo "Next dev version: $NEXT_VERSION"
-
-          # Guard against tag/release collisions.
-          TAG_EXISTS=false
-          if git rev-parse "refs/tags/${RELEASE_VERSION}" >/dev/null 2>&1; then
-            TAG_EXISTS=true
-          elif gh release view "$RELEASE_VERSION" >/dev/null 2>&1; then
-            TAG_EXISTS=true
+          if ! node scripts/release-plan.mjs notes "$VERSION" > notes.md; then
+            echo "::warning::CHANGELOG.md has no [$VERSION] section; release notes fall back to the commit list."
+            LAST_TAG=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || echo "")
+            { echo "## What's Changed"; echo; git log --pretty=format:"- %s (%h)" --no-merges ${LAST_TAG:+"${LAST_TAG}..HEAD"}; } > notes.md
           fi
+          # Pin the tag to the commit this run planned for, not whatever main is now.
+          gh release create "$TAG" --title "Release $TAG" --notes-file notes.md --target "$(git rev-parse HEAD)"
+          git fetch --tags --force origin
 
-          RELEASE_CREATED=false
-          if [ "$TAG_EXISTS" = "true" ]; then
-            echo "::warning::Tag/release ${RELEASE_VERSION} already exists â€” skipping release, opening bump PR only."
-            echo "release_created=false" >> "$GITHUB_OUTPUT"
-            echo "release_tag=" >> "$GITHUB_OUTPUT"
-          else
-            LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-            if [ -z "$LAST_TAG" ]; then
-              CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges -20)
-            else
-              CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges "${LAST_TAG}..HEAD")
-            fi
+      - name: Push the PyPI tag
+        if: steps.plan.outputs.push_py_tag == 'true'
+        env:
+          TAG: ${{ steps.plan.outputs.tag }}
+          PY_TAG: ${{ steps.plan.outputs.py_tag }}
+        run: |
+          set -euo pipefail
+          # Same commit as the npm tag. Pushed with the App token, so it starts
+          # publish-python.yml (a GITHUB_TOKEN push would not).
+          git tag "$PY_TAG" "${TAG}^{commit}"
+          git push origin "refs/tags/${PY_TAG}"
+          echo "::notice::pushed ${PY_TAG}; PyPI publish runs in the 'Publish Python SDK' workflow."
 
-            gh release create "$RELEASE_VERSION" \
-              --title "Release $RELEASE_VERSION" \
-              --notes "## What's Changed
-
-          $CHANGELOG
-
-          ---
-          *Auto-released on $(date -u +%Y-%m-%d)*" \
-              --target main
-            RELEASE_CREATED=true
-            echo "release_created=true" >> "$GITHUB_OUTPUT"
-            echo "release_tag=${RELEASE_VERSION}" >> "$GITHUB_OUTPUT"
-          fi
-
-          # Open (or reuse) the version-bump PR.
-          BRANCH="chore/bump-version-v${NEXT_VERSION}"
-          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
-            echo "Bump branch ${BRANCH} already exists on origin â€” leaving existing PR in place."
-            exit 0
-          fi
-
-          git checkout -b "$BRANCH"
-          npm version "$NEXT_VERSION" --no-git-tag-version
-          git add package.json package-lock.json 2>/dev/null || git add package.json
-          git commit -m "chore: bump version to ${NEXT_VERSION}"
-          git push origin "$BRANCH"
-
-          if [ "$RELEASE_CREATED" = "true" ]; then
-            PR_BODY="Automated version bump after release ${RELEASE_VERSION}"
-          else
-            PR_BODY="Automated version bump. Release ${RELEASE_VERSION} was skipped because the tag already exists; merging this PR unblocks next Friday's release."
-          fi
-
-          if ! gh pr create \
-            --title "chore: bump version to ${NEXT_VERSION}" \
-            --body "$PR_BODY" \
-            --base main \
-            --head "$BRANCH"; then
-            echo "::notice::PR creation skipped (Actions not permitted). Open manually: https://github.com/${GITHUB_REPOSITORY}/compare/main...${BRANCH}"
-          fi
-
-  # Directly call publish.yml after the release is created.
-  # This bypasses the release:published event trigger entirely â€” GitHub Actions
-  # does NOT fire that event for releases created via GITHUB_TOKEN or PAT
-  # (anti-recursion protection). workflow_call is not subject to this restriction.
   publish:
     needs: release
-    # Only publish when (a) a new GitHub release was created AND
-    # (b) the current package.json version is not already on npm.
-    # Prevents the reusable publish.yml from hitting npm E403
-    # ("cannot publish over the previously published version") when
-    # a manual publish already shipped this version.
-    if: needs.release.outputs.release_created == 'true' && needs.release.outputs.already_published != 'true'
+    if: needs.release.outputs.publish_npm == 'true'
     uses: ./.github/workflows/publish.yml
     with:
-      tag: ${{ needs.release.outputs.release_tag }}
+      tag: ${{ needs.release.outputs.tag }}
+      version: ${{ needs.release.outputs.version }}
     secrets: inherit
+
+  # Own job so a failing bump PR can never hold back the npm publish.
+  bump:
+    needs: release
+    if: needs.release.outputs.open_bump_pr == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      # Same commit the release job planned against (Axon B1): a bump that lands on
+      # main in between must not make this job's commit empty.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Open (or reopen) the version-bump PR
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          NEXT_VERSION: ${{ needs.release.outputs.next_version }}
+          TAG: ${{ needs.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          BRANCH="chore/bump-version-v${NEXT_VERSION}"
+
+          OPEN_PR=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+          if [ -n "$OPEN_PR" ]; then
+            echo "::notice::bump PR #${OPEN_PR} (${BRANCH}) is already open."
+            exit 0
+          fi
+          # A branch without an open PR is stale (its PR was closed): the old
+          # code left it in place and skipped, which is how releases stalled.
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            echo "::warning::${BRANCH} exists without an open PR; recreating it from main."
+            git push origin --delete "$BRANCH"
+          fi
+
+          git checkout -B "$BRANCH"
+          npm version "$NEXT_VERSION" --no-git-tag-version --allow-same-version
+          node scripts/release-plan.mjs bump "$NEXT_VERSION"
+          git add package.json package-lock.json python/pyproject.toml python/src/imrobot/_version.py
+          git commit -m "chore: bump version to ${NEXT_VERSION}"
+          git push origin "$BRANCH"
+          gh pr create \
+            --title "chore: bump version to ${NEXT_VERSION}" \
+            --body "Automated version bump after ${TAG}. Merging it lets the next Auto Release ship whatever main holds by then. Do not close it without bumping the version another way: while main has unreleased commits behind an already-released version, Auto Release fails on purpose. Add the \`## [${NEXT_VERSION}]\` CHANGELOG section before the release (the release notes come from it)." \
+            --base main \
+            --head "$BRANCH"
+
+  # Last word on the run's colour. Green = released or nothing to release.
+  guard:
+    needs: [release, publish, bump]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail loudly on a blocked or broken release
+        env:
+          RELEASE_RESULT: ${{ needs.release.result }}
+          PUBLISH_RESULT: ${{ needs.publish.result }}
+          BUMP_RESULT: ${{ needs.bump.result }}
+          BLOCKED: ${{ needs.release.outputs.blocked }}
+          REASON: ${{ needs.release.outputs.blocked_reason }}
+        run: |
+          echo "release=${RELEASE_RESULT} publish=${PUBLISH_RESULT} bump=${BUMP_RESULT} blocked=${BLOCKED}"
+          if [ "$RELEASE_RESULT" != "success" ]; then
+            echo "::error::release job ${RELEASE_RESULT} (runs on main only)"; exit 1
+          fi
+          if [ "$BUMP_RESULT" = "failure" ] || [ "$BUMP_RESULT" = "cancelled" ]; then
+            echo "::error::version-bump PR job ${BUMP_RESULT}"; exit 1
+          fi
+          if [ "$PUBLISH_RESULT" = "failure" ] || [ "$PUBLISH_RESULT" = "cancelled" ]; then
+            echo "::error::npm publish ${PUBLISH_RESULT}"; exit 1
+          fi
+          if [ "$BLOCKED" = "true" ]; then
+            echo "::error::${REASON}"; exit 1
+          fi
+          echo "ok"
