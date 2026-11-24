@@ -37,6 +37,13 @@ import { ImRobotVerifier } from '../server/verifier'
 import { ProofTokenIssuer } from '../server/proof-token'
 import type { ChallengeReplayGuard } from '../server/replay-guard'
 import { fnv1a } from '../core/hash'
+import {
+  WEB_BOT_AUTH_ACCEPT_SIGNATURE,
+  evaluateWebBotAuth,
+  signedRequestFromFetch,
+  webBotAuthVerifierFor,
+} from '../server/web-bot-auth'
+import type { WebBotAuthPolicyConfig } from '../server/web-bot-auth'
 
 // ---------------------------------------------------------------------------
 // Minimal Hono type surface — we DON'T import from `hono` at runtime so that
@@ -112,6 +119,12 @@ export interface RequireAgentHonoOptions {
   previousSecrets?: Array<{ keyId: string; secret: string }>
   /** Where the verified proof gets stashed on the context. Default: 'agentProof' */
   contextKey?: string
+  /**
+   * Optional Web Bot Auth (draft-ietf-webbotauth-httpsig-protocol-01): a
+   * request with a valid signature skips the proof token. The result is
+   * stored as `c.get('webBotAuth')`; unsigned requests are challenged as before.
+   */
+  webBotAuth?: WebBotAuthPolicyConfig
 }
 
 const DEFAULT_PROOF_HEADER = 'X-Agent-Proof'
@@ -221,6 +234,7 @@ export function requireAgentHono(options: RequireAgentHonoOptions): HonoMiddlewa
   })
   const headerName = options.headerName ?? DEFAULT_PROOF_HEADER
   const contextKey = options.contextKey ?? 'agentProof'
+  const wbaVerifier = options.webBotAuth ? webBotAuthVerifierFor(options.webBotAuth) : undefined
 
   return async (c, next) => {
     if (options.bypass) {
@@ -231,8 +245,23 @@ export function requireAgentHono(options: RequireAgentHonoOptions): HonoMiddlewa
       }
     }
 
+    if (wbaVerifier) {
+      const decision = await evaluateWebBotAuth(
+        wbaVerifier,
+        signedRequestFromFetch(c.req.raw),
+        options.webBotAuth?.accept,
+      )
+      c.set('webBotAuth', decision.result)
+      if (decision.skipChallenge) {
+        c.set('agentVerified', true)
+        await next()
+        return
+      }
+    }
+
     const token = c.req.header(headerName)
     if (!token) {
+      if (wbaVerifier) c.header('Accept-Signature', WEB_BOT_AUTH_ACCEPT_SIGNATURE)
       return c.json(
         {
           error: 'agent_proof_required',

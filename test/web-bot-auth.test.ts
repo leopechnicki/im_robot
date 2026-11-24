@@ -18,6 +18,7 @@ import {
   parseSignatureInput,
   buildSignatureBase,
 } from '../src/server/web-bot-auth'
+import { jwkThumbprint } from '../src/server/wba-crypto'
 import { createAgentRouter } from '../src/server/middleware'
 import { ProofTokenIssuer } from '../src/server/proof-token'
 import type { MiddlewareRequest, MiddlewareResponse } from '../src/server/middleware'
@@ -57,17 +58,24 @@ async function generateKeyPair(): Promise<CryptoKeyPair> {
   ])) as CryptoKeyPair
 }
 
-async function exportJwk(key: CryptoKey, kid?: string): Promise<PublicJwk> {
+async function exportJwk(key: CryptoKey): Promise<PublicJwk> {
   const jwk = (await crypto.subtle.exportKey('jwk', key)) as unknown as PublicJwk
-  return { kty: jwk.kty, crv: jwk.crv, x: jwk.x, ...(kid ? { kid } : {}) }
+  return { kty: jwk.kty, crv: jwk.crv, x: jwk.x }
+}
+
+async function thumbOf(key: CryptoKey): Promise<string> {
+  const jwk = (await crypto.subtle.exportKey('jwk', key)) as unknown as PublicJwk
+  return jwkThumbprint(jwk)
 }
 
 interface SignOptions {
   components?: string[]
-  keyid?: string
+  /** Default: the key's RFC 7638 thumbprint. `null` omits it. */
+  keyid?: string | null
   tag?: string | null
   created?: number
-  expires?: number
+  /** Default: created + 300. `null` omits it. */
+  expires?: number | null
   alg?: string
   label?: string
   method?: string
@@ -88,8 +96,10 @@ async function buildSignedRequest(
   const created = opts.created ?? Math.floor(Date.now() / 1000)
 
   const params: string[] = [`created=${created}`]
-  if (opts.expires !== undefined) params.push(`expires=${opts.expires}`)
-  if (opts.keyid !== undefined) params.push(`keyid="${opts.keyid}"`)
+  const expires = opts.expires === undefined ? created + 300 : opts.expires
+  if (expires !== null) params.push(`expires=${expires}`)
+  const keyid = opts.keyid === undefined ? await thumbOf(privateKey) : opts.keyid
+  if (keyid !== null) params.push(`keyid="${keyid}"`)
   if (opts.alg !== undefined) params.push(`alg="${opts.alg}"`)
   const tag = opts.tag === undefined ? 'web-bot-auth' : opts.tag
   if (tag !== null) params.push(`tag="${tag}"`)
@@ -141,36 +151,65 @@ describe('WebBotAuthVerifier — valid signature', () => {
 
   it('verifies a correctly signed request', async () => {
     const kp = await generateKeyPair()
-    mockDirectory(await exportJwk(kp.publicKey, 'key-1'))
-    const req = await buildSignedRequest(kp.privateKey, { keyid: 'key-1' })
+    mockDirectory(await exportJwk(kp.publicKey))
+    const req = await buildSignedRequest(kp.privateKey)
 
     const verifier = new WebBotAuthVerifier({ directoryUrl: DIRECTORY_URL })
     const result = await verifier.verify(req)
 
     expect(result.verified).toBe(true)
-    expect(result.keyid).toBe('key-1')
+    expect(result.outcome).toBe('verified')
+    expect(result.keyid).toBe(await thumbOf(kp.privateKey))
     expect(result.tag).toBe('web-bot-auth')
+    expect(result.agent).toBe(DIRECTORY_URL)
   })
 
-  it('falls back to the sole directory key when no keyid is provided', async () => {
+  it('requires keyid, created, expires and tag (draft -01 5.2)', async () => {
     const kp = await generateKeyPair()
-    mockDirectory(await exportJwk(kp.publicKey)) // no kid
-    const req = await buildSignedRequest(kp.privateKey) // no keyid
+    mockDirectory(await exportJwk(kp.publicKey))
+    const verifier = new WebBotAuthVerifier({ directoryUrl: DIRECTORY_URL, expectedTag: null })
+    for (const opts of [{ keyid: null }, { expires: null }, { tag: null }] as SignOptions[]) {
+      const result = await verifier.verify(await buildSignedRequest(kp.privateKey, opts))
+      expect(result).toMatchObject({ verified: false, reason: 'missing_param', outcome: 'invalid' })
+    }
+  })
 
-    const verifier = new WebBotAuthVerifier({ directoryUrl: DIRECTORY_URL })
-    expect((await verifier.verify(req)).verified).toBe(true)
+  it('requires @authority (or @target-uri) to be covered', async () => {
+    const kp = await generateKeyPair()
+    mockDirectory(await exportJwk(kp.publicKey))
+    const req = await buildSignedRequest(kp.privateKey, { components: ['@method', '@path'] })
+    const result = await new WebBotAuthVerifier({ directoryUrl: DIRECTORY_URL }).verify(req)
+    expect(result.reason).toBe('missing_authority')
+  })
+
+  it('ignores a directory kid that is not the thumbprint at the well-known path', async () => {
+    const kp = await generateKeyPair()
+    mockDirectory({ ...(await exportJwk(kp.publicKey)), kid: 'operator-label' })
+    const result = await new WebBotAuthVerifier({ directoryUrl: DIRECTORY_URL }).verify(
+      await buildSignedRequest(kp.privateKey),
+    )
+    expect(result.reason).toBe('unknown_key')
+  })
+
+  it('accepts an operator kid on a non-well-known directory URL (matched by thumbprint)', async () => {
+    const kp = await generateKeyPair()
+    mockDirectory({ ...(await exportJwk(kp.publicKey)), kid: 'operator-label' })
+    const result = await new WebBotAuthVerifier({ directoryUrl: 'https://agent.example/jwks.json' }).verify(
+      await buildSignedRequest(kp.privateKey),
+    )
+    expect(result.verified).toBe(true)
   })
 
   it('caches the directory between verifications', async () => {
     const kp = await generateKeyPair()
     const fetchSpy = vi
       .fn()
-      .mockResolvedValue({ ok: true, json: async () => ({ keys: [await exportJwk(kp.publicKey, 'k')] }) })
+      .mockResolvedValue({ ok: true, json: async () => ({ keys: [await exportJwk(kp.publicKey)] }) })
     vi.stubGlobal('fetch', fetchSpy)
 
     const verifier = new WebBotAuthVerifier({ directoryUrl: DIRECTORY_URL })
-    await verifier.verify(await buildSignedRequest(kp.privateKey, { keyid: 'k' }))
-    await verifier.verify(await buildSignedRequest(kp.privateKey, { keyid: 'k' }))
+    await verifier.verify(await buildSignedRequest(kp.privateKey))
+    await verifier.verify(await buildSignedRequest(kp.privateKey))
 
     expect(fetchSpy).toHaveBeenCalledTimes(1)
   })
@@ -184,13 +223,13 @@ describe('WebBotAuthVerifier — failures', () => {
   it('returns no_signature when headers are missing', async () => {
     const verifier = new WebBotAuthVerifier({ directoryUrl: DIRECTORY_URL })
     const result = await verifier.verify({ method: 'POST', url: '/', headers: { host: 'x' } })
-    expect(result).toEqual({ verified: false, reason: 'no_signature' })
+    expect(result).toEqual({ verified: false, outcome: 'unverified', reason: 'no_signature' })
   })
 
   it('rejects a tampered request (covered @path changed after signing)', async () => {
     const kp = await generateKeyPair()
-    mockDirectory(await exportJwk(kp.publicKey, 'key-1'))
-    const req = await buildSignedRequest(kp.privateKey, { keyid: 'key-1' })
+    mockDirectory(await exportJwk(kp.publicKey))
+    const req = await buildSignedRequest(kp.privateKey)
     req.url = '/imrobot/HACKED?x=1' // tamper a signed component (@path)
 
     const verifier = new WebBotAuthVerifier({ directoryUrl: DIRECTORY_URL })
@@ -201,9 +240,9 @@ describe('WebBotAuthVerifier — failures', () => {
 
   it('ignores tampering of an un-covered component (query not signed)', async () => {
     const kp = await generateKeyPair()
-    mockDirectory(await exportJwk(kp.publicKey, 'key-1'))
+    mockDirectory(await exportJwk(kp.publicKey))
     // Only @authority/@method/@path are covered by default — not @query.
-    const req = await buildSignedRequest(kp.privateKey, { keyid: 'key-1' })
+    const req = await buildSignedRequest(kp.privateKey)
     req.url = '/imrobot/verify?x=999'
 
     const result = await new WebBotAuthVerifier({ directoryUrl: DIRECTORY_URL }).verify(req)
@@ -212,8 +251,8 @@ describe('WebBotAuthVerifier — failures', () => {
 
   it('rejects a corrupted signature value', async () => {
     const kp = await generateKeyPair()
-    mockDirectory(await exportJwk(kp.publicKey, 'key-1'))
-    const req = await buildSignedRequest(kp.privateKey, { keyid: 'key-1' })
+    mockDirectory(await exportJwk(kp.publicKey))
+    const req = await buildSignedRequest(kp.privateKey)
     req.headers['signature'] = 'sig1=:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=:'
 
     const result = await new WebBotAuthVerifier({ directoryUrl: DIRECTORY_URL }).verify(req)
@@ -223,10 +262,9 @@ describe('WebBotAuthVerifier — failures', () => {
 
   it('rejects an expired signature', async () => {
     const kp = await generateKeyPair()
-    mockDirectory(await exportJwk(kp.publicKey, 'key-1'))
+    mockDirectory(await exportJwk(kp.publicKey))
     const past = Math.floor(Date.now() / 1000) - 10_000
     const req = await buildSignedRequest(kp.privateKey, {
-      keyid: 'key-1',
       created: past,
       expires: past + 60,
     })
@@ -236,11 +274,11 @@ describe('WebBotAuthVerifier — failures', () => {
     expect(result.reason).toBe('expired')
   })
 
-  it('rejects via maxAgeSeconds when no expires is present', async () => {
+  it('rejects via maxAgeSeconds even when expires is still in the future', async () => {
     const kp = await generateKeyPair()
-    mockDirectory(await exportJwk(kp.publicKey, 'key-1'))
-    const old = Math.floor(Date.now() / 1000) - 1000
-    const req = await buildSignedRequest(kp.privateKey, { keyid: 'key-1', created: old })
+    mockDirectory(await exportJwk(kp.publicKey))
+    const now = Math.floor(Date.now() / 1000)
+    const req = await buildSignedRequest(kp.privateKey, { created: now - 500, expires: now + 1000 })
 
     const result = await new WebBotAuthVerifier({
       directoryUrl: DIRECTORY_URL,
@@ -251,9 +289,9 @@ describe('WebBotAuthVerifier — failures', () => {
 
   it('rejects a not-yet-valid signature', async () => {
     const kp = await generateKeyPair()
-    mockDirectory(await exportJwk(kp.publicKey, 'key-1'))
+    mockDirectory(await exportJwk(kp.publicKey))
     const future = Math.floor(Date.now() / 1000) + 10_000
-    const req = await buildSignedRequest(kp.privateKey, { keyid: 'key-1', created: future })
+    const req = await buildSignedRequest(kp.privateKey, { created: future })
 
     const result = await new WebBotAuthVerifier({ directoryUrl: DIRECTORY_URL }).verify(req)
     expect(result.reason).toBe('not_yet_valid')
@@ -261,17 +299,17 @@ describe('WebBotAuthVerifier — failures', () => {
 
   it('rejects a tag mismatch', async () => {
     const kp = await generateKeyPair()
-    mockDirectory(await exportJwk(kp.publicKey, 'key-1'))
-    const req = await buildSignedRequest(kp.privateKey, { keyid: 'key-1', tag: 'something-else' })
+    mockDirectory(await exportJwk(kp.publicKey))
+    const req = await buildSignedRequest(kp.privateKey, { tag: 'something-else' })
 
     const result = await new WebBotAuthVerifier({ directoryUrl: DIRECTORY_URL }).verify(req)
     expect(result.reason).toBe('tag_mismatch')
   })
 
-  it('skips the tag check when expectedTag is null', async () => {
+  it('accepts any tag when expectedTag is null', async () => {
     const kp = await generateKeyPair()
-    mockDirectory(await exportJwk(kp.publicKey, 'key-1'))
-    const req = await buildSignedRequest(kp.privateKey, { keyid: 'key-1', tag: null })
+    mockDirectory(await exportJwk(kp.publicKey))
+    const req = await buildSignedRequest(kp.privateKey, { tag: 'custom' })
 
     const result = await new WebBotAuthVerifier({
       directoryUrl: DIRECTORY_URL,
@@ -282,8 +320,8 @@ describe('WebBotAuthVerifier — failures', () => {
 
   it('rejects an unsupported algorithm', async () => {
     const kp = await generateKeyPair()
-    mockDirectory(await exportJwk(kp.publicKey, 'key-1'))
-    const req = await buildSignedRequest(kp.privateKey, { keyid: 'key-1', alg: 'rsa-v1_5-sha256' })
+    mockDirectory(await exportJwk(kp.publicKey))
+    const req = await buildSignedRequest(kp.privateKey, { alg: 'rsa-v1_5-sha256' })
 
     const result = await new WebBotAuthVerifier({ directoryUrl: DIRECTORY_URL }).verify(req)
     expect(result.reason).toBe('unsupported_alg')
@@ -293,8 +331,8 @@ describe('WebBotAuthVerifier — failures', () => {
     const kp = await generateKeyPair()
     const other = await generateKeyPair()
     mockDirectory(
-      await exportJwk(kp.publicKey, 'key-1'),
-      await exportJwk(other.publicKey, 'key-2'),
+      await exportJwk(kp.publicKey),
+      await exportJwk(other.publicKey),
     )
     const req = await buildSignedRequest(kp.privateKey, { keyid: 'missing' })
 
@@ -305,7 +343,7 @@ describe('WebBotAuthVerifier — failures', () => {
   it('returns directory_error when the directory fetch fails', async () => {
     const kp = await generateKeyPair()
     mockDirectoryError()
-    const req = await buildSignedRequest(kp.privateKey, { keyid: 'key-1' })
+    const req = await buildSignedRequest(kp.privateKey)
 
     const result = await new WebBotAuthVerifier({ directoryUrl: DIRECTORY_URL }).verify(req)
     expect(result.reason).toBe('directory_error')
@@ -362,14 +400,13 @@ describe('parseSignatureInput / buildSignatureBase', () => {
 
 async function buildRouterVerifyRequest(
   privateKey: CryptoKey,
-  keyid: string,
 ): Promise<MiddlewareRequest & { body?: { challenge: unknown; answer: string; agentId?: string } }> {
   const { ImRobotVerifier } = await import('../src/server/verifier')
   const verifier = new ImRobotVerifier({ secret: SECRET })
   const challenge = await verifier.generate()
   const answer = solveChallenge(challenge)
 
-  const signed = await buildSignedRequest(privateKey, { keyid, url: '/imrobot/verify', method: 'POST' })
+  const signed = await buildSignedRequest(privateKey, { url: '/imrobot/verify', method: 'POST' })
   return {
     method: 'POST',
     url: '/imrobot/verify',
@@ -383,13 +420,13 @@ describe('createAgentRouter — Web Bot Auth integration', () => {
 
   it('stamps web_bot_auth_verified:true into the proof token', async () => {
     const kp = await generateKeyPair()
-    mockDirectory(await exportJwk(kp.publicKey, 'router-key'))
+    mockDirectory(await exportJwk(kp.publicKey))
 
     const router = createAgentRouter({
       secret: SECRET,
       webBotAuth: { directoryUrl: DIRECTORY_URL },
     })
-    const req = await buildRouterVerifyRequest(kp.privateKey, 'router-key')
+    const req = await buildRouterVerifyRequest(kp.privateKey)
     const res = createMockRes()
 
     await router.verify(req, res)
@@ -448,8 +485,8 @@ describe('verifyWebBotAuthSignature', () => {
 
   it('verifies without holding a verifier instance', async () => {
     const kp = await generateKeyPair()
-    mockDirectory(await exportJwk(kp.publicKey, 'key-1'))
-    const req = await buildSignedRequest(kp.privateKey, { keyid: 'key-1' })
+    mockDirectory(await exportJwk(kp.publicKey))
+    const req = await buildSignedRequest(kp.privateKey)
 
     const result = await verifyWebBotAuthSignature(req, { directoryUrl: DIRECTORY_URL })
     expect(result.verified).toBe(true)

@@ -56,6 +56,12 @@
       "import": "./dist/mcp/index.js",
       "require": "./dist/mcp/index.cjs"
     }
+,
+    "./agent": {
+      "types": "./dist/agent/index.d.ts",
+      "import": "./dist/agent/index.js",
+      "require": "./dist/agent/index.cjs"
+    }
   },
   "bin": {
     "imrobot": "./dist/cli/index.cjs"
