@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "imrobot"
-version = "0.9.0"
+version = "0.9.1"
 description = "Reverse-CAPTCHA for AI agents — Python SDK (solver, verifier, FastAPI middleware, LangChain/CrewAI/AutoGPT-friendly)."
 readme = "README.md"
 license = { text = "MIT" }
