@@ -7,11 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Found by a consumer smoke test of the published 0.8.0 (npm and PyPI) in throwaway projects.
+
+### Fixed
+
+- Proof tokens are now real RFC 7515 / RFC 7519 HS256 JWTs: the signature segment is base64url of the
+  32 raw HMAC bytes (43 chars). 0.8.0 encoded the hex string (86 chars), so `jose`, `jsonwebtoken` and
+  `PyJWT` rejected the tokens the docs said they accept. Both SDKs still verify the old form.
+  **Mixed deployments:** a verifier on 0.9.0 or earlier (JS or Python) rejects tokens issued by this version, so upgrade
+  every verifier before (or together with) the issuers.
+- `createVerifier({ analytics })` records generated / verified / failed outcomes. 0.8.0 ignored the option
+  (every `ChallengeOTelExporter` counter stayed at 0) and the README snippet did not type-check.
+- Svelte widget: mounting under Svelte 5 no longer fails with `effect_update_depth_exceeded`. The peer
+  range is now `svelte >=5.0.0` (the component uses runes; Svelte 3/4 never worked).
+- React widget: the README agent flow (`input.value = answer` plus an `input` event) now enables Verify;
+  React's `onChange` value tracker swallowed it.
+- `typesVersions` for every typed subpath, so `moduleResolution: "node"` (the tsconfig Next.js 15
+  generates) resolves `imrobot/server`, `imrobot/next`, `imrobot/hono` ... types.
+
+### Documentation
+
+- Combined `router.handler`: unmatched methods call `next()` when one is passed (Express: 404 from the
+  app), 405 only without `next`.
+- MCP: the `solve-challenge` token is a client-side receipt, not an `X-Agent-Proof` value; the flow to
+  get a proof token from the server is spelled out.
+- Web Component: the widget lives in an open shadow root; agents reach it via `widget.shadowRoot`.
+- Hono: the snippet declares `Variables` so `c.get("agentProof")` type-checks.
+- Operations table: `fnv1a_hash("test")` is `"afd071e5"` (was `"bc2c0be9"`).
+- Python README: the verifier and issuer methods are coroutines returning dicts.
+- This changelog: 0.8.0 did reach npm and PyPI on 2026-11-24 (the 0.9.0 note below said it never did).
+
 ## [0.9.0] - 2026-11-24
 
-0.8.0 was tagged and has a GitHub release, but it never reached npm or PyPI (both uploads were
-refused for credentials). 0.9.0 is the first npm release since 0.7.3, the first release of the
-Python SDK on PyPI, and contains everything listed under 0.8.0 below.
+0.8.0 was tagged and has a GitHub release; its first npm and PyPI uploads were refused for
+credentials, and it was published to both registries later, on 2026-11-24. 0.9.0 contains
+everything listed under 0.8.0 below.
 
 ### Added
 

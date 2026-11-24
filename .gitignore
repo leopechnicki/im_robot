@@ -15,6 +15,7 @@ leo-agents/
 
 # Vitest temp files
 vitest.config.ts.timestamp-*
+test/.svelte-compiled/
 
 # Python
 __pycache__/

@@ -2,10 +2,9 @@
   /**
    * Svelte 5 (runes) adapter for the imrobot widget.
    *
-   * Uses `$props`, `$state`, `$derived`, and `$effect` so the component
-   * works under Svelte 5's strict runes mode. Falls back to legacy mode
-   * automatically when consumed from a Svelte 4 codebase via `svelte`'s
-   * compatibility layer.
+   * Uses `$props`, `$state`, `$derived`, and `$effect`, so it needs
+   * Svelte 5 or later (runes). Svelte 3/4 cannot compile runes; the peer
+   * range says `svelte >=5.0.0`.
    */
   import { generateChallenge, verifyAnswer, createToken } from '../core/index'
   import { formatPipeline } from '../core/index'
@@ -26,7 +25,10 @@
   let status = $state('idle')
   let startTime = $state(Date.now())
   let remainingSeconds = $state(Math.ceil(challenge.ttl / 1000))
-  let countdownTimer = $state(null)
+  // Plain variable, not $state: the mount $effect calls startCountdown(),
+  // which reads and writes the timer. As $state that made the effect
+  // re-run itself (effect_update_depth_exceeded on every mount).
+  let countdownTimer = null
   let shielded = $state(false)
   let cleanupShield = null
 

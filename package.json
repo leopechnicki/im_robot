@@ -62,6 +62,37 @@
       "require": "./dist/agent/index.cjs"
     }
   },
+  "typesVersions": {
+    "*": {
+      "core": [
+        "./dist/core/index.d.ts"
+      ],
+      "react": [
+        "./dist/react/index.d.ts"
+      ],
+      "vue": [
+        "./dist/vue/index.d.ts"
+      ],
+      "web-component": [
+        "./dist/web-component/index.d.ts"
+      ],
+      "server": [
+        "./dist/server/index.d.ts"
+      ],
+      "next": [
+        "./dist/next/index.d.ts"
+      ],
+      "hono": [
+        "./dist/hono/index.d.ts"
+      ],
+      "mcp": [
+        "./dist/mcp/index.d.ts"
+      ],
+      "agent": [
+        "./dist/agent/index.d.ts"
+      ]
+    }
+  },
   "bin": {
     "imrobot": "./dist/cli/index.cjs"
   },
@@ -123,7 +154,7 @@
     "react": ">=17.0.0",
     "react-dom": ">=17.0.0",
     "vue": ">=3.0.0",
-    "svelte": ">=3.0.0",
+    "svelte": ">=5.0.0",
     "ioredis": ">=5.0.0",
     "@opentelemetry/api": ">=1.0.0",
     "next": ">=13.0.0",

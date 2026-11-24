@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import React from 'react'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 import { ImRobot } from '../src/react/Botcha'
 import { solveChallenge } from '../src/core/solver'
 import type { Challenge } from '../src/core/types'
@@ -91,5 +91,26 @@ describe('React ImRobot Component', () => {
     const brand = container.querySelector('.imrobot-brand')
     expect(brand).toBeTruthy()
     expect(brand?.textContent).toBe('imrobot')
+  })
+
+  // Consumer smoke 2026-11-24: the README "How agents interact" flow sets
+  // input.value and dispatches a bare 'input' event. React's onChange value
+  // tracker swallowed that, so the Verify button stayed disabled.
+  it('accepts the README agent flow (input.value + input event + click)', async () => {
+    const onVerified = vi.fn()
+    const { container } = render(<ImRobot onVerified={onVerified} />)
+    const el = container.querySelector('[data-imrobot-challenge]') as HTMLElement
+    const challenge = JSON.parse(el.dataset.imrobotChallenge!) as Challenge
+    const input = el.querySelector('input') as HTMLInputElement
+    await act(async () => {
+      input.value = solveChallenge(challenge)
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    const button = el.querySelector('button') as HTMLButtonElement
+    expect(button.disabled).toBe(false)
+    await act(async () => {
+      button.click()
+    })
+    expect(onVerified).toHaveBeenCalledTimes(1)
   })
 })

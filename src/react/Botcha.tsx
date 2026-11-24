@@ -138,6 +138,10 @@ export function ImRobot({
               type="text"
               value={answer}
               onChange={(e) => setAnswer(e.target.value)}
+              // Agents (README "How agents interact") set input.value and fire
+              // a bare 'input' event; React's onChange ignores that because its
+              // value tracker already holds the new value. onInput still fires.
+              onInput={(e) => setAnswer(e.currentTarget.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleVerify()}
               placeholder="Enter pipeline result..."
               aria-label="Challenge answer"

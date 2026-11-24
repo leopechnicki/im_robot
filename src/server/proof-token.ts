@@ -1,5 +1,5 @@
 import type { AgentProofToken, Difficulty, SerializedProofToken } from '../core/types'
-import { hmacSign, hmacVerify } from '../core/hmac'
+import { hmacSign, constantTimeEqual } from '../core/hmac'
 import { fnv1a } from '../core/hash'
 
 /**
@@ -36,6 +36,55 @@ function base64urlDecode(input: string): string {
   } catch {
     throw new Error('base64urlDecode: invalid base64url input')
   }
+}
+
+/** Base64url (no padding) of raw bytes. */
+function bytesToBase64url(bytes: Uint8Array): string {
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(bytes).toString('base64url')
+  }
+  let binary = ''
+  bytes.forEach((b) => (binary += String.fromCharCode(b)))
+  return btoa(binary).replace(/[+]/g, '-').replace(/[/]/g, '_').replace(/=+$/, '')
+}
+
+/** Raw bytes of a base64url string; throws on invalid input. */
+function base64urlToBytes(input: string): Uint8Array {
+  if (!/^[A-Za-z0-9_-]*$/.test(input)) {
+    throw new Error('base64urlToBytes: invalid base64url input')
+  }
+  const padded = input + '='.repeat((4 - (input.length % 4)) % 4)
+  if (typeof Buffer !== 'undefined') {
+    return new Uint8Array(Buffer.from(padded, 'base64url'))
+  }
+  const binary = atob(padded.replace(/-/g, '+').replace(/_/g, '/'))
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return bytes
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2)
+  for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
+  return bytes
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+/**
+ * Turn a JWS signature segment into the 64-char hex HMAC it carries.
+ * RFC 7515 form: base64url of the 32 raw HMAC bytes (what imrobot issues
+ * in releases after 0.9.0, and what jose / PyJWT / jsonwebtoken produce).
+ * Legacy form (imrobot <= 0.9.0): base64url of the 64-char hex string;
+ * still accepted so tokens issued by older servers keep verifying.
+ * Invalid UTF-8 in a legacy segment throws (-> `malformed`), as in Python.
+ */
+function signatureSegmentToHex(segment: string): string {
+  const bytes = base64urlToBytes(segment)
+  if (bytes.length === 32) return bytesToHex(bytes)
+  return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
 }
 
 /** Constraint-bounded clock skew tolerance for token exp/nbf checks. */
@@ -203,8 +252,9 @@ export class ProofTokenIssuer {
     const headerB64 = base64url(JSON.stringify(header))
     const payloadB64 = base64url(JSON.stringify(payload))
     const signingInput = `${headerB64}.${payloadB64}`
-    const signature = await hmacSign(this.secret, signingInput)
-    const signatureB64 = base64url(signature)
+    // RFC 7515 §5.1: the signature segment is base64url(raw HMAC bytes).
+    const signatureHex = await hmacSign(this.secret, signingInput)
+    const signatureB64 = bytesToBase64url(hexToBytes(signatureHex))
 
     return `${headerB64}.${payloadB64}.${signatureB64}`
   }
@@ -260,12 +310,13 @@ export class ProofTokenIssuer {
     const signingInput = `${headerB64}.${payloadB64}`
     let signature: string
     try {
-      signature = base64urlDecode(signatureB64)
+      signature = signatureSegmentToHex(signatureB64)
     } catch {
       return { valid: false, reason: 'malformed' }
     }
 
-    const signatureValid = await hmacVerify(candidateSecret, signingInput, signature)
+    const expected = await hmacSign(candidateSecret, signingInput)
+    const signatureValid = constantTimeEqual(expected, signature)
     if (!signatureValid) {
       return { valid: false, reason: 'invalid_signature', keyId: header.kid }
     }

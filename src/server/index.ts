@@ -1,4 +1,5 @@
 export { ImRobotVerifier, createVerifier } from './verifier'
+export type { VerifierConfig } from './verifier'
 export { TurnstileVerifier, verifyTurnstileToken } from './turnstile'
 export type { TurnstileConfig, TurnstileResult } from './turnstile'
 export {
