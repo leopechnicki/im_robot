@@ -131,18 +131,26 @@ function getOpsForDifficulty(difficulty: Difficulty) {
   }
 }
 
-function buildPipeline(seed: string, difficulty: Difficulty): Operation[] {
+/** Any UTF-16 surrogate: kept out of sha256 inputs so every runtime hashes the same bytes. */
+const SURROGATE = /[\uD800-\uDFFF]/
+
+function buildPipeline(seed: string, difficulty: Difficulty, sha256 = false): Operation[] {
   const { ops, count } = getOpsForDifficulty(difficulty)
   const numOps = randomInt(count[0], count[1])
   const pipeline: Operation[] = []
   let currentValue = seed
+  // With sha256 on, exactly one real SHA-256 step goes in at a random position.
+  const shaAt = sha256 ? randomInt(0, numOps - 1) : -1
 
   for (let i = 0; i < numOps; i++) {
-    const factory = pickRandom(ops)
-    const op = factory(currentValue)
+    const op: Operation =
+      i === shaAt && !SURROGATE.test(currentValue)
+        ? { op: 'sha256' }
+        : pickRandom(ops)(currentValue)
     pipeline.push(op)
     currentValue = executePipeline(currentValue, [op])
   }
+  if (sha256 && !pipeline.some((o) => o.op === 'sha256')) pipeline.push({ op: 'sha256' })
 
   return pipeline
 }
@@ -158,7 +166,7 @@ export function generateChallenge(config?: Partial<ImRobotConfig>, _depth = 0): 
   const nonce = randomHex(getNonceLength(difficulty))
   const seed = visibleSeed + nonce
 
-  const pipeline = buildPipeline(seed, difficulty)
+  const pipeline = buildPipeline(seed, difficulty, config?.sha256 === true)
 
   let answer: string
   try {

@@ -1,5 +1,6 @@
 import type { Operation } from './types'
 import { fnv1a } from './hash'
+import { sha256Hex } from './sha256'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const globalRef = globalThis as Record<string, any>
@@ -121,6 +122,10 @@ export function executeOperation(input: string, op: Operation): string {
     // fnv1a_cascade is the accurate name for the same operation as sha256_hash
     case 'fnv1a_cascade':
       return syncHash256(input)
+
+    // Real SHA-256 (FIPS 180-4) over the UTF-8 bytes, 64 lowercase hex chars.
+    case 'sha256':
+      return sha256Hex(input)
 
     case 'byte_xor': {
       const keyArr = op.key
@@ -260,6 +265,8 @@ export function formatOperation(op: Operation): string {
       return 'atbash()'
     case 'fnv1a_cascade':
       return 'fnv1a_cascade()'
+    case 'sha256':
+      return 'sha256()'
   }
 }
 
@@ -507,6 +514,14 @@ export function formatOperationNL(op: Operation): string {
         'Compute the FNV-1a cascade hash',
         'Hash the text through multiple FNV-1a rounds into 64 hex characters',
         'Produce a cascaded FNV-1a digest of the string',
+      ])
+
+    case 'sha256':
+      return pick([
+        'Compute the SHA-256 digest of the UTF-8 bytes, as 64 lowercase hex characters',
+        'Hash the text with SHA-256 (UTF-8 in, lowercase hex out)',
+        'Replace the string with its SHA-256 hex digest (UTF-8 encoding)',
+        'Take the real SHA-256 of the UTF-8 text and write it as lowercase hex',
       ])
   }
 }

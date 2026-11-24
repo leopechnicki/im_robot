@@ -96,9 +96,24 @@ The Python and JS SDKs share the exact same wire format:
 
 The `tests/test_interop.py` suite pins known JS reference outputs so any drift breaks CI.
 
+Since 0.9 the challenge HMAC uses message format `v2`, which also signs the issue time and the seed. A challenge issued by a 0.8 server fails with `invalid_hmac` after the upgrade, until it expires. `tests/test_hardening.py` verifies a JS-issued `v2` challenge.
+
+## Timing gate and real SHA-256 (0.9)
+
+```python
+verifier = create_verifier(
+    secret,
+    min_solve_ms=50,     # faster: {"valid": False, "reason": "too_fast"}
+    max_solve_ms=8_000,  # slower: {"valid": False, "reason": "too_slow"}
+    sha256=True,         # one real SHA-256 step in every pipeline
+)
+```
+
+The solve time is measured on the server clock, from the signed issue time. Solvers older than 0.9 cannot run the `sha256` op, so turn it on once your agents run 0.9 or later. What these checks do and do not prove: [docs/THREAT_MODEL.md](https://github.com/leopechnicki/im_robot/blob/main/docs/THREAT_MODEL.md).
+
 ## Naming note — `sha256_hash`
 
-The operation `{ "op": "sha256_hash" }` is a **deprecated alias for `fnv1a_cascade`** (8 rounds of FNV-1a → 64 hex chars). It is **not** SHA-256. Kept for wire-format compatibility; new challenges use `fnv1a_cascade` or `hash_chain`. The Python SDK emits a `DeprecationWarning` when the alias is executed. See the main `README.md` for full context.
+The operation `{ "op": "sha256_hash" }` is a **deprecated alias for `fnv1a_cascade`** (8 rounds of FNV-1a → 64 hex chars). It is **not** SHA-256; the real one is the opt-in `{ "op": "sha256" }` (0.9). Kept for wire-format compatibility; new challenges use `fnv1a_cascade` or `hash_chain`. The Python SDK emits a `DeprecationWarning` when the alias is executed. See the main `README.md` for full context.
 
 ## Development
 

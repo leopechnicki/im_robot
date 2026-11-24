@@ -45,13 +45,21 @@ export async function hmacVerify(
   signature: string,
 ): Promise<boolean> {
   const expected = await hmacSign(secret, message)
+  return constantTimeEqual(expected, signature)
+}
 
-  // Pad the shorter string so we always compare `expected.length` characters.
-  // The length difference is folded into `result` to avoid short-circuiting.
-  const maxLen = Math.max(expected.length, signature.length)
-  let result = expected.length ^ signature.length // non-zero if lengths differ
+/**
+ * Compare two strings without an early exit: the time depends only on the
+ * longer length, never on where the first difference is. Use it for every
+ * secret-derived value (HMACs, verification hashes, expected answers).
+ */
+export function constantTimeEqual(a: string, b: string): boolean {
+  if (typeof a !== 'string' || typeof b !== 'string') return false
+  const maxLen = Math.max(a.length, b.length)
+  let result = a.length ^ b.length // non-zero if lengths differ
   for (let i = 0; i < maxLen; i++) {
-    result |= (expected.charCodeAt(i) || 0) ^ (signature.charCodeAt(i) || 0)
+    // charCodeAt past the end is NaN; `| 0` folds it to 0 without a branch.
+    result |= (a.charCodeAt(i) | 0) ^ (b.charCodeAt(i) | 0)
   }
   return result === 0
 }

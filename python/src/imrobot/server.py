@@ -40,10 +40,19 @@ def hmac_sign(secret: str, message: str) -> str:
     return mac.hexdigest()
 
 
+def constant_time_equal(a: str, b: str) -> bool:
+    """Compare two strings in constant time (any characters, not only ASCII)."""
+    if not isinstance(a, str) or not isinstance(b, str):
+        return False
+    return hmac.compare_digest(
+        a.encode("utf-8", "surrogatepass"), b.encode("utf-8", "surrogatepass")
+    )
+
+
 def hmac_verify(secret: str, message: str, signature: str) -> bool:
     """Constant-time HMAC verification — matches JS ``hmacVerify``."""
     expected = hmac_sign(secret, message)
-    return hmac.compare_digest(expected, signature)
+    return constant_time_equal(expected, signature)
 
 
 def sha256_hex(message: str) -> str:
@@ -158,16 +167,26 @@ def _factories_for(difficulty: Difficulty) -> tuple[list[Any], tuple[int, int]]:
     return _hard_factories(), (5, 7)
 
 
-def _build_pipeline(seed: str, difficulty: Difficulty) -> list[Operation]:
+def _has_surrogate(text: str) -> bool:
+    return any(0xD800 <= ord(ch) <= 0xDFFF for ch in text)
+
+
+def _build_pipeline(seed: str, difficulty: Difficulty, sha256: bool = False) -> list[Operation]:
     factories, (lo, hi) = _factories_for(difficulty)
     num_ops = _random_int(lo, hi)
     pipeline: list[Operation] = []
     current = seed
-    for _ in range(num_ops):
-        factory = _pick(factories)
-        op = factory(current)
+    # With sha256 on, exactly one real SHA-256 step goes in at a random position.
+    sha_at = _random_int(0, num_ops - 1) if sha256 else -1
+    for i in range(num_ops):
+        if i == sha_at and not _has_surrogate(current):
+            op: Operation = {"op": "sha256"}
+        else:
+            op = _pick(factories)(current)
         pipeline.append(op)
         current = execute_pipeline(current, [op])
+    if sha256 and not any(o["op"] == "sha256" for o in pipeline):
+        pipeline.append({"op": "sha256"})
     return pipeline
 
 
@@ -175,20 +194,22 @@ def _now_ms() -> int:
     return int(time.time() * 1000)
 
 
-def _generate_challenge(difficulty: Difficulty, ttl: Optional[int], _depth: int = 0) -> Challenge:
+def _generate_challenge(
+    difficulty: Difficulty, ttl: Optional[int], _depth: int = 0, sha256: bool = False
+) -> Challenge:
     if _depth > 10:
         raise RuntimeError("Failed to generate valid challenge")
     ttl_ms = ttl if ttl is not None else _default_ttl_ms(difficulty)
     visible_seed = _random_hex(16)
     nonce = _random_hex(_nonce_length(difficulty))
     seed = visible_seed + nonce
-    pipeline = _build_pipeline(seed, difficulty)
+    pipeline = _build_pipeline(seed, difficulty, sha256)
     try:
         answer = execute_pipeline(seed, pipeline)
     except Exception:
-        return _generate_challenge(difficulty, ttl, _depth + 1)
+        return _generate_challenge(difficulty, ttl, _depth + 1, sha256)
     if not answer or len(answer) == 0 or len(answer) > 10_000:
-        return _generate_challenge(difficulty, ttl, _depth + 1)
+        return _generate_challenge(difficulty, ttl, _depth + 1, sha256)
     challenge_id = _random_hex(16)
     verification = fnv1a(f"{answer}:{challenge_id}")
     return {
@@ -250,7 +271,9 @@ class InMemoryReplayGuard(ChallengeReplayGuard):
 
 class VerifyResult(TypedDict, total=False):
     valid: bool
-    reason: Literal["expired", "invalid_hmac", "wrong_answer", "tampered", "replay"]
+    reason: Literal[
+        "expired", "invalid_hmac", "wrong_answer", "tampered", "replay", "too_fast", "too_slow"
+    ]
     elapsed: int
     suspicious: bool
 
@@ -281,9 +304,23 @@ class ImRobotVerifier:
         difficulty: Difficulty = "medium",
         ttl: Optional[int] = None,
         replay_guard: Optional[ChallengeReplayGuard] = None,
+        sha256: bool = False,
+        min_solve_ms: int = 0,
+        max_solve_ms: Optional[int] = None,
     ) -> None:
+        """``sha256``: put one real SHA-256 step in every pipeline (solvers older
+        than 0.9 cannot run it). ``min_solve_ms`` / ``max_solve_ms``: timing gate,
+        measured on the server clock from the HMAC-signed issue time.
+        """
         if not secret or len(secret.strip()) < 16:
             raise ValueError("ImRobotVerifier: secret must be at least 16 non-whitespace characters")
+        if min_solve_ms < 0:
+            raise ValueError("ImRobotVerifier: min_solve_ms must be >= 0")
+        if max_solve_ms is not None and max_solve_ms <= min_solve_ms:
+            raise ValueError("ImRobotVerifier: max_solve_ms must be greater than min_solve_ms")
+        self._sha256 = sha256
+        self._min_solve_ms = min_solve_ms
+        self._max_solve_ms = max_solve_ms
         if difficulty not in SUPPORTED_DIFFICULTIES:
             raise ValueError(f"ImRobotVerifier: difficulty must be one of {SUPPORTED_DIFFICULTIES}")
         self._secret = secret
@@ -291,18 +328,24 @@ class ImRobotVerifier:
         self._ttl = ttl
         self._replay_guard = replay_guard
 
-    def _build_signature_message(
-        self,
-        challenge_id: str,
-        verification: str,
-        expires_at: int,
-        difficulty: Difficulty,
-        pipeline: Optional[list[Operation]] = None,
-    ) -> str:
-        base = f"{challenge_id}:{verification}:{expires_at}:{difficulty}"
-        if pipeline is None:
-            return base
-        return f"{base}:{_canonical_pipeline_json(pipeline)}"
+    def _build_signature_message(self, c: Any, expires_at: int) -> str:
+        """HMAC message format v2 (imrobot 0.9), identical to the JS verifier.
+
+        Covers every field verify() trusts: issue time (timing gate), seed and
+        pipeline (answer re-execution), expiry and difficulty.
+        """
+        return ":".join(
+            [
+                "v2",
+                str(c["id"]),
+                str(c["verification"]),
+                str(expires_at),
+                str(c["difficulty"]),
+                str(c["timestamp"]),
+                str(c["seed"]),
+                _canonical_pipeline_json(c["pipeline"]),
+            ]
+        )
 
     async def generate(
         self,
@@ -312,15 +355,9 @@ class ImRobotVerifier:
     ) -> SignedChallenge:
         chosen_difficulty = difficulty or self._difficulty
         chosen_ttl = ttl if ttl is not None else self._ttl
-        challenge = _generate_challenge(chosen_difficulty, chosen_ttl)
+        challenge = _generate_challenge(chosen_difficulty, chosen_ttl, sha256=self._sha256)
         expires_at = challenge["timestamp"] + challenge["ttl"]
-        message = self._build_signature_message(
-            challenge["id"],
-            challenge["verification"],
-            expires_at,
-            challenge["difficulty"],
-            challenge["pipeline"],
-        )
+        message = self._build_signature_message(challenge, expires_at)
         hmac_hex = hmac_sign(self._secret, message)
         signed: SignedChallenge = {
             **challenge,  # type: ignore[misc]
@@ -331,14 +368,13 @@ class ImRobotVerifier:
 
     async def verify(self, challenge: SignedChallenge, answer: str) -> VerifyResult:
         # 1. HMAC — challenge not tampered
-        message = self._build_signature_message(
-            challenge["id"],
-            challenge["verification"],
-            challenge["expiresAt"],
-            challenge["difficulty"],
-            challenge["pipeline"],
-        )
-        if not hmac_verify(self._secret, message, challenge["hmac"]):
+        try:
+            message = self._build_signature_message(challenge, challenge["expiresAt"])
+        except (KeyError, TypeError, ValueError):
+            return {"valid": False, "reason": "invalid_hmac"}
+        if not isinstance(answer, str) or not hmac_verify(
+            self._secret, message, challenge.get("hmac")  # type: ignore[arg-type]
+        ):
             return {"valid": False, "reason": "invalid_hmac"}
 
         # 2. Expiration
@@ -346,9 +382,16 @@ class ImRobotVerifier:
         if now > challenge["expiresAt"]:
             return {"valid": False, "reason": "expired"}
 
-        # 3. Fast verification hash (HMAC-protected)
+        # 3. Timing gate, server clock against the HMAC-signed issue time.
+        elapsed = now - challenge["timestamp"]
+        if elapsed < self._min_solve_ms:
+            return {"valid": False, "reason": "too_fast", "elapsed": elapsed}
+        if self._max_solve_ms is not None and elapsed > self._max_solve_ms:
+            return {"valid": False, "reason": "too_slow", "elapsed": elapsed}
+
+        # 4. Fast verification hash (HMAC-protected), constant time
         expected_verification = fnv1a(f"{answer}:{challenge['id']}")
-        if expected_verification != challenge["verification"]:
+        if not constant_time_equal(expected_verification, challenge["verification"]):
             return {"valid": False, "reason": "wrong_answer"}
 
         # 4. Re-execute pipeline
@@ -356,7 +399,7 @@ class ImRobotVerifier:
             expected_answer = execute_pipeline(challenge["seed"], challenge["pipeline"])
         except Exception:
             return {"valid": False, "reason": "tampered"}
-        if answer != expected_answer:
+        if not constant_time_equal(answer, expected_answer):
             return {"valid": False, "reason": "tampered"}
 
         # 5. Replay
@@ -365,7 +408,6 @@ class ImRobotVerifier:
             if not allowed:
                 return {"valid": False, "reason": "replay"}
 
-        elapsed = now - challenge["timestamp"]
         return {
             "valid": True,
             "elapsed": elapsed,
@@ -583,9 +625,20 @@ def create_verifier(
     difficulty: Difficulty = "medium",
     ttl: Optional[int] = None,
     replay_guard: Optional[ChallengeReplayGuard] = None,
+    sha256: bool = False,
+    min_solve_ms: int = 0,
+    max_solve_ms: Optional[int] = None,
 ) -> ImRobotVerifier:
     """Convenience wrapper matching the JS ``createVerifier`` factory."""
-    return ImRobotVerifier(secret, difficulty=difficulty, ttl=ttl, replay_guard=replay_guard)
+    return ImRobotVerifier(
+        secret,
+        difficulty=difficulty,
+        ttl=ttl,
+        replay_guard=replay_guard,
+        sha256=sha256,
+        min_solve_ms=min_solve_ms,
+        max_solve_ms=max_solve_ms,
+    )
 
 
 def create_token_issuer(
