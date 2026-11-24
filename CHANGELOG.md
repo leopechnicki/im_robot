@@ -7,7 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Found by a consumer smoke test of the published 0.8.0 (npm and PyPI) in throwaway projects.
+## [0.9.1] - 2026-11-24
+
+0.9.0 was tagged and has a GitHub release, but never reached npm or PyPI: its publish ran before
+the registries' trusted publishers were set up (npm fell back to a token that needed a one-time
+password, PyPI had no publisher). 0.9.1 is the first 0.9.x on both registries and contains everything
+listed under 0.9.0 below.
+
+New in 0.9.1, found by a consumer smoke test of the published 0.8.0 (npm and PyPI) in throwaway projects.
 
 ### Fixed
 

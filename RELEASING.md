@@ -20,7 +20,7 @@ under the same version number.
    (Actions -> Auto Release (Friday) -> Run workflow). It runs
    `node scripts/release-plan.mjs plan` and then:
    - creates tag `vX.Y.Z` + the GitHub release (notes from the CHANGELOG section),
-   - publishes to npm (`publish.yml`, with `--provenance`) and checks that npm serves the version,
+   - dispatches **Publish to npm** (`publish.yml`, trusted publishing, `--provenance`) and waits until npm serves the version,
    - pushes tag `py-vX.Y.Z` on the same commit, which starts **Publish Python SDK**
      (`publish-python.yml`, PyPI trusted publishing) and checks that PyPI serves the version,
    - opens the `chore: bump version to X.Y.(Z+1)` PR for the next cycle.
@@ -40,15 +40,15 @@ A tag that exists without its npm or PyPI upload is finished by the next run.
 
 ## One-time registry setup
 
-- **npm**: the `NPM_TOKEN` repo secret (granular token with publish rights on
-  `imrobot`). npm granular write tokens expire; when a publish fails with E401/E403,
-  either issue a new token, or switch to npm trusted publishing: npmjs.com ->
-  `imrobot` -> Settings -> Trusted publishing -> GitHub Actions, repository
-  `leopechnicki/im_robot`, workflow `auto-release.yml` (the workflow that calls
-  `publish.yml`; npm validates the calling workflow's filename, per npm's
-  trusted-publisher docs, so a manual run of `publish.yml` on its own would then
-  still need `NPM_TOKEN`). `publish.yml` already runs npm >= 11.5.1 and has
-  `id-token: write`, so no code change is needed.
+- **npm** (trusted publishing, no token): npmjs.com -> `imrobot` -> Settings ->
+  Trusted publishing -> GitHub Actions, repository `leopechnicki/im_robot`, workflow
+  `publish.yml`. npm matches the filename of the TOP-LEVEL workflow, so `publish.yml`
+  must never become a reusable workflow again: Auto Release dispatches it
+  (`gh workflow run publish.yml`) and waits until npm serves the version. When it
+  was called with `workflow_call` the token said `auto-release.yml`, npm fell back
+  to `NPM_TOKEN`, and the v0.9.0 publish died with EOTP (run 45456381801).
+  `NPM_TOKEN` is only a fallback and needs a one-time password, so it cannot
+  publish from CI.
 - **PyPI** (trusted publishing, no token): pypi.org -> Your account -> Publishing ->
   add a (pending) GitHub publisher: project `imrobot`, owner `leopechnicki`,
   repository `im_robot`, workflow `publish-python.yml`, environment `pypi`.

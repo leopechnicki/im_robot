@@ -1,11 +1,18 @@
 name: Publish to npm
 
-# Called by auto-release.yml (workflow_call) or run by hand (workflow_dispatch).
+# Run by hand (workflow_dispatch) or dispatched by auto-release.yml.
 #
 # It used to ALSO listen to `release: published`. The release is created with
 # the release App's token, which does start workflow runs, so every release
 # published twice: the release-event run shipped it and the workflow_call run
 # then failed with E403 (run 36708042343, v0.7.3). One trigger path now.
+#
+# It is NOT a reusable workflow (workflow_call) any more. npm trusted publishing
+# checks the filename of the TOP-LEVEL workflow: called from auto-release.yml,
+# the OIDC token says auto-release.yml, which does not match the npm trusted
+# publisher (publish.yml), so npm fell back to NPM_TOKEN and refused it with
+# EOTP (v0.9.0, run 45456381801). auto-release.yml now dispatches this workflow,
+# so the publish always runs as publish.yml.
 
 on:
   workflow_dispatch:
@@ -14,17 +21,9 @@ on:
         description: 'Git tag to publish (e.g. v0.8.0). Defaults to the selected ref.'
         required: false
         default: ''
-  workflow_call:
-    inputs:
-      tag:
-        description: 'Git tag to publish'
-        required: false
-        type: string
-        default: ''
       version:
-        description: 'Version expected on npm afterwards (verified)'
+        description: 'Version expected on npm afterwards (verified). Defaults to package.json.'
         required: false
-        type: string
         default: ''
 
 env:
