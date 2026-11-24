@@ -34,6 +34,7 @@ from __future__ import annotations
 import asyncio
 import http.client
 import json
+import math
 import socket
 import time
 import urllib.error
@@ -293,7 +294,12 @@ def _too_big(what: str) -> GateError:
 
 
 def _count(value: Any, what: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or value != int(value):
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(value)  # json.loads accepts Infinity and NaN
+        or value != int(value)
+    ):
         raise _too_big(f"{what} is not a whole number")
     return int(value)
 

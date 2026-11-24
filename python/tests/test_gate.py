@@ -199,6 +199,14 @@ def test_hostile_pipeline_refused(site: Site, pipeline: list[Any]) -> None:
     assert time.monotonic() - t0 < 2.0
 
 
+@pytest.mark.parametrize("literal", ["Infinity", "-Infinity", "NaN", "1e400"])
+def test_non_finite_counts_are_refused(literal: str) -> None:
+    text = '{"id":"x","seed":"ab","pipeline":[{"op":"repeat","times":%s}]}' % literal
+    with pytest.raises(GateError) as e:
+        solve_challenge_input(text)
+    assert e.value.code == "unsupported_challenge"
+
+
 def test_real_pipelines_fit_the_limits() -> None:
     from imrobot import ImRobotVerifier
     from imrobot.core import solve_challenge

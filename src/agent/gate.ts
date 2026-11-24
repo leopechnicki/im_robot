@@ -193,7 +193,12 @@ async function readJson(t: Timed, what: string): Promise<unknown> {
     }
     text += decoder.decode()
   } else {
-    text = await beforeDeadline(t, res.text())
+    try {
+      text = await beforeDeadline(t, res.text())
+    } catch (err) {
+      t.abort()
+      throw err
+    }
     if (text.length > MAX_BODY_BYTES)
       throw new GateError('bad_response', `${what}: response too large`)
   }
