@@ -187,6 +187,7 @@
     }
   },
   "devDependencies": {
+    "@types/node": "^20.19.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@vitest/coverage-v8": "^4.1.12",
