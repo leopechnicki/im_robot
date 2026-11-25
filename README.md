@@ -11,6 +11,7 @@
 [![zero dependencies](https://img.shields.io/badge/dependencies-0-22c55e?style=flat-square)](https://www.npmjs.com/package/imrobot)
 [![coverage](https://img.shields.io/codecov/c/github/leopechnicki/im_robot?style=flat-square&color=f59e0b&logo=codecov&logoColor=white)](https://codecov.io/gh/leopechnicki/im_robot)
 [![CI](https://img.shields.io/github/actions/workflow/status/leopechnicki/im_robot/ci.yml?branch=main&style=flat-square&label=CI&logo=github)](https://github.com/leopechnicki/im_robot/actions/workflows/ci.yml)
+[![imrobot MCP server – quality and maintenance score on Glama](https://glama.ai/mcp/servers/leopechnicki/im_robot/badges/score.svg)](https://glama.ai/mcp/servers/leopechnicki/im_robot)
 
 [Live Demo](https://imrobot.vercel.app) · [npm](https://www.npmjs.com/package/imrobot) · [Dev.to Article](https://dev.to/leo_pechnicki/why-i-built-a-captcha-that-only-bots-can-solve-30np)
 
@@ -942,6 +943,8 @@ Try it locally: `npx tsx examples/demo-site.ts`, then
 ## MCP server (Model Context Protocol)
 
 imrobot ships a native MCP server that lets AI agents auto-discover and complete verification challenges without any custom integration code. Agents call the tools directly; no HTTP endpoints required.
+
+[![imrobot MCP server – quality and maintenance score on Glama](https://glama.ai/mcp/servers/leopechnicki/im_robot/badges/card.svg)](https://glama.ai/mcp/servers/leopechnicki/im_robot)
 
 ```ts
 import { createMCPServer } from 'imrobot/mcp'
